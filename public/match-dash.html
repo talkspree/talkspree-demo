@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interest Dash</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+
+        #gameCanvas {
+            display: block;
+            margin: 0;
+            background: #ffffff;
+            image-rendering: pixelated;
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+        }
+
+        #muteButton {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 3px solid #333;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.3s;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        #muteButton:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: scale(1.1);
+        }
+
+        #muteButton:active {
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body>
+    <button id="muteButton" title="Toggle Sound">🔊</button>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+    (function() {
+        'use strict';
+
+        const CONFIG = {
+            FPS: 60,
+            GRAVITY: 0.8,
+            JUMP_VELOCITY: -12,
+            SPEED_INCREMENT: 0.002,
+            MIN_SPEED: 7,
+            MAX_SPEED: 15,
+            OBSTACLE_GAP_MIN: 500,
+            OBSTACLE_GAP_MAX: 800,
+            PLAYER_WIDTH: 50,
+            PLAYER_HEIGHT: 60,
+            GROUND_HEIGHT: 20
+        };
+
+        const KEYS = {
+            SPACE: 32,
+            UP: 38,
+            W: 87
+        };
+
+        // Audio Context for sound effects
+        class AudioManager {
+            constructor() {
+                this.audioContext = null;
+                this.enabled = true;
+                this.muted = false;
+                this.initAudio();
+                this.setupMuteButton();
+            }
+
+            initAudio() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch(e) {
+                    this.enabled = false;
+                }
+            }
+
+            setupMuteButton() {
+                const muteBtn = document.getElementById('muteButton');
+                muteBtn.addEventListener('click', () => {
+                    this.toggleMute();
+                });
+            }
+
+            toggleMute() {
+                this.muted = !this.muted;
+                const muteBtn = document.getElementById('muteButton');
+                muteBtn.textContent = this.muted ? '🔇' : '🔊';
+            }
+
+            playJump() {
+                if (!this.enabled || !this.audioContext || this.muted) return;
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                oscillator.frequency.value = 500;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, this.audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+                
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + 0.1);
+            }
+
+            playScore() {
+                if (!this.enabled || !this.audioContext || this.muted) return;
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'square';
+                
+                gainNode.gain.setValueAtTime(0.2, this.audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.15);
+                
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + 0.15);
+            }
+
+            playCrash() {
+                if (!this.enabled || !this.audioContext || this.muted) return;
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(300, this.audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.3);
+                oscillator.type = 'sawtooth';
+                
+                gainNode.gain.setValueAtTime(0.5, this.audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+                
+                oscillator.start(this.audioContext.currentTime);
+                oscillator.stop(this.audioContext.currentTime + 0.3);
+            }
+
+            playMilestone() {
+                if (!this.enabled || !this.audioContext || this.muted) return;
+                const frequencies = [523, 659, 784];
+                frequencies.forEach((freq, index) => {
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    oscillator.frequency.value = freq;
+                    oscillator.type = 'sine';
+                    
+                    const startTime = this.audioContext.currentTime + index * 0.1;
+                    gainNode.gain.setValueAtTime(0.2, startTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + 0.2);
+                    
+                    oscillator.start(startTime);
+                    oscillator.stop(startTime + 0.2);
+                });
+            }
+        }
+
+        class GameEngine {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.setupCanvas();
+                
+                this.audioManager = new AudioManager();
+                this.gameStarted = false;
+                this.gameOver = false;
+                this.score = 0;
+                this.distance = 0;
+                this.highScore = parseInt(localStorage.getItem('communityRunnerHS')) || 0;
+                this.speed = CONFIG.MIN_SPEED;
+                this.frameCount = 0;
+                this.nextObstacleDistance = CONFIG.OBSTACLE_GAP_MIN;
+                this.lastObstacleType = null;
+                
+                this.player = new CasualPerson(this);
+                this.obstacles = [];
+                this.clouds = [];
+                this.ground = new CommunityGround(this);
+                
+                this.initClouds();
+                this.bindEvents();
+                this.animate();
+            }
+
+            setupCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                window.addEventListener('resize', () => {
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                    this.width = this.canvas.width;
+                    this.height = this.canvas.height;
+                    this.player.groundY = this.height - CONFIG.GROUND_HEIGHT - this.player.height;
+                    this.ground.y = this.height - CONFIG.GROUND_HEIGHT;
+                });
+            }
+
+            bindEvents() {
+                document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                this.canvas.addEventListener('touchstart', (e) => this.handleTouch(e));
+                this.canvas.addEventListener('click', (e) => this.handleClick(e));
+            }
+
+            handleKeyDown(e) {
+                if (!this.gameStarted && (e.keyCode === KEYS.SPACE || e.keyCode === KEYS.UP)) {
+                    this.start();
+                    e.preventDefault();
+                }
+
+                if (this.gameStarted && !this.gameOver) {
+                    if (e.keyCode === KEYS.SPACE || e.keyCode === KEYS.UP || e.keyCode === KEYS.W) {
+                        this.player.jump();
+                        e.preventDefault();
+                    }
+                }
+
+                if (this.gameOver && (e.keyCode === KEYS.SPACE || e.keyCode === KEYS.UP)) {
+                    this.restart();
+                    e.preventDefault();
+                }
+            }
+
+            handleTouch(e) {
+                e.preventDefault();
+                if (!this.gameStarted) {
+                    this.start();
+                } else if (this.gameOver) {
+                    this.restart();
+                } else {
+                    this.player.jump();
+                }
+            }
+
+            handleClick(e) {
+                if (!this.gameStarted) {
+                    this.start();
+                } else if (this.gameOver) {
+                    this.restart();
+                } else {
+                    this.player.jump();
+                }
+            }
+
+            start() {
+                this.gameStarted = true;
+                this.player.startRunning();
+            }
+
+            restart() {
+                this.gameOver = false;
+                this.gameStarted = true;
+                this.score = 0;
+                this.distance = 0;
+                this.speed = CONFIG.MIN_SPEED;
+                this.obstacles = [];
+                this.nextObstacleDistance = CONFIG.OBSTACLE_GAP_MIN;
+                this.lastObstacleType = null;
+                this.player.reset();
+            }
+
+            initClouds() {
+                for (let i = 0; i < 6; i++) {
+                    this.clouds.push(new Cloud(this, Math.random() * this.width));
+                }
+            }
+
+            spawnObstacle() {
+                if (this.obstacles.length === 0 || 
+                    this.distance - this.obstacles[this.obstacles.length - 1].spawnDistance > this.nextObstacleDistance) {
+                    const newObstacle = new InterestObstacle(this, this.distance, this.lastObstacleType);
+                    this.obstacles.push(newObstacle);
+                    this.lastObstacleType = newObstacle.type;
+                    this.nextObstacleDistance = CONFIG.OBSTACLE_GAP_MIN + Math.random() * (CONFIG.OBSTACLE_GAP_MAX - CONFIG.OBSTACLE_GAP_MIN);
+                }
+            }
+
+            checkCollision() {
+                for (let obstacle of this.obstacles) {
+                    const playerBox = this.player.getHitbox();
+                    const obstacleBox = obstacle.getHitbox();
+                    
+                    if (playerBox.x < obstacleBox.x + obstacleBox.width &&
+                        playerBox.x + playerBox.width > obstacleBox.x &&
+                        playerBox.y < obstacleBox.y + obstacleBox.height &&
+                        playerBox.y + playerBox.height > obstacleBox.y) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            update() {
+                if (!this.gameStarted || this.gameOver) return;
+
+                this.frameCount++;
+                this.distance += this.speed;
+                this.player.update();
+                this.ground.update();
+
+                // Update obstacles
+                this.spawnObstacle();
+                for (let i = this.obstacles.length - 1; i >= 0; i--) {
+                    this.obstacles[i].update();
+                    if (this.obstacles[i].x + this.obstacles[i].width < 0) {
+                        this.obstacles.splice(i, 1);
+                        this.score += 10;
+                        this.audioManager.playScore();
+                        
+                        // Play milestone sound every 100 points
+                        if (this.score % 100 === 0) {
+                            this.audioManager.playMilestone();
+                        }
+                    }
+                }
+
+                // Update clouds
+                for (let cloud of this.clouds) {
+                    cloud.update();
+                }
+
+                // Increase speed
+                if (this.speed < CONFIG.MAX_SPEED) {
+                    this.speed += CONFIG.SPEED_INCREMENT;
+                }
+
+                // Check collision
+                if (this.checkCollision()) {
+                    this.endGame();
+                }
+            }
+
+            draw() {
+                // Clear with gradient background
+                const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+                gradient.addColorStop(0, '#e3f2fd');
+                gradient.addColorStop(1, '#ffffff');
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                
+                // Draw clouds
+                for (let cloud of this.clouds) {
+                    cloud.draw();
+                }
+
+                // Draw ground
+                this.ground.draw();
+
+                // Draw obstacles
+                for (let obstacle of this.obstacles) {
+                    obstacle.draw();
+                }
+
+                // Draw player
+                this.player.draw();
+
+                // Draw HUD - Score and High Score
+                this.drawHUD();
+
+                if (!this.gameStarted) {
+                    this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+                    
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = 'bold 48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('MATCH DASH', this.width / 2, this.height / 2 - 40);
+                    
+                    this.ctx.font = '24px Arial';
+                    this.ctx.fillText('Press SPACE or TAP to Start', this.width / 2, this.height / 2 + 20);
+                    
+                    this.ctx.font = '18px Arial';
+                    this.ctx.fillStyle = '#aaa';
+                    this.ctx.fillText('Jump over interests that don\'t match yours!', this.width / 2, this.height / 2 + 60);
+                }
+
+                if (this.gameOver) {
+                    this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+                    
+                    this.ctx.fillStyle = '#ff6b6b';
+                    this.ctx.font = 'bold 56px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('INTEREST MISMATCH!', this.width / 2, this.height / 2 - 40);
+                    
+                    this.ctx.fillStyle = '#fff';
+                    this.ctx.font = '32px Arial';
+                    this.ctx.fillText('Score: ' + this.score, this.width / 2, this.height / 2 + 20);
+                    
+                    if (this.score >= this.highScore) {
+                        this.ctx.fillStyle = '#ffd93d';
+                        this.ctx.font = 'bold 24px Arial';
+                        this.ctx.fillText('🏆 NEW HIGH SCORE! 🏆', this.width / 2, this.height / 2 + 60);
+                    }
+                    
+                    this.ctx.fillStyle = '#aaa';
+                    this.ctx.font = '20px Arial';
+                    this.ctx.fillText('Press SPACE or TAP to Restart', this.width / 2, this.height / 2 + 100);
+                }
+            }
+
+            drawHUD() {
+                const padding = 30;
+                const fontSize = 28;
+                
+                this.ctx.font = `bold ${fontSize}px 'Courier New', monospace`;
+                this.ctx.textAlign = 'right';
+                
+                // Current Score
+                this.ctx.fillStyle = '#2c3e50';
+                this.ctx.fillText('SCORE: ' + this.score.toString().padStart(5, '0'), 
+                    this.width - padding, padding + fontSize);
+                
+                // High Score
+                this.ctx.fillStyle = '#e74c3c';
+                this.ctx.fillText('BEST: ' + this.highScore.toString().padStart(5, '0'), 
+                    this.width - padding, padding + fontSize * 2 + 10);
+            }
+
+            animate() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.animate());
+            }
+
+            endGame() {
+                this.gameOver = true;
+                this.audioManager.playCrash();
+                if (this.score > this.highScore) {
+                    this.highScore = this.score;
+                    localStorage.setItem('communityRunnerHS', this.highScore);
+                }
+            }
+        }
+
+        class CasualPerson {
+            constructor(game) {
+                this.game = game;
+                this.width = CONFIG.PLAYER_WIDTH;
+                this.height = CONFIG.PLAYER_HEIGHT;
+                this.x = 100;
+                this.y = this.game.height - CONFIG.GROUND_HEIGHT - this.height;
+                this.groundY = this.y;
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.isRunning = false;
+                this.frame = 0;
+                this.frameTimer = 0;
+            }
+
+            startRunning() {
+                this.isRunning = true;
+            }
+
+            jump() {
+                if (!this.isJumping) {
+                    this.velocityY = CONFIG.JUMP_VELOCITY;
+                    this.isJumping = true;
+                    this.game.audioManager.playJump();
+                }
+            }
+
+            update() {
+                if (this.isJumping) {
+                    this.velocityY += CONFIG.GRAVITY;
+                    this.y += this.velocityY;
+
+                    if (this.y >= this.groundY) {
+                        this.y = this.groundY;
+                        this.velocityY = 0;
+                        this.isJumping = false;
+                    }
+                }
+
+                // Animation
+                if (this.isRunning && !this.game.gameOver) {
+                    this.frameTimer++;
+                    if (this.frameTimer > 4) {
+                        this.frame = (this.frame + 1) % 4;
+                        this.frameTimer = 0;
+                    }
+                }
+            }
+
+            draw() {
+                const ctx = this.game.ctx;
+                const x = this.x;
+                const y = this.y;
+                
+                // Head - skin tone
+                ctx.fillStyle = '#ffdbac';
+                ctx.fillRect(x + 15, y + 5, 20, 20);
+                
+                // Hair - neat ordinary haircut
+                ctx.fillStyle = '#3d2817';
+                ctx.fillRect(x + 15, y + 2, 20, 8);
+                ctx.fillRect(x + 13, y + 5, 3, 6);
+                ctx.fillRect(x + 34, y + 5, 3, 6);
+                
+                // Eyes
+                ctx.fillStyle = '#000';
+                ctx.fillRect(x + 19, y + 12, 3, 3);
+                ctx.fillRect(x + 28, y + 12, 3, 3);
+                
+                // Smile
+                ctx.fillRect(x + 21, y + 19, 8, 2);
+                
+                // Shirt - button-up casual (light blue)
+                ctx.fillStyle = '#5dade2';
+                ctx.fillRect(x + 10, y + 25, 30, 22);
+                
+                // Shirt collar
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(x + 15, y + 25, 5, 3);
+                ctx.fillRect(x + 30, y + 25, 5, 3);
+                
+                // Shirt buttons
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(x + 24, y + 28, 2, 2);
+                ctx.fillRect(x + 24, y + 33, 2, 2);
+                ctx.fillRect(x + 24, y + 38, 2, 2);
+                
+                // Arms
+                ctx.fillStyle = '#5dade2';
+                const armSwing = Math.sin(this.frame * Math.PI / 2) * 3;
+                ctx.fillRect(x + 5, y + 28 + armSwing, 5, 16);
+                ctx.fillRect(x + 40, y + 28 - armSwing, 5, 16);
+                
+                // Hands
+                ctx.fillStyle = '#ffdbac';
+                ctx.fillRect(x + 5, y + 43 + armSwing, 5, 5);
+                ctx.fillRect(x + 40, y + 43 - armSwing, 5, 5);
+                
+                // Chinos/Khakis
+                ctx.fillStyle = '#8b7355';
+                ctx.fillRect(x + 12, y + 47, 13, 8);
+                ctx.fillRect(x + 25, y + 47, 13, 8);
+                
+                // Belt
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(x + 12, y + 47, 26, 2);
+                ctx.fillStyle = '#ffd700';
+                ctx.fillRect(x + 23, y + 47, 4, 2);
+                
+                // Legs - animated running
+                const legPos = this.frame % 2 === 0 ? 0 : 4;
+                ctx.fillStyle = '#8b7355';
+                ctx.fillRect(x + 14, y + 55, 9, -legPos);
+                ctx.fillRect(x + 27, y + 55, 9, legPos);
+                
+                // Casual shoes
+                ctx.fillStyle = '#34495e';
+                ctx.fillRect(x + 12, y + 55, 11, 5);
+                ctx.fillRect(x + 25, y + 55 + legPos, 11, 5);
+                // Shoe soles
+                ctx.fillStyle = '#7f8c8d';
+                ctx.fillRect(x + 10, y + 58, 5, 2);
+                ctx.fillRect(x + 23 + legPos, y + 58 + legPos, 5, 2);
+            }
+
+            getHitbox() {
+                return {
+                    x: this.x + 10,
+                    y: this.y + 5,
+                    width: this.width - 20,
+                    height: this.height - 5
+                };
+            }
+
+            reset() {
+                this.y = this.groundY;
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.frame = 0;
+            }
+        }
+
+        class InterestObstacle {
+            constructor(game, spawnDistance, lastType) {
+                this.game = game;
+                this.spawnDistance = spawnDistance;
+                this.types = [
+                    { type: 'robot', width: 40, height: 45, name: '🤖 AI & Robotics' },
+                    { type: 'dna', width: 40, height: 45, name: '🧬 Biology' },
+                    { type: 'controller', width: 40, height: 45, name: '🎮 Gaming' },
+                    { type: 'easel', width: 40, height: 45, name: '🎨 Art' },
+                    { type: 'car', width: 40, height: 45, name: '🚗 Cars' },
+                    { type: 'books', width: 40, height: 45, name: '📖 Reading' },
+                    { type: 'shoe', width: 40, height: 45, name: '🏃 Running' },
+                    { type: 'dumbbell', width: 40, height: 45, name: '💪 Fitness' },
+                    { type: 'football', width: 40, height: 45, name: '⚽️ Football' },
+                    { type: 'guitar', width: 40, height: 45, name: '🎸 Music' },
+                    { type: 'suitcase', width: 40, height: 45, name: '✈️ Travel' },
+                    { type: 'popcorn', width: 40, height: 45, name: '🍿 Cinema' },
+                    { type: 'masks', width: 40, height: 45, name: '🎭 Theatre' },
+                    { type: 'yoga', width: 40, height: 45, name: '🧘 Yoga' },
+                    { type: 'pan', width: 40, height: 45, name: '🍳 Cooking' },
+                    { type: 'camera', width: 40, height: 45, name: '📷 Photography' },
+                    { type: 'telescope', width: 40, height: 45, name: '🔭 Astronomy' },
+                    { type: 'tent', width: 40, height: 45, name: '🏕️ Camping' },
+                    { type: 'dartboard', width: 40, height: 45, name: '🎯 Darts' },
+                    { type: 'puzzle', width: 40, height: 45, name: '🧩 Puzzles' }
+                ];
+                
+                // Filter out the last type to prevent consecutive duplicates
+                let availableTypes = this.types;
+                if (lastType) {
+                    availableTypes = this.types.filter(t => t.type !== lastType);
+                }
+                
+                const typeData = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+                this.type = typeData.type;
+                this.width = typeData.width;
+                this.height = typeData.height;
+                this.name = typeData.name;
+                this.x = this.game.width;
+                this.y = this.game.height - CONFIG.GROUND_HEIGHT - this.height;
+            }
+
+            update() {
+                this.x -= this.game.speed;
+            }
+
+            draw() {
+                const ctx = this.game.ctx;
+                const x = this.x;
+                const y = this.y;
+                
+                // Emoji map
+                const emojiMap = {
+                    'robot': '🤖',
+                    'dna': '🧬',
+                    'controller': '🎮',
+                    'easel': '🎨',
+                    'car': '🚗',
+                    'books': '📖',
+                    'shoe': '🏃',
+                    'dumbbell': '💪',
+                    'football': '⚽',
+                    'guitar': '🎸',
+                    'suitcase': '✈️',
+                    'popcorn': '🍿',
+                    'masks': '🎭',
+                    'yoga': '🧘',
+                    'pan': '🍳',
+                    'camera': '📷',
+                    'telescope': '🔭',
+                    'tent': '🏕️',
+                    'dartboard': '🎯',
+                    'puzzle': '🧩'
+                };
+                
+                // Draw emoji
+                ctx.font = '40px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(emojiMap[this.type] || '❓', x + this.width / 2, y + this.height);
+            }
+
+
+            getHitbox() {
+                return {
+                    x: this.x + 5,
+                    y: this.y + 5,
+                    width: this.width - 10,
+                    height: this.height - 10
+                };
+            }
+        }
+
+        class CommunityGround {
+            constructor(game) {
+                this.game = game;
+                this.y = this.game.height - CONFIG.GROUND_HEIGHT;
+                this.x = 0;
+            }
+
+            update() {
+                if (this.game.gameStarted && !this.game.gameOver) {
+                    this.x -= this.game.speed;
+                    if (this.x <= -50) {
+                        this.x = 0;
+                    }
+                }
+            }
+
+            draw() {
+                const ctx = this.game.ctx;
+                
+                // Ground base - park/outdoor path
+                ctx.fillStyle = '#a0826d';
+                ctx.fillRect(0, this.y, this.game.width, CONFIG.GROUND_HEIGHT);
+                
+                // Path pattern
+                ctx.fillStyle = '#8b6f47';
+                for (let i = 0; i < this.game.width + 50; i += 50) {
+                    const offset = (this.x + i) % 50;
+                    ctx.fillRect(i - offset, this.y + 2, 45, 3);
+                }
+                
+                // Path lines
+                ctx.fillStyle = '#d4a574';
+                for (let i = 0; i < this.game.width + 25; i += 25) {
+                    const offset = (this.x + i) % 25;
+                    ctx.fillRect(i - offset, this.y + 8, 1, CONFIG.GROUND_HEIGHT - 8);
+                }
+            }
+        }
+
+        class Cloud {
+            constructor(game, startX) {
+                this.game = game;
+                this.x = startX || this.game.width;
+                this.y = Math.random() * (this.game.height - 200) + 30;
+                this.width = 60 + Math.random() * 40;
+                this.height = 20 + Math.random() * 15;
+                this.speed = 0.3 + Math.random() * 0.4;
+            }
+
+            update() {
+                this.x -= this.speed;
+                if (this.x + this.width < 0) {
+                    this.x = this.game.width;
+                    this.y = Math.random() * (this.game.height - 200) + 30;
+                }
+            }
+
+            draw() {
+                const ctx = this.game.ctx;
+                ctx.fillStyle = 'rgba(230, 230, 230, 0.6)';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.height / 2, 0, Math.PI * 2);
+                ctx.arc(this.x + this.width / 3, this.y - 5, this.height / 1.5, 0, Math.PI * 2);
+                ctx.arc(this.x + this.width / 1.5, this.y, this.height / 1.8, 0, Math.PI * 2);
+                ctx.arc(this.x + this.width, this.y, this.height / 2.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Initialize game when page loads
+        window.addEventListener('load', () => {
+            new GameEngine('gameCanvas');
+        });
+
+    })();
+    </script>
+</body>
+</html>
+
