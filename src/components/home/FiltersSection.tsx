@@ -7,11 +7,17 @@ import { Badge } from '@/components/ui/badge';
 import { Pencil, Info } from 'lucide-react';
 import { CustomTopicsModal } from './CustomTopicsModal';
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useDevice } from '@/hooks/useDevice';
 import { sampleUserManager, SampleUser } from '@/data/sampleUsers';
 import { useProfileData } from '@/hooks/useProfileData';
 
@@ -21,7 +27,7 @@ type Duration = 10 | 15 | 30 | 0;
 
 export function FiltersSection() {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
+  const device = useDevice();
   const [role, setRole] = useState<Role>('random');
   const [similarity, setSimilarity] = useState(50);
   const [topic, setTopic] = useState<TopicPreset>('none');
@@ -161,41 +167,44 @@ export function FiltersSection() {
 
   const matchingCount = getMatchingUsersCount();
 
-  // Info icon component that works on both desktop (hover) and mobile (click)
+  // Info icon component - hoverable on desktop, clickable on mobile/tablet
   const InfoIcon = ({ content }: { content: string }) => {
-    if (isMobile) {
+    const isMobileOrTablet = device === 'mobile' || device === 'tablet';
+    
+    if (isMobileOrTablet) {
       return (
         <Popover>
           <PopoverTrigger asChild>
-            <button className="text-muted-foreground hover:text-foreground transition-colors">
-              <Info className="h-3.5 w-3.5" />
+            <button className="inline-flex items-center justify-center ml-1.5 hover:opacity-70 transition-opacity">
+              <Info className="h-3.5 w-3.5 text-muted-foreground" />
             </button>
           </PopoverTrigger>
-          <PopoverContent className="max-w-xs text-sm">
-            <p>{content}</p>
+          <PopoverContent className="w-64 text-sm p-3" side="top">
+            {content}
           </PopoverContent>
         </Popover>
       );
     }
     
     return (
-      <Popover>
-        <PopoverTrigger asChild>
-          <button className="text-muted-foreground hover:text-foreground transition-colors">
-            <Info className="h-3.5 w-3.5" />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button className="inline-flex items-center justify-center ml-1.5 hover:opacity-70 transition-opacity">
+            <Info className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
-        </PopoverTrigger>
-        <PopoverContent className="max-w-xs text-sm">
-          <p>{content}</p>
-        </PopoverContent>
-      </Popover>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="w-64 text-sm p-3">
+          {content}
+        </TooltipContent>
+      </Tooltip>
     );
   };
 
   return (
-    <div>
-      <Card className="shadow-apple-md border-2">
-        <CardContent className="p-8 space-y-6">
+    <TooltipProvider>
+      <div>
+        <Card className="shadow-apple-md border-2">
+          <CardContent className="p-8 space-y-6">
           <div>
             <h2 className="text-2xl font-semibold mb-6">
               Set your preferences to find the right match.
@@ -398,6 +407,7 @@ export function FiltersSection() {
           }
         }}
       />
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }

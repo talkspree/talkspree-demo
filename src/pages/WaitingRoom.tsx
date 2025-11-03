@@ -107,10 +107,10 @@ export default function WaitingRoom() {
 
   return (
     <AdaptiveLayout>
-      <div className="h-screen flex items-center justify-center p-4 overflow-hidden">
-        <Card className="max-w-4xl w-full h-[95vh] flex flex-col p-4 md:p-6 glass shadow-apple-lg">
+      <div className={`h-screen flex items-center ${isMobile ? 'justify-center' : 'justify-center'} p-4 overflow-hidden`}>
+        <Card className={`max-w-4xl w-full ${isMobile ? 'flex flex-col justify-center py-8' : 'h-[95vh] flex flex-col'} p-4 md:p-6 glass shadow-apple-lg`}>
           {/* Header */}
-          <div className="text-center mb-4 flex-shrink-0">
+          <div className={`text-center ${isMobile ? 'mb-6' : 'mb-4'} flex-shrink-0`}>
             <div className="mx-auto w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-primary flex items-center justify-center mb-3 animate-pulse">
               <Loader2 className="h-8 w-8 md:h-10 md:w-10 text-white animate-spin" />
             </div>
@@ -121,7 +121,7 @@ export default function WaitingRoom() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4 flex-shrink-0">
+          <div className={`grid grid-cols-3 gap-2 md:gap-4 ${isMobile ? 'mb-6' : 'mb-4'} flex-shrink-0`}>
             <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
               <Users className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-primary" />
               <div className="text-lg md:text-2xl font-bold">{matchingUsers}</div>
@@ -160,7 +160,7 @@ export default function WaitingRoom() {
           )}
 
           {/* Cancel Button */}
-          <div className="flex justify-center flex-shrink-0">
+          <div className={`flex justify-center flex-shrink-0 ${isMobile ? 'mt-6' : ''}`}>
             <Button
               variant="destructive"
               onClick={() => navigate('/')}

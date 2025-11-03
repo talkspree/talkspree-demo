@@ -89,18 +89,16 @@ export function MobileHome() {
           </button>
 
           <div className="flex items-center gap-2 relative z-10">
-            {/* Notifications */}
-            <DropdownMenu modal={false}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-semibold">
-                      {notifications.length}
-                    </span>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
+          {/* Notifications */}
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full">
+                <Bell className="h-5 w-5" />
+                {connectionNotifications.length > 0 && (
+                  <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72 bg-card max-h-[400px] overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground text-center">
@@ -120,8 +118,8 @@ export function MobileHome() {
             {/* Profile */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Avatar className="h-9 w-9">
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full p-0 ml-2">
+                  <Avatar className="h-10 w-10">
                     <AvatarImage src="" />
                     <AvatarFallback className="bg-gradient-primary text-primary-foreground">
                       <User className="h-5 w-5" />

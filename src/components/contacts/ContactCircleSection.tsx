@@ -52,15 +52,15 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
 
   return (
     <div className="border-2 border-border rounded-3xl p-6 bg-card shadow-apple-md">
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 lg:divide-x divide-border">
         {/* Circle Summary Section */}
-        <div>
+        <div className="lg:pr-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-muted-foreground">Circle</h2>
           </div>
 
           {/* Circle Card */}
-          <div className="relative rounded-2xl overflow-hidden border-4 border-primary shadow-apple-lg bg-card pb-6 px-6 pt-6">
+          <div className="relative rounded-2xl overflow-hidden shadow-apple-lg bg-card pb-6 px-6 pt-6">
             {/* Avatar */}
             <div className="flex justify-center mb-4">
               <Avatar className="h-24 w-24 border-4 border-card shadow-apple-lg">
@@ -95,7 +95,7 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
         </div>
 
         {/* Contacts Section */}
-        <div>
+        <div className="lg:pl-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-muted-foreground">Contacts</h2>
             <DropdownMenu>

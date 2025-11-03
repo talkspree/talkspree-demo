@@ -69,8 +69,8 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const device = useDevice();
 
-  // Desktop: 7 steps (grouped), Mobile: 11 steps (individual)
-  const totalSteps = device === 'mobile' ? 11 : 7;
+  // Desktop: 7 steps (grouped), Mobile: 12 steps (individual)
+  const totalSteps = device === 'mobile' ? 12 : 7;
   const progress = (currentStep / totalSteps) * 100;
 
   const updateData = (updates: Partial<OnboardingData>) => {
@@ -122,7 +122,7 @@ export default function Onboarding() {
 
   const renderStep = () => {
     if (device === 'mobile') {
-      // Mobile: Individual steps (11 total now)
+      // Mobile: Individual steps (12 total now)
       switch (currentStep) {
         case 1: return <PersonalInfoStepMobile data={data} updateData={updateData} onNext={nextStep} onPrev={currentStep > 1 ? prevStep : undefined} field="firstName" />;
         case 2: return <PersonalInfoStepMobile data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="dateOfBirth" />;
@@ -135,6 +135,7 @@ export default function Onboarding() {
         case 9: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="bio" />;
         case 10: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
         case 11: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} />;
+        case 12: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
         default: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
       }
     } else {
