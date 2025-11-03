@@ -7,19 +7,35 @@ import { FiltersSection } from '@/components/home/FiltersSection';
 import { MobileHome } from '@/components/home/MobileHome';
 import { Button } from '@/components/ui/button';
 import profileViewIcon from '@/assets/profile-view.png';
+import { connectionsManager } from '@/utils/connections';
 
 export default function Home() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [newContactsCount, setNewContactsCount] = useState(0);
   const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
+  const [viewedContactsCount, setViewedContactsCount] = useState(0);
 
-  // This would be connected to actual contact state management
-  // For now, only show notification when there are new contacts
+  // Track new contacts
   useEffect(() => {
-    // TODO: Connect to actual contacts state
-    // setNewContactsCount(actualNewContactsCount);
-  }, []);
+    const updateContactsCount = () => {
+      const totalContacts = connectionsManager.getConnections().length;
+      const newCount = Math.max(0, totalContacts - viewedContactsCount);
+      setNewContactsCount(newCount);
+    };
+    
+    updateContactsCount();
+    const interval = setInterval(updateContactsCount, 2000);
+    
+    return () => clearInterval(interval);
+  }, [viewedContactsCount]);
+
+  // Reset notification count when navigating to contacts
+  const handleContactsClick = () => {
+    setViewedContactsCount(connectionsManager.getConnections().length);
+    setNewContactsCount(0);
+    navigate('/contacts');
+  };
 
   // Track orientation for tablet
   useEffect(() => {
@@ -60,7 +76,7 @@ export default function Home() {
         <Button
           size="lg"
           className="fixed bottom-8 right-8 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 p-0 flex items-center justify-center"
-          onClick={() => navigate('/contacts')}
+          onClick={handleContactsClick}
         >
           <img src={profileViewIcon} alt="Contacts" className="h-7 w-7" />
           {newContactsCount > 0 && (

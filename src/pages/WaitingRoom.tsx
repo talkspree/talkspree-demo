@@ -6,11 +6,13 @@ import { Loader2, Users, Clock } from 'lucide-react';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { sampleUserManager } from '@/data/sampleUsers';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function WaitingRoom() {
   const navigate = useNavigate();
   const location = useLocation();
   const { profileData } = useProfileData();
+  const isMobile = useIsMobile();
   const [matchingUsers, setMatchingUsers] = useState(0);
   const [chattingUsers, setChattingUsers] = useState(0);
   const [estimatedWait, setEstimatedWait] = useState(45);
@@ -105,58 +107,60 @@ export default function WaitingRoom() {
 
   return (
     <AdaptiveLayout>
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-4xl w-full p-6 md:p-8 glass shadow-apple-lg">
+      <div className="h-screen flex items-center justify-center p-4 overflow-hidden">
+        <Card className="max-w-4xl w-full h-[95vh] flex flex-col p-4 md:p-6 glass shadow-apple-lg">
           {/* Header */}
-          <div className="text-center mb-8">
-            <div className="mx-auto w-20 h-20 rounded-full bg-gradient-primary flex items-center justify-center mb-4 animate-pulse">
-              <Loader2 className="h-10 w-10 text-white animate-spin" />
+          <div className="text-center mb-4 flex-shrink-0">
+            <div className="mx-auto w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-primary flex items-center justify-center mb-3 animate-pulse">
+              <Loader2 className="h-8 w-8 md:h-10 md:w-10 text-white animate-spin" />
             </div>
-            <h1 className="text-3xl font-bold mb-2">Finding Your Match...</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl md:text-3xl font-bold mb-2">Finding Your Match...</h1>
+            <p className="text-sm md:text-base text-muted-foreground">
               We're connecting you with someone who matches your preferences
             </p>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-muted/50 rounded-2xl p-4 text-center">
-              <Users className="h-6 w-6 mx-auto mb-2 text-primary" />
-              <div className="text-2xl font-bold">{matchingUsers}</div>
-              <div className="text-sm text-muted-foreground">Available Now</div>
+          <div className="grid grid-cols-3 gap-2 md:gap-4 mb-4 flex-shrink-0">
+            <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
+              <Users className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-primary" />
+              <div className="text-lg md:text-2xl font-bold">{matchingUsers}</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Available Now</div>
             </div>
-            <div className="bg-muted/50 rounded-2xl p-4 text-center">
-              <Users className="h-6 w-6 mx-auto mb-2 text-warning" />
-              <div className="text-2xl font-bold">{chattingUsers}</div>
-              <div className="text-sm text-muted-foreground">Currently Chatting</div>
+            <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
+              <Users className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-warning" />
+              <div className="text-lg md:text-2xl font-bold">{chattingUsers}</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Currently Chatting</div>
             </div>
-            <div className="bg-muted/50 rounded-2xl p-4 text-center">
-              <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
-              <div className="text-2xl font-bold">~{estimatedWait}s</div>
-              <div className="text-sm text-muted-foreground">Estimated Wait</div>
+            <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
+              <Clock className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-primary" />
+              <div className="text-lg md:text-2xl font-bold">~{estimatedWait}s</div>
+              <div className="text-xs md:text-sm text-muted-foreground">Estimated Wait</div>
             </div>
           </div>
 
-          {/* Game Section */}
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-4 text-center">
-              Play while you wait!
-            </h2>
-            <div className="bg-background rounded-2xl overflow-hidden border-2 border-border shadow-inner">
-              <iframe
-                src="/match-dash.html"
-                className="w-full h-[400px] md:h-[500px]"
-                title="Interest Dash"
-                style={{ border: 'none' }}
-              />
+          {/* Game Section - Hidden on mobile */}
+          {!isMobile && (
+            <div className="mb-4 flex-1 min-h-0 flex flex-col">
+              <h2 className="text-lg md:text-xl font-semibold mb-2 text-center flex-shrink-0">
+                Play while you wait!
+              </h2>
+              <div className="bg-background rounded-2xl overflow-hidden border-2 border-border shadow-inner flex-1">
+                <iframe
+                  src="/match-dash.html"
+                  className="w-full h-full"
+                  title="Interest Dash"
+                  style={{ border: 'none' }}
+                />
+              </div>
+              <p className="text-xs md:text-sm text-muted-foreground text-center mt-2 flex-shrink-0">
+                Press Space or Tap to Jump • Collect matching interests!
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground text-center mt-2">
-              Press Space or Tap to Jump • Collect matching interests!
-            </p>
-          </div>
+          )}
 
           {/* Cancel Button */}
-          <div className="flex justify-center">
+          <div className="flex justify-center flex-shrink-0">
             <Button
               variant="destructive"
               onClick={() => navigate('/')}

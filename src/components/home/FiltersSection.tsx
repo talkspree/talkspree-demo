@@ -4,8 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Pencil } from 'lucide-react';
+import { Pencil, Info } from 'lucide-react';
 import { CustomTopicsModal } from './CustomTopicsModal';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { sampleUserManager, SampleUser } from '@/data/sampleUsers';
 import { useProfileData } from '@/hooks/useProfileData';
 
@@ -155,7 +161,7 @@ export function FiltersSection() {
   const matchingCount = getMatchingUsersCount();
 
   return (
-    <>
+    <TooltipProvider>
       <Card className="shadow-apple-md border-2">
         <CardContent className="p-8 space-y-6">
           <div>
@@ -165,7 +171,19 @@ export function FiltersSection() {
 
             {/* Role Selection */}
             <div className="space-y-3">
-              <label className="text-sm font-semibold">Role:</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm font-semibold">Role:</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Choose who you want to connect with: Random for anyone, Alumni for experienced members, Mentee for learners, or Mentor for guides.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className="flex gap-2 flex-wrap">
                 {[
                   { value: 'random', label: 'Random' },
@@ -189,7 +207,19 @@ export function FiltersSection() {
 
             {/* Similarity Slider */}
             <div className="space-y-3 pt-4">
-              <label className="text-sm font-semibold">Similarity Slider:</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm font-semibold">Similarity Slider:</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Different: Meet people with opposite interests. Balanced: Mix of similar and different. Similar: Connect with people who share your interests.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className="w-full max-w-md">
                 <Slider
                   value={[similarity]}
@@ -219,7 +249,19 @@ export function FiltersSection() {
 
             {/* Topics */}
             <div className="space-y-3 pt-4">
-              <label className="text-sm font-semibold">Topics:</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm font-semibold">Topics:</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Select a conversation theme. Ice-Break for casual chat, Friendship Fast-Track for deeper connections, Career Swap for professional talk, or create your own Custom topic.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {[
                   { value: 'none', label: 'No Topic' },
@@ -280,7 +322,19 @@ export function FiltersSection() {
 
             {/* Session Duration */}
             <div className="space-y-3 pt-4">
-              <label className="text-sm font-semibold">Session:</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-sm font-semibold">Session:</label>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>Choose your conversation length: 10, 15, or 30 minutes for a timed session, or ∞ for unlimited time to chat.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <div className="flex gap-2">
                 {[
                   { value: 10, label: '10 min' },
@@ -348,6 +402,6 @@ export function FiltersSection() {
           }
         }}
       />
-    </>
+    </TooltipProvider>
   );
 }

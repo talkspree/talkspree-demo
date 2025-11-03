@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, Bell } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User } from 'lucide-react';
 import { FiltersSection } from './FiltersSection';
 import { toast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.svg';
@@ -10,6 +10,7 @@ import profileViewIcon from '@/assets/profile-view.png';
 import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from './ProfileCard';
 import { sampleUserManager } from '@/data/sampleUsers';
+import { connectionsManager } from '@/utils/connections';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,42 +22,34 @@ export function MobileHome() {
   const [activeTab, setActiveTab] = useState<'chat' | 'about'>('chat');
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
-  const [isHeaderSticky, setIsHeaderSticky] = useState(false);
+  const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
 
   // Get actual user counts
   const totalMembers = sampleUserManager.getUsers().length;
   const onlineCount = sampleUserManager.getOnlineCount();
 
-  // Sticky header on scroll down, unstick on scroll up
+  // Update connection notifications
   useEffect(() => {
-    let lastScrollY = window.scrollY;
-    
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      
-      if (currentScrollY > 56) { // Header height threshold
-        if (currentScrollY > lastScrollY) {
-          // Scrolling down
-          setIsHeaderSticky(true);
-        } else {
-          // Scrolling up
-          setIsHeaderSticky(false);
-        }
-      } else {
-        setIsHeaderSticky(false);
-      }
-      
-      lastScrollY = currentScrollY;
+    const updateNotifications = () => {
+      const connections = connectionsManager.getConnections();
+      const newConnections = connections
+        .slice(-5)
+        .reverse()
+        .map(conn => ({
+          id: conn.userId,
+          text: `New connection: ${conn.user.firstName} ${conn.user.lastName}`,
+          time: new Date(conn.connectedAt).toLocaleDateString(),
+        }));
+      setConnectionNotifications(newConnections);
     };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    
+    updateNotifications();
+    const interval = setInterval(updateNotifications, 2000);
+    
+    return () => clearInterval(interval);
   }, []);
 
-  const notifications = [
-    { id: 1, text: 'New match request from John', time: '2m ago' },
-    { id: 2, text: 'Your session with Sarah starts in 10 minutes', time: '8m ago' },
-  ];
+  const notifications = connectionNotifications;
 
   const circleData = {
     name: 'Mentor the Young',
@@ -80,47 +73,25 @@ export function MobileHome() {
 
   return (
     <div className="min-h-screen bg-background overflow-x-hidden">
-      {/* Header with sticky behavior */}
-      <header className={`${isHeaderSticky ? 'fixed' : 'absolute'} top-0 left-0 right-0 z-50 h-14 transition-all duration-300 md:px-4 md:pt-4`}>
-        <div className="h-full bg-card/95 backdrop-blur-md border-b md:border md:rounded-2xl border-border flex items-center justify-between px-4 relative overflow-hidden">
+      {/* Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 z-50 h-14">
+        <div className="h-full bg-card/95 backdrop-blur-md border-b border-border flex items-center justify-between px-4 relative overflow-hidden">
           <div className="absolute inset-0 opacity-40 md:rounded-2xl" style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
           <button onClick={() => navigate('/')} className="focus:outline-none relative z-10">
             <img src={logo} alt="TalkSpree" className="h-5" />
           </button>
 
           <div className="flex items-center gap-2 relative z-10">
-            {/* Notifications */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative h-9 w-9">
-                  <Bell className="h-4 w-4" />
-                  {notifications.length > 0 && (
-                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 bg-card">
-                <div className="p-3 border-b border-border">
-                  <h3 className="font-semibold">Notifications</h3>
-                </div>
-                <div className="max-h-96 overflow-y-auto">
-                  {notifications.map((notif) => (
-                    <DropdownMenuItem key={notif.id} className="p-4 cursor-pointer">
-                      <div>
-                        <p className="text-sm">{notif.text}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
-                      </div>
-                    </DropdownMenuItem>
-                  ))}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
             {/* Profile */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0">
-                  <img src={profileViewIcon} alt="Profile" className="h-5 w-5" />
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src="" />
+                    <AvatarFallback className="bg-gradient-primary text-primary-foreground">
+                      <User className="h-5 w-5" />
+                    </AvatarFallback>
+                  </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card">
