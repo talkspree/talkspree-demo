@@ -1,7 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Star, Briefcase, MapPin, Globe, Instagram, Facebook, Linkedin, Mail } from 'lucide-react';
+import { Star } from 'lucide-react';
+import { AboutMeSection } from '@/components/profile/AboutMeSection';
 import { useProfileData } from '@/hooks/useProfileData';
 
 interface Contact {
@@ -13,6 +13,10 @@ interface Contact {
   gender: string;
   rating: number;
   avatarUrl: string;
+  role?: string;
+  industry?: string;
+  studyField?: string;
+  university?: string;
 }
 
 interface ContactCardProps {
@@ -21,18 +25,12 @@ interface ContactCardProps {
 }
 
 export function ContactCard({ contact, onClick }: ContactCardProps) {
-  const { profileData } = useProfileData();
-  
   // Generate full stars and half star
   const fullStars = Math.floor(contact.rating);
   const hasHalfStar = contact.rating % 1 !== 0;
-
-  // Mock social media - in real app, this would come from contact data
-  const socials = {
-    instagram: profileData.instagram,
-    facebook: profileData.facebook,
-    linkedin: profileData.linkedin,
-  };
+  
+  // Convert age string to number
+  const ageNum = parseInt(contact.age.replace('y', ''));
 
   return (
     <Card 
@@ -69,52 +67,21 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
         </div>
 
         {/* Name */}
-        <h3 className="text-center font-semibold mb-2 text-sm">{contact.name}</h3>
+        <h3 className="text-center font-semibold mb-3 text-sm">{contact.name}</h3>
 
-        {/* Job & Age & Gender */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-          <Briefcase className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="truncate">{contact.job}</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1.5">
-          <span>{contact.age}, {contact.gender}</span>
-        </div>
-
-        {/* Country */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
-          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-          <span>{contact.country}</span>
-        </div>
-
-        {/* Social Media Links */}
-        {(socials.instagram || socials.facebook || socials.linkedin) && (
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold">Social Media</p>
-            <div className="flex gap-1.5 justify-center">
-              {socials.instagram && (
-                <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" asChild>
-                  <a href={socials.instagram} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                    <Instagram className="h-3.5 w-3.5" />
-                  </a>
-                </Button>
-              )}
-              {socials.facebook && (
-                <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" asChild>
-                  <a href={socials.facebook} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                    <Facebook className="h-3.5 w-3.5" />
-                  </a>
-                </Button>
-              )}
-              {socials.linkedin && (
-                <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" asChild>
-                  <a href={socials.linkedin} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-                    <Linkedin className="h-3.5 w-3.5" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
+        {/* About Me Section */}
+        <AboutMeSection
+          role={contact.role}
+          occupation={contact.job}
+          industry={contact.industry}
+          studyField={contact.studyField}
+          university={contact.university}
+          age={ageNum}
+          gender={contact.gender}
+          location={contact.country}
+          compact
+          className="text-muted-foreground"
+        />
       </CardContent>
     </Card>
   );

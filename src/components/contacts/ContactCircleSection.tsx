@@ -59,10 +59,16 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
             <h2 className="text-lg font-semibold text-muted-foreground">Circle</h2>
           </div>
 
-          {/* Circle Card */}
-          <div className="relative rounded-2xl overflow-hidden shadow-apple-lg bg-card pb-6 px-6 pt-6">
-            {/* Avatar */}
-            <div className="flex justify-center mb-4">
+          {/* Circle Card - Gradient Background like Home */}
+          <div className="relative rounded-[2rem] overflow-hidden shadow-apple-lg bg-gradient-primary pb-4">
+            {/* Subtle dot overlay */}
+            <div className="pointer-events-none absolute inset-0 opacity-30 rounded-[2rem] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]" />
+            
+            {/* Top cover section */}
+            <div className="h-24 rounded-t-[2rem]" />
+
+            {/* Avatar - positioned to overlap */}
+            <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20">
               <Avatar className="h-24 w-24 border-4 border-card shadow-apple-lg">
                 <AvatarImage src={circle.avatarUrl} />
                 <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
@@ -71,25 +77,29 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
               </Avatar>
             </div>
 
-            {/* Circle Info */}
-            <div className="text-center space-y-2">
-              <h3 className="font-semibold text-lg">{circle.name}</h3>
-              <div className="flex items-center justify-center gap-3 text-xs">
-                <span className="text-muted-foreground">{circle.members} members</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                  <span className="font-medium">{circle.online} online</span>
+            {/* Content Bubble */}
+            <div className="px-4">
+              <div className="bg-card border-2 border-border rounded-2xl shadow-apple-md pt-16 pb-6 px-6">
+                <div className="text-center space-y-2">
+                  <h3 className="font-semibold text-lg">{circle.name}</h3>
+                  <div className="flex items-center justify-center gap-3 text-xs">
+                    <span className="text-muted-foreground">{circle.members} members</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                      <span className="font-medium">{circle.online} online</span>
+                    </div>
+                  </div>
+
+                  {/* Open Circle Button */}
+                  <Button 
+                    size="sm"
+                    className="mt-4 bg-success hover:bg-success/90 text-success-foreground rounded-full px-6"
+                    onClick={() => navigate('/')}
+                  >
+                    Open Circle
+                  </Button>
                 </div>
               </div>
-
-              {/* Open Circle Button */}
-              <Button 
-                size="sm"
-                className="mt-4 bg-success hover:bg-success/90 text-success-foreground rounded-full px-6"
-                onClick={() => navigate('/')}
-              >
-                Open Circle
-              </Button>
             </div>
           </div>
         </div>

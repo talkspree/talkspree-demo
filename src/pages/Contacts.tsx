@@ -53,6 +53,10 @@ export default function Contacts() {
         rating: 4.5,
         avatarUrl: '',
         isSample: true,
+        role: conn.user.role,
+        industry: conn.user.industry,
+        studyField: conn.user.studyField,
+        university: conn.user.university,
       };
     });
   };

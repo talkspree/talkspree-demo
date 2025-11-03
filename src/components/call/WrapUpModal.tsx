@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { SampleUser } from '@/data/sampleUsers';
 import { interests } from '@/data/interests';
 import { connectionsManager } from '@/utils/connections';
+import { AboutMeSection } from '@/components/profile/AboutMeSection';
 
 interface WrapUpModalProps {
   matchedUser?: SampleUser;
@@ -90,13 +91,18 @@ export function WrapUpModal({
 
               <div className="flex-1 space-y-4">
                 <div>
-                  <h2 className="text-2xl font-bold">{matchedUser.firstName} {matchedUser.lastName}</h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {matchedUser.occupation} • {calculateAge(matchedUser.dateOfBirth)}y
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {matchedUser.location}
-                  </p>
+                  <h2 className="text-2xl font-bold mb-3">{matchedUser.firstName} {matchedUser.lastName}</h2>
+                  <AboutMeSection
+                    role={matchedUser.role}
+                    occupation={matchedUser.occupation}
+                    industry={matchedUser.industry}
+                    studyField={matchedUser.studyField}
+                    university={matchedUser.university}
+                    age={calculateAge(matchedUser.dateOfBirth)}
+                    gender={matchedUser.gender}
+                    location={matchedUser.location}
+                    className="text-muted-foreground"
+                  />
                 </div>
 
                 <div>

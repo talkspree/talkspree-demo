@@ -1,12 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Briefcase, MapPin, User as UserIcon, Instagram, Facebook, Linkedin, Youtube, Music } from 'lucide-react';
+import { Instagram, Facebook, Linkedin, Youtube, Music } from 'lucide-react';
 import { useProfileData } from '@/hooks/useProfileData';
 import { interests } from '@/data/interests';
-import { ExternalLink } from 'lucide-react';
+import { AboutMeSection } from '@/components/profile/AboutMeSection';
 
 interface ProfileCardProps {
   open: boolean;
@@ -57,31 +56,19 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                   {profileData.firstName} {profileData.lastName}
                 </h2>
                 
-                {/* Basic Info - in bubble */}
-                <div className="w-full bg-gray-50 rounded-2xl p-3 space-y-2">
-                  <div className="flex items-center gap-3 text-gray-700">
-                    <Briefcase className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-sm font-medium">{profileData.occupation}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 text-gray-700">
-                    <UserIcon className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-sm font-medium">{age}y • {profileData.gender}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 text-gray-700">
-                    <MapPin className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-sm font-medium">{profileData.location}</span>
-                  </div>
-
-                  {profileData.role && (
-                    <div className="flex items-center gap-3 text-gray-700">
-                      <span className="h-4 w-4 flex-shrink-0">
-                        {profileData.role === 'mentor' ? '🧭' : profileData.role === 'mentee' ? '🌱' : profileData.role === 'alumni' ? '🎓' : '👤'}
-                      </span>
-                      <span className="text-sm font-medium capitalize">{profileData.role}</span>
-                    </div>
-                  )}
+                {/* About Me - in bubble */}
+                <div className="w-full bg-gray-50 rounded-2xl p-3">
+                  <AboutMeSection
+                    role={profileData.role}
+                    occupation={profileData.occupation}
+                    industry={profileData.industry}
+                    studyField={profileData.studyField}
+                    university={profileData.university}
+                    age={age}
+                    gender={profileData.gender}
+                    location={profileData.location}
+                    className="text-gray-700"
+                  />
                 </div>
 
                 {/* Bio - in bubble */}

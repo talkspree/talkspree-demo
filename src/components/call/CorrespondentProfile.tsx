@@ -1,10 +1,10 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, User, Briefcase, Building2, Calendar } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfileData } from '@/hooks/useProfileData';
 import { SampleUser } from '@/data/sampleUsers';
 import { interests } from '@/data/interests';
+import { AboutMeSection } from '@/components/profile/AboutMeSection';
 
 interface CorrespondentProfileProps {
   matchedUser?: SampleUser;
@@ -65,28 +65,17 @@ export function CorrespondentProfile({ matchedUser, isConnected = false, classNa
           {/* About Me */}
           <div>
             <h4 className="font-semibold mb-2">About Me</h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-muted-foreground" />
-                <span className="capitalize">{matchedUser.role}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <span>{matchedUser.occupation}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>{calculateAge(matchedUser.dateOfBirth)} years old</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>{matchedUser.location}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span className="capitalize">{matchedUser.gender}</span>
-              </div>
-            </div>
+            <AboutMeSection
+              role={matchedUser.role}
+              occupation={matchedUser.occupation}
+              industry={matchedUser.industry}
+              studyField={matchedUser.studyField}
+              university={matchedUser.university}
+              age={calculateAge(matchedUser.dateOfBirth)}
+              gender={matchedUser.gender}
+              location={matchedUser.location}
+              className="text-muted-foreground"
+            />
           </div>
 
           {/* Bio */}

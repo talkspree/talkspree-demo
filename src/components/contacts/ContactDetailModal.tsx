@@ -2,10 +2,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MapPin, Briefcase, User, Star, Instagram, Linkedin, Facebook, Youtube, Music } from 'lucide-react';
+import { Star, Instagram, Linkedin, Facebook, Youtube, Music } from 'lucide-react';
 import { Connection } from '@/utils/connections';
 import { interests } from '@/data/interests';
 import { useProfileData } from '@/hooks/useProfileData';
+import { AboutMeSection } from '@/components/profile/AboutMeSection';
 
 interface ContactDetailModalProps {
   contact: Connection | null;
@@ -83,20 +84,18 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Briefcase className="h-4 w-4" />
-                  <span>{contact.user.occupation}</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <User className="h-4 w-4" />
-                  <span>{calculateAge(contact.user.dateOfBirth)}y • {contact.user.gender}</span>
-                </div>
-
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  <span>{contact.user.location}</span>
-                </div>
+                {/* About Me Section */}
+                <AboutMeSection
+                  role={contact.user.role}
+                  occupation={contact.user.occupation}
+                  industry={contact.user.industry}
+                  studyField={contact.user.studyField}
+                  university={contact.user.university}
+                  age={calculateAge(contact.user.dateOfBirth)}
+                  gender={contact.user.gender}
+                  location={contact.user.location}
+                  className="text-muted-foreground"
+                />
               </div>
             </div>
 
