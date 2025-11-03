@@ -313,5 +313,6 @@ All colors MUST be HSL.
   body, html {
     overflow-x: hidden;
     max-width: 100vw;
+    position: relative;
   }
 }

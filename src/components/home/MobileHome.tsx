@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User, Bell } from 'lucide-react';
 import { FiltersSection } from './FiltersSection';
 import { toast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.svg';
@@ -23,12 +23,14 @@ export function MobileHome() {
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
+  const [newContactsCount, setNewContactsCount] = useState(0);
+  const [viewedContactsCount, setViewedContactsCount] = useState(0);
 
   // Get actual user counts
   const totalMembers = sampleUserManager.getUsers().length;
   const onlineCount = sampleUserManager.getOnlineCount();
 
-  // Update connection notifications
+  // Update connection notifications and new contacts count
   useEffect(() => {
     const updateNotifications = () => {
       const connections = connectionsManager.getConnections();
@@ -41,13 +43,18 @@ export function MobileHome() {
           time: new Date(conn.connectedAt).toLocaleDateString(),
         }));
       setConnectionNotifications(newConnections);
+      
+      // Update new contacts count
+      const totalContacts = connections.length;
+      const newCount = Math.max(0, totalContacts - viewedContactsCount);
+      setNewContactsCount(newCount);
     };
     
     updateNotifications();
     const interval = setInterval(updateNotifications, 2000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [viewedContactsCount]);
 
   const notifications = connectionNotifications;
 
@@ -82,8 +89,36 @@ export function MobileHome() {
           </button>
 
           <div className="flex items-center gap-2 relative z-10">
+            {/* Notifications */}
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="relative">
+                  <Bell className="h-5 w-5" />
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] flex items-center justify-center font-semibold">
+                      {notifications.length}
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72 bg-card max-h-[400px] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-4 text-sm text-muted-foreground text-center">
+                    No new notifications
+                  </div>
+                ) : (
+                  notifications.map((notif) => (
+                    <DropdownMenuItem key={notif.id} className="flex flex-col items-start py-3 cursor-pointer">
+                      <span className="text-sm">{notif.text}</span>
+                      <span className="text-xs text-muted-foreground">{notif.time}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             {/* Profile */}
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
                   <Avatar className="h-9 w-9">
@@ -218,9 +253,18 @@ export function MobileHome() {
       <Button
         size="lg"
         className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 z-40 p-0 flex items-center justify-center"
-        onClick={() => navigate('/contacts')}
+        onClick={() => {
+          setViewedContactsCount(connectionsManager.getConnections().length);
+          setNewContactsCount(0);
+          navigate('/contacts');
+        }}
       >
         <img src={profileViewIcon} alt="Contacts" className="h-7 w-7" />
+        {newContactsCount > 0 && (
+          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
+            {newContactsCount}
+          </span>
+        )}
       </Button>
 
       <ProfileCard open={showProfile} onOpenChange={setShowProfile} />

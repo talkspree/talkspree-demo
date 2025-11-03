@@ -7,11 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Pencil, Info } from 'lucide-react';
 import { CustomTopicsModal } from './CustomTopicsModal';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { sampleUserManager, SampleUser } from '@/data/sampleUsers';
 import { useProfileData } from '@/hooks/useProfileData';
 
@@ -21,6 +21,7 @@ type Duration = 10 | 15 | 30 | 0;
 
 export function FiltersSection() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [role, setRole] = useState<Role>('random');
   const [similarity, setSimilarity] = useState(50);
   const [topic, setTopic] = useState<TopicPreset>('none');
@@ -160,8 +161,39 @@ export function FiltersSection() {
 
   const matchingCount = getMatchingUsersCount();
 
+  // Info icon component that works on both desktop (hover) and mobile (click)
+  const InfoIcon = ({ content }: { content: string }) => {
+    if (isMobile) {
+      return (
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="text-muted-foreground hover:text-foreground transition-colors">
+              <Info className="h-3.5 w-3.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="max-w-xs text-sm">
+            <p>{content}</p>
+          </PopoverContent>
+        </Popover>
+      );
+    }
+    
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="text-muted-foreground hover:text-foreground transition-colors">
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="max-w-xs text-sm">
+          <p>{content}</p>
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
   return (
-    <TooltipProvider>
+    <div>
       <Card className="shadow-apple-md border-2">
         <CardContent className="p-8 space-y-6">
           <div>
@@ -173,16 +205,7 @@ export function FiltersSection() {
             <div className="space-y-3">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Role:</label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors">
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Choose who you want to connect with: Random for anyone, Alumni for experienced members, Mentee for learners, or Mentor for guides.</p>
-                  </TooltipContent>
-                </Tooltip>
+                <InfoIcon content="Choose who you want to connect with: Random for anyone, Alumni for experienced members, Mentee for learners, or Mentor for guides." />
               </div>
               <div className="flex gap-2 flex-wrap">
                 {[
@@ -209,16 +232,7 @@ export function FiltersSection() {
             <div className="space-y-3 pt-4">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Similarity Slider:</label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors">
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Different: Meet people with opposite interests. Balanced: Mix of similar and different. Similar: Connect with people who share your interests.</p>
-                  </TooltipContent>
-                </Tooltip>
+                <InfoIcon content="Different: Meet people with opposite interests. Balanced: Mix of similar and different. Similar: Connect with people who share your interests." />
               </div>
               <div className="w-full max-w-md">
                 <Slider
@@ -251,16 +265,7 @@ export function FiltersSection() {
             <div className="space-y-3 pt-4">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Topics:</label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors">
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Select a conversation theme. Ice-Break for casual chat, Friendship Fast-Track for deeper connections, Career Swap for professional talk, or create your own Custom topic.</p>
-                  </TooltipContent>
-                </Tooltip>
+                <InfoIcon content="Select a conversation theme. Ice-Break for casual chat, Friendship Fast-Track for deeper connections, Career Swap for professional talk, or create your own Custom topic." />
               </div>
               <div className="flex flex-wrap gap-2">
                 {[
@@ -324,16 +329,7 @@ export function FiltersSection() {
             <div className="space-y-3 pt-4">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Session:</label>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="text-muted-foreground hover:text-foreground transition-colors">
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Choose your conversation length: 10, 15, or 30 minutes for a timed session, or ∞ for unlimited time to chat.</p>
-                  </TooltipContent>
-                </Tooltip>
+                <InfoIcon content="Choose your conversation length: 10, 15, or 30 minutes for a timed session, or ∞ for unlimited time to chat." />
               </div>
               <div className="flex gap-2">
                 {[
@@ -402,6 +398,6 @@ export function FiltersSection() {
           }
         }}
       />
-    </TooltipProvider>
+    </div>
   );
 }
