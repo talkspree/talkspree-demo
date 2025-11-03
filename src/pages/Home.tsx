@@ -1,17 +1,40 @@
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Header } from '@/components/home/Header';
 import { CircleCard } from '@/components/home/CircleCard';
 import { FiltersSection } from '@/components/home/FiltersSection';
 import { MobileHome } from '@/components/home/MobileHome';
 import { Button } from '@/components/ui/button';
-import { Users } from 'lucide-react';
+import profileViewIcon from '@/assets/profile-view.png';
 
 export default function Home() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const [newContactsCount, setNewContactsCount] = useState(0);
+  const [isPortrait, setIsPortrait] = useState(window.innerHeight > window.innerWidth);
 
-  if (isMobile) {
+  // This would be connected to actual contact state management
+  // For now, only show notification when there are new contacts
+  useEffect(() => {
+    // TODO: Connect to actual contacts state
+    // setNewContactsCount(actualNewContactsCount);
+  }, []);
+
+  // Track orientation for tablet
+  useEffect(() => {
+    const handleResize = () => {
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Mobile or tablet in portrait mode use MobileHome
+  const width = window.innerWidth;
+  const isTabletPortrait = width >= 768 && width <= 1024 && isPortrait;
+  
+  if (isMobile || isTabletPortrait) {
     return <MobileHome />;
   }
 
@@ -36,13 +59,15 @@ export default function Home() {
         {/* Floating My Contacts Button */}
         <Button
           size="lg"
-          className="fixed bottom-8 right-8 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90"
+          className="fixed bottom-8 right-8 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 p-0 flex items-center justify-center"
           onClick={() => navigate('/contacts')}
         >
-          <Users className="h-6 w-6" />
-          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
-            1
-          </span>
+          <img src={profileViewIcon} alt="Contacts" className="h-7 w-7" />
+          {newContactsCount > 0 && (
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
+              {newContactsCount}
+            </span>
+          )}
         </Button>
       </div>
     </div>

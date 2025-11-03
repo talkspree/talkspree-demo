@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, Bell, User } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, Bell } from 'lucide-react';
 import { FiltersSection } from './FiltersSection';
 import { toast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.svg';
 import headerPattern from '@/assets/header-pattern.png';
+import profileViewIcon from '@/assets/profile-view.png';
 import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from './ProfileCard';
+import { sampleUserManager } from '@/data/sampleUsers';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +21,37 @@ export function MobileHome() {
   const [activeTab, setActiveTab] = useState<'chat' | 'about'>('chat');
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
+  const [isHeaderSticky, setIsHeaderSticky] = useState(false);
+
+  // Get actual user counts
+  const totalMembers = sampleUserManager.getUsers().length;
+  const onlineCount = sampleUserManager.getOnlineCount();
+
+  // Sticky header on scroll down, unstick on scroll up
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      
+      if (currentScrollY > 56) { // Header height threshold
+        if (currentScrollY > lastScrollY) {
+          // Scrolling down
+          setIsHeaderSticky(true);
+        } else {
+          // Scrolling up
+          setIsHeaderSticky(false);
+        }
+      } else {
+        setIsHeaderSticky(false);
+      }
+      
+      lastScrollY = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const notifications = [
     { id: 1, text: 'New match request from John', time: '2m ago' },
@@ -46,11 +79,11 @@ export function MobileHome() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Fixed Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 h-14 px-4">
-        <div className="h-full bg-card/95 backdrop-blur-md border-b border-border flex items-center justify-between px-4 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-40" style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+    <div className="min-h-screen bg-background overflow-x-hidden">
+      {/* Header with sticky behavior */}
+      <header className={`${isHeaderSticky ? 'fixed' : 'absolute'} top-0 left-0 right-0 z-50 h-14 transition-all duration-300 md:px-4 md:pt-4`}>
+        <div className="h-full bg-card/95 backdrop-blur-md border-b md:border md:rounded-2xl border-border flex items-center justify-between px-4 relative overflow-hidden">
+          <div className="absolute inset-0 opacity-40 md:rounded-2xl" style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
           <button onClick={() => navigate('/')} className="focus:outline-none relative z-10">
             <img src={logo} alt="TalkSpree" className="h-5" />
           </button>
@@ -86,13 +119,8 @@ export function MobileHome() {
             {/* Profile */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src="" />
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      <User className="h-4 w-4" />
-                    </AvatarFallback>
-                  </Avatar>
+                <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 p-0">
+                  <img src={profileViewIcon} alt="Profile" className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card">
@@ -131,10 +159,10 @@ export function MobileHome() {
           <div className="text-center mb-4">
             <h1 className="text-2xl font-bold mb-1">{circleData.name}</h1>
             <div className="flex items-center justify-center gap-4 text-sm">
-              <span className="text-muted-foreground">{circleData.members} members</span>
+              <span className="text-muted-foreground">{totalMembers} members</span>
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                <span className="font-medium">{circleData.online} online</span>
+                <span className="font-medium">{onlineCount} online</span>
               </div>
             </div>
           </div>
@@ -218,13 +246,10 @@ export function MobileHome() {
       {/* Floating Contacts Button */}
       <Button
         size="lg"
-        className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 z-40 p-0"
-        onClick={() => console.log('Navigate to contacts')}
+        className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 z-40 p-0 flex items-center justify-center"
+        onClick={() => navigate('/contacts')}
       >
-        <MessageSquare className="h-6 w-6" />
-        <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
-          1
-        </span>
+        <img src={profileViewIcon} alt="Contacts" className="h-7 w-7" />
       </Button>
 
       <ProfileCard open={showProfile} onOpenChange={setShowProfile} />

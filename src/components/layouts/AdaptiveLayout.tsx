@@ -10,7 +10,7 @@ interface AdaptiveLayoutProps {
 export function AdaptiveLayout({ children }: AdaptiveLayoutProps) {
   const device = useDevice();
   
-  if (device === 'mobile') {
+  if (device === 'mobile' || device === 'tablet') {
     return <MobileLayout>{children}</MobileLayout>;
   }
   

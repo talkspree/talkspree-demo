@@ -1,28 +1,38 @@
 import { useState, useEffect } from 'react';
 
-export type DeviceType = 'mobile' | 'desktop';
+export type DeviceType = 'mobile' | 'tablet' | 'desktop';
 
 export function useDevice(): DeviceType {
   const [deviceType, setDeviceType] = useState<DeviceType>('desktop');
 
   useEffect(() => {
-    // Check for cookie first
-    const cookieMatch = document.cookie.match(/uiVariant=([^;]+)/);
-    if (cookieMatch) {
-      setDeviceType(cookieMatch[1] as DeviceType);
-      return;
-    }
+    const detectDevice = () => {
+      const width = window.innerWidth;
+      const userAgent = navigator.userAgent;
+      const isTabletUA = /iPad|Android(?!.*Mobile)/i.test(userAgent);
+      
+      // Mobile: < 768px
+      if (width < 768) {
+        return 'mobile';
+      }
+      // Tablet: 768px - 1024px in portrait, or tablet user agent
+      else if ((width >= 768 && width <= 1024) || isTabletUA) {
+        return 'tablet';
+      }
+      // Desktop: > 1024px
+      else {
+        return 'desktop';
+      }
+    };
 
-    // Fallback to user agent detection if no cookie
-    const userAgent = navigator.userAgent;
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent) || 
-                     window.innerWidth < 768;
-    
-    const detectedType: DeviceType = isMobile ? 'mobile' : 'desktop';
-    setDeviceType(detectedType);
-    
-    // Set cookie for future visits
-    document.cookie = `uiVariant=${detectedType}; path=/; max-age=31536000`; // 1 year
+    const updateDevice = () => {
+      const detected = detectDevice();
+      setDeviceType(detected);
+    };
+
+    updateDevice();
+    window.addEventListener('resize', updateDevice);
+    return () => window.removeEventListener('resize', updateDevice);
   }, []);
 
   return deviceType;
