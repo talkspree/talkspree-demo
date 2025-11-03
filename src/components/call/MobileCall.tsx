@@ -8,19 +8,15 @@ import { useVideoStream } from '@/hooks/useVideoStream';
 import { useCallTimer } from '@/hooks/useCallTimer';
 import { Question, getRandomQuestion, topicPresets } from '@/data/questions';
 import { CorrespondentProfile } from './CorrespondentProfile';
-import { WrapUpModal } from './WrapUpModal';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Send } from 'lucide-react';
 import { SampleUser, sampleUserManager } from '@/data/sampleUsers';
-import { useProfileData } from '@/hooks/useProfileData';
 
 export function MobileCall() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profileData } = useProfileData();
   const matchedUser = location.state?.matchedUser as SampleUser | undefined;
-  const [showWrapUp, setShowWrapUp] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -51,8 +47,22 @@ export function MobileCall() {
     formattedTime,
     showExtendPrompt,
     extendCall,
-    declineExtend
+    declineExtend,
+    isCallEnded
   } = useCallTimer(durationInSeconds);
+
+  // Navigate to wrap-up when call ends
+  useEffect(() => {
+    if (isCallEnded) {
+      navigate('/wrap-up', { 
+        state: { 
+          matchedUser,
+          ...location.state
+        },
+        replace: true 
+      });
+    }
+  }, [isCallEnded, navigate, matchedUser, location.state]);
 
   useEffect(() => {
     console.log('📹 Stream effect triggered:', !!stream);
@@ -334,7 +344,13 @@ export function MobileCall() {
             <Button
               size="icon"
               className="h-12 w-12 rounded-full bg-destructive hover:bg-destructive/90"
-              onClick={() => handleButtonClick(() => setShowWrapUp(true), 'heavy')}
+              onClick={() => handleButtonClick(() => navigate('/wrap-up', { 
+                state: { 
+                  matchedUser,
+                  ...location.state
+                },
+                replace: true 
+              }), 'heavy')}
             >
               <PhoneOff className="h-5 w-5" />
             </Button>
@@ -489,7 +505,13 @@ export function MobileCall() {
                   <Button
                     size="icon"
                     className="h-10 w-10 rounded-full bg-destructive hover:bg-destructive/90 shrink-0"
-                    onClick={() => setShowWrapUp(true)}
+                    onClick={() => navigate('/wrap-up', { 
+                      state: { 
+                        matchedUser,
+                        ...location.state
+                      },
+                      replace: true 
+                    })}
                   >
                     <PhoneOff className="h-4 w-4" />
                   </Button>
@@ -525,74 +547,6 @@ export function MobileCall() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
-
-      {/* Wrap Up Modal */}
-      <WrapUpModal
-        matchedUser={matchedUser}
-        open={showWrapUp}
-        onOpenChange={setShowWrapUp}
-        onConnect={() => setIsConnected(true)}
-        onSkip={() => console.log('Skipped')}
-        onNext={() => {
-          setShowWrapUp(false);
-          
-          // Calculate interest similarity
-          const calculateSimilarity = (interests1: string[], interests2: string[]): number => {
-            if (interests1.length === 0 || interests2.length === 0) return 0;
-            const common = interests1.filter(i => interests2.includes(i)).length;
-            const total = new Set([...interests1, ...interests2]).size;
-            return Math.round((common / total) * 100);
-          };
-          
-          // Get available users
-          const availableUsers = sampleUserManager.getAvailableUsers();
-          
-          // Apply filters from location state
-          let candidates = availableUsers;
-          const filters = location.state || {};
-          
-          if (filters.role && filters.role !== 'random') {
-            candidates = candidates.filter(u => u.role === filters.role);
-          }
-          
-          // Calculate similarity scores
-          const candidatesWithScores = candidates.map(user => ({
-            user,
-            similarityScore: calculateSimilarity(profileData.interests, user.interests)
-          }));
-          
-          // Filter by similarity preference
-          let filtered = candidatesWithScores;
-          if (filters.similarity === 0) {
-            filtered = candidatesWithScores.filter(c => c.similarityScore <= 40);
-          } else if (filters.similarity === 100) {
-            filtered = candidatesWithScores.filter(c => c.similarityScore >= 60);
-          }
-          
-          if (filtered.length === 0 && candidatesWithScores.length > 0) {
-            filtered = candidatesWithScores;
-          }
-          
-          if (filtered.length > 0) {
-            // Match found - go to countdown
-            const match = filtered[Math.floor(Math.random() * filtered.length)];
-            navigate('/countdown', { 
-              state: { 
-                matchedUser: match.user,
-                ...filters
-              },
-              replace: true 
-            });
-          } else {
-            // No match - go to waiting room
-            navigate('/waiting', { 
-              state: filters,
-              replace: true 
-            });
-          }
-        }}
-        onBackToCircle={() => navigate('/')}
-      />
     </div>
   );
 }

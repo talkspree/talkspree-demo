@@ -34,6 +34,7 @@ export function DevNavigationMenu() {
     { path: '/auth', label: 'Auth', icon: UserCircle },
     { path: '/onboarding', label: 'Onboarding', icon: Settings },
     { path: '/call', label: 'Call', icon: Phone },
+    { path: '/wrap-up', label: 'Wrap Up', icon: Bell },
     { path: '/contacts', label: 'Contacts', icon: Users },
     { path: '/waiting', label: 'Waiting Room', icon: Menu },
     { path: '/profile/edit', label: 'Profile Edit', icon: UserCircle },

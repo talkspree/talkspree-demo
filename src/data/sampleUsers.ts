@@ -26,6 +26,7 @@ export interface SampleUser {
   isOnline: boolean;
   inCall: boolean;
   callStartTime: number | null; // timestamp when fake call started
+  sessionDuration: number; // preferred session duration in minutes
 }
 
 // Sample users that are always "online" and participate in fake 1-minute calls
@@ -54,6 +55,7 @@ export const SAMPLE_USERS: SampleUser[] = [
     isOnline: true,
     inCall: false,
     callStartTime: null,
+    sessionDuration: 15,
   },
   {
     id: 'sample-user-2',
@@ -79,6 +81,7 @@ export const SAMPLE_USERS: SampleUser[] = [
     isOnline: true,
     inCall: false,
     callStartTime: null,
+    sessionDuration: 10,
   },
   {
     id: 'sample-user-3',
@@ -104,6 +107,7 @@ export const SAMPLE_USERS: SampleUser[] = [
     isOnline: true,
     inCall: false,
     callStartTime: null,
+    sessionDuration: 20,
   },
   {
     id: 'sample-user-4',
@@ -129,6 +133,7 @@ export const SAMPLE_USERS: SampleUser[] = [
     isOnline: true,
     inCall: false,
     callStartTime: null,
+    sessionDuration: 15,
   },
 ];
 

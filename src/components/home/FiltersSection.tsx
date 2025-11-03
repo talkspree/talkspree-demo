@@ -101,16 +101,14 @@ export function FiltersSection() {
     const match = findMatch();
     
     if (match) {
-      // Simulate the other user's duration preference (random from available options)
-      const possibleDurations: Duration[] = [10, 15, 30, 0];
-      const otherUserDuration = possibleDurations[Math.floor(Math.random() * possibleDurations.length)];
-      
-      // Use the lower duration (0 means infinite, so it doesn't count as lower)
+      // Calculate minimum duration between user's filter and matched user's preference
       let finalDuration = duration;
       if (duration === 0) {
-        finalDuration = otherUserDuration;
-      } else if (otherUserDuration !== 0) {
-        finalDuration = Math.min(duration, otherUserDuration) as Duration;
+        // Unlimited - use other user's preference
+        finalDuration = match.sessionDuration as Duration;
+      } else if (match.sessionDuration !== 0) {
+        // Both have limits - use minimum
+        finalDuration = Math.min(duration, match.sessionDuration) as Duration;
       }
       
       // Navigate directly to call with matched user

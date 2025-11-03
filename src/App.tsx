@@ -8,6 +8,7 @@ import Call from "./pages/Call";
 import Contacts from "./pages/Contacts";
 import WaitingRoom from "./pages/WaitingRoom";
 import Countdown from "./pages/Countdown";
+import WrapUp from "./pages/WrapUp";
 import NotFound from "./pages/NotFound";
 // ⚠️ TEMPORARY - Remove before production
 import { DevNavigationMenu } from "./components/dev/DevNavigationMenu";
@@ -27,6 +28,7 @@ function App() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/waiting" element={<WaitingRoom />} />
         <Route path="/countdown" element={<Countdown />} />
+        <Route path="/wrap-up" element={<WrapUp />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

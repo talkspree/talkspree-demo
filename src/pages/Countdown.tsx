@@ -9,9 +9,9 @@ export default function Countdown() {
 
   useEffect(() => {
     if (count === 0) {
-      // Navigate to call with the matched user
+      // Navigate to call with the matched user and pass all state including duration
       navigate('/call', { 
-        state: { matchedUser },
+        state: location.state,
         replace: true 
       });
       return;
