@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Instagram, Facebook, Linkedin, Youtube, Music } from 'lucide-react';
+import { Instagram, Facebook, Linkedin, Youtube, Music, Mail } from 'lucide-react';
 import { useProfileData } from '@/hooks/useProfileData';
 import { interests } from '@/data/interests';
 import { AboutMeSection } from '@/components/profile/AboutMeSection';
@@ -34,7 +34,7 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-4">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-4 md:mx-8">
         <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden">
           <div className="relative p-6 md:p-8">
             {/* Horizontal Layout */}
@@ -57,8 +57,8 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                 </h2>
                 
                 {/* About Me - compact centered */}
-                <div className="w-full bg-gray-50 rounded-2xl p-2.5 text-center">
-                  <h3 className="text-xs font-semibold text-blue-600 mb-1.5">About Me</h3>
+                <div className="w-full bg-gray-50 rounded-2xl p-3">
+                  <h3 className="text-sm font-semibold text-blue-600 mb-2">About Me</h3>
                   <AboutMeSection
                     role={profileData.role}
                     occupation={profileData.occupation}
@@ -68,26 +68,35 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                     age={age}
                     gender={profileData.gender}
                     location={profileData.location}
-                    className="text-gray-700 text-center justify-center"
+                    className="text-gray-700 text-center justify-center text-sm"
                     compact
                   />
                 </div>
 
                 {/* Bio - in bubble */}
                 {profileData.bio && (
-                  <div className="w-full bg-gray-50 rounded-2xl p-2.5">
-                    <h3 className="font-semibold text-xs text-blue-600 mb-1.5">Bio</h3>
-                    <p className="text-xs leading-relaxed text-gray-700">
+                  <div className="w-full bg-gray-50 rounded-2xl p-3">
+                    <h3 className="font-semibold text-sm text-blue-600 mb-2">Bio</h3>
+                    <p className="text-sm leading-relaxed text-gray-700">
                       {profileData.bio}
                     </p>
                   </div>
                 )}
 
                 {/* Social Links - Icons only with brand colors */}
-                {socialLinks.length > 0 && (
-                  <div className="w-full bg-gray-50 rounded-2xl p-2.5">
-                    <h3 className="font-semibold text-xs text-blue-600 mb-2">Connect</h3>
-                    <div className="flex gap-2 justify-center">
+                {(socialLinks.length > 0 || profileData.email) && (
+                  <div className="w-full bg-gray-50 rounded-2xl p-3">
+                    <h3 className="font-semibold text-sm text-blue-600 mb-2">Connect</h3>
+                    <div className="flex gap-2 justify-center flex-wrap">
+                      {profileData.email && (
+                        <a
+                          href={`mailto:${profileData.email}`}
+                          className="p-2 rounded-xl hover:scale-110 transition-transform"
+                          style={{ backgroundColor: '#EA440515' }}
+                        >
+                          <Mail className="h-4 w-4" style={{ color: '#EA4405' }} />
+                        </a>
+                      )}
                       {socialLinks.map(({ platform, url, icon: Icon, color }) => (
                         <a
                           key={platform}
@@ -109,21 +118,21 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
               <div className="flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-xl md:text-2xl font-bold text-blue-600">
+                    <h3 className="text-base font-semibold text-blue-600">
                       Interests
                     </h3>
-                    <span className="text-xs md:text-sm text-gray-500 font-medium">
+                    <span className="text-xs text-gray-500 font-medium">
                       {userInterests.length} selected
                     </span>
                   </div>
                   
-                  <div className="flex flex-wrap gap-1.5 md:gap-2">
+                  <div className="flex flex-wrap gap-1.5">
                     {userInterests.map((interest) => (
                       <div
                         key={interest!.id}
-                        className="px-2 py-1 md:px-2.5 md:py-1.5 text-xs md:text-sm font-medium bg-gray-100 rounded-full border border-gray-200 flex items-center gap-1 md:gap-1.5"
+                        className="px-2 py-1 text-sm font-medium bg-gray-100 rounded-full border border-gray-200 flex items-center gap-1"
                       >
-                        <span className="text-sm md:text-base">{interest!.emoji}</span>
+                        <span className="text-sm">{interest!.emoji}</span>
                         <span className="text-gray-700">{interest!.name}</span>
                       </div>
                     ))}

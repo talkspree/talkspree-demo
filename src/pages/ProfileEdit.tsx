@@ -122,11 +122,11 @@ export default function ProfileEdit() {
 
           {/* Toggle Buttons */}
           <div className="mb-6">
-            <ToggleGroup type="single" value={activeTab} onValueChange={(value) => value && setActiveTab(value as 'general' | 'role')} className="justify-start gap-2 bg-muted/50 p-1 rounded-xl w-fit">
-              <ToggleGroupItem value="general" className="px-6 py-2 rounded-lg data-[state=on]:bg-background data-[state=on]:shadow-sm">
+            <ToggleGroup type="single" value={activeTab} onValueChange={(value) => value && setActiveTab(value as 'general' | 'role')} className="justify-start gap-2 bg-muted p-1 rounded-xl w-fit">
+              <ToggleGroupItem value="general" className="px-6 py-2 rounded-lg data-[state=on]:bg-gradient-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-md font-medium transition-all">
                 General
               </ToggleGroupItem>
-              <ToggleGroupItem value="role" className="px-6 py-2 rounded-lg data-[state=on]:bg-background data-[state=on]:shadow-sm">
+              <ToggleGroupItem value="role" className="px-6 py-2 rounded-lg data-[state=on]:bg-gradient-primary data-[state=on]:text-primary-foreground data-[state=on]:shadow-md font-medium transition-all">
                 Role
               </ToggleGroupItem>
             </ToggleGroup>
@@ -198,7 +198,7 @@ export default function ProfileEdit() {
                     <label className="text-sm font-medium">Gender</label>
                     <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
                       <SelectTrigger>
-                        <SelectValue />
+                        <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Male">Male</SelectItem>
@@ -372,6 +372,7 @@ export default function ProfileEdit() {
                   circleName="Mentor the Young"
                   currentRole={formData.role}
                   onRoleChange={(role) => setFormData({ ...formData, role })}
+                  circleImage="/placeholder.svg"
                 />
                 
                 {/* Actions for Role tab */}

@@ -9,6 +9,7 @@ export interface ProfileData {
   occupation: string;
   bio: string;
   phone: string;
+  email: string;
   instagram: string;
   facebook: string;
   linkedin: string;
@@ -32,6 +33,7 @@ const DEFAULT_PROFILE: ProfileData = {
   occupation: '',
   bio: '',
   phone: '',
+  email: '',
   instagram: '',
   facebook: '',
   linkedin: '',

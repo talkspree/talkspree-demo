@@ -1,31 +1,39 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface CircleRoleCardProps {
   circleName: string;
   currentRole: string;
   onRoleChange: (role: string) => void;
+  circleImage?: string;
 }
 
 const roles = [
   { value: 'mentor', label: 'Mentor', emoji: '🧭', description: 'Guide and support others' },
   { value: 'mentee', label: 'Mentee', emoji: '🌱', description: 'Learn and grow from others' },
   { value: 'alumni', label: 'Alumni', emoji: '🎓', description: 'Former member' },
-  { value: 'student', label: 'Student', emoji: '📚', description: 'Current student' },
-  { value: 'professional', label: 'Professional', emoji: '💼', description: 'Working professional' },
 ];
 
-export function CircleRoleCard({ circleName, currentRole, onRoleChange }: CircleRoleCardProps) {
+export function CircleRoleCard({ circleName, currentRole, onRoleChange, circleImage }: CircleRoleCardProps) {
   const selectedRole = roles.find(r => r.value === currentRole);
 
   return (
     <Card className="shadow-apple-md border-2">
       <CardContent className="pt-6 space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold">{circleName}</h3>
-            <p className="text-sm text-muted-foreground">Select your role in this circle</p>
+          <div className="flex items-center gap-3">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={circleImage} />
+              <AvatarFallback className="bg-gradient-primary text-primary-foreground">
+                {circleName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h3 className="text-lg font-semibold">{circleName}</h3>
+              <p className="text-sm text-muted-foreground">Select your role in this circle</p>
+            </div>
           </div>
           {selectedRole && (
             <Badge variant="default" className="text-base px-3 py-1">
