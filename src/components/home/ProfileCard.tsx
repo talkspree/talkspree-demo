@@ -34,30 +34,31 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none">
-        <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden max-h-[90vh]">
-          <div className="relative p-8 overflow-y-auto max-h-[90vh]">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-4">
+        <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden">
+          <div className="relative p-6 md:p-8">
             {/* Horizontal Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 md:gap-8">
               {/* Left Side - Avatar and Info */}
-              <div className="flex flex-col items-center space-y-4">
+              <div className="flex flex-col items-center space-y-3">
                 {/* Avatar */}
                 <div className="relative">
-                  <Avatar className="h-40 w-40 border-4 border-white shadow-lg">
+                  <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-white shadow-lg">
                     <AvatarImage src={profileData.profilePicture} />
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-4xl font-bold">
+                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl md:text-4xl font-bold">
                       {profileData.firstName[0]}{profileData.lastName[0]}
                     </AvatarFallback>
                   </Avatar>
                 </div>
 
                 {/* Name */}
-                <h2 className="text-3xl font-bold text-gray-900 text-center">
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center">
                   {profileData.firstName} {profileData.lastName}
                 </h2>
                 
-                {/* About Me - in bubble */}
-                <div className="w-full bg-gray-50 rounded-2xl p-3">
+                {/* About Me - compact centered */}
+                <div className="w-full bg-gray-50 rounded-2xl p-2.5 text-center">
+                  <h3 className="text-xs font-semibold text-blue-600 mb-1.5">About Me</h3>
                   <AboutMeSection
                     role={profileData.role}
                     occupation={profileData.occupation}
@@ -67,15 +68,16 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                     age={age}
                     gender={profileData.gender}
                     location={profileData.location}
-                    className="text-gray-700"
+                    className="text-gray-700 text-center justify-center"
+                    compact
                   />
                 </div>
 
                 {/* Bio - in bubble */}
                 {profileData.bio && (
-                  <div className="w-full bg-gray-50 rounded-2xl p-3">
-                    <h3 className="font-semibold text-sm text-blue-600 mb-2">Bio</h3>
-                    <p className="text-sm leading-relaxed text-gray-700">
+                  <div className="w-full bg-gray-50 rounded-2xl p-2.5">
+                    <h3 className="font-semibold text-xs text-blue-600 mb-1.5">Bio</h3>
+                    <p className="text-xs leading-relaxed text-gray-700">
                       {profileData.bio}
                     </p>
                   </div>
@@ -83,8 +85,8 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
 
                 {/* Social Links - Icons only with brand colors */}
                 {socialLinks.length > 0 && (
-                  <div className="w-full bg-gray-50 rounded-2xl p-3">
-                    <h3 className="font-semibold text-sm text-blue-600 mb-3">Connect</h3>
+                  <div className="w-full bg-gray-50 rounded-2xl p-2.5">
+                    <h3 className="font-semibold text-xs text-blue-600 mb-2">Connect</h3>
                     <div className="flex gap-2 justify-center">
                       {socialLinks.map(({ platform, url, icon: Icon, color }) => (
                         <a
@@ -92,10 +94,10 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                           href={url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2.5 rounded-xl hover:scale-110 transition-transform"
+                          className="p-2 rounded-xl hover:scale-110 transition-transform"
                           style={{ backgroundColor: `${color}15` }}
                         >
-                          <Icon className="h-5 w-5" style={{ color }} />
+                          <Icon className="h-4 w-4" style={{ color }} />
                         </a>
                       ))}
                     </div>
@@ -103,45 +105,45 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                 )}
               </div>
 
-              {/* Right Side - Interests */}
-              <div className="flex flex-col">
-                <div className="space-y-4">
+              {/* Right Side - Interests and Edit Button */}
+              <div className="flex flex-col justify-between">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-2xl font-bold text-blue-600">
+                    <h3 className="text-xl md:text-2xl font-bold text-blue-600">
                       Interests
                     </h3>
-                    <span className="text-sm text-gray-500 font-medium">
+                    <span className="text-xs md:text-sm text-gray-500 font-medium">
                       {userInterests.length} selected
                     </span>
                   </div>
                   
-                  <div className="flex flex-wrap gap-2.5 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                  <div className="flex flex-wrap gap-1.5 md:gap-2">
                     {userInterests.map((interest) => (
                       <div
                         key={interest!.id}
-                        className="px-4 py-2.5 text-sm font-medium bg-gray-100 rounded-full border border-gray-200 flex items-center gap-2"
+                        className="px-2 py-1 md:px-2.5 md:py-1.5 text-xs md:text-sm font-medium bg-gray-100 rounded-full border border-gray-200 flex items-center gap-1 md:gap-1.5"
                       >
-                        <span className="text-base">{interest!.emoji}</span>
+                        <span className="text-sm md:text-base">{interest!.emoji}</span>
                         <span className="text-gray-700">{interest!.name}</span>
                       </div>
                     ))}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Edit Button - Bottom Right */}
-            <div className="mt-6 flex justify-end">
-              <Button
-                onClick={() => {
-                  onOpenChange(false);
-                  navigate('/profile/edit');
-                }}
-                size="lg"
-                className="bg-gradient-primary hover:opacity-90 text-primary-foreground px-8 py-3 text-base font-semibold shadow-lg transition-opacity rounded-xl"
-              >
-                Edit Profile
-              </Button>
+                {/* Edit Button - in grid */}
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    onClick={() => {
+                      onOpenChange(false);
+                      navigate('/profile/edit');
+                    }}
+                    size="lg"
+                    className="bg-gradient-primary hover:opacity-90 text-primary-foreground px-6 md:px-8 py-2 md:py-3 text-sm md:text-base font-semibold shadow-lg transition-opacity rounded-xl"
+                  >
+                    Edit Profile
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

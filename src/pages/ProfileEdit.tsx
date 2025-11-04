@@ -1,23 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
-import { Header } from '@/components/home/Header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from '@/hooks/use-toast';
 import { interests, interestCategories, getInterestsByCategory } from '@/data/interests';
 import { useProfileData } from '@/hooks/useProfileData';
-import { Upload } from 'lucide-react';
+import { Upload, ArrowLeft } from 'lucide-react';
+import { CircleRoleCard } from '@/components/profile/CircleRoleCard';
 
 export default function ProfileEdit() {
   const navigate = useNavigate();
   const { profileData, updateProfile } = useProfileData();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [activeTab, setActiveTab] = useState<'general' | 'role'>('general');
   
   const [formData, setFormData] = useState({
     firstName: profileData.firstName,
@@ -33,7 +35,12 @@ export default function ProfileEdit() {
     linkedin: profileData.linkedin,
     youtube: profileData.youtube,
     tiktok: profileData.tiktok,
-    profilePicture: profileData.profilePicture || ''
+    profilePicture: profileData.profilePicture || '',
+    industry: profileData.industry || '',
+    workPlace: profileData.workPlace || '',
+    university: profileData.university || '',
+    studyField: profileData.studyField || '',
+    role: profileData.role || ''
   });
 
   const [selectedInterests, setSelectedInterests] = useState<string[]>(profileData.interests);
@@ -53,7 +60,12 @@ export default function ProfileEdit() {
       linkedin: profileData.linkedin,
       youtube: profileData.youtube,
       tiktok: profileData.tiktok,
-      profilePicture: profileData.profilePicture || ''
+      profilePicture: profileData.profilePicture || '',
+      industry: profileData.industry || '',
+      workPlace: profileData.workPlace || '',
+      university: profileData.university || '',
+      studyField: profileData.studyField || '',
+      role: profileData.role || ''
     });
     setSelectedInterests(profileData.interests);
   }, [profileData]);
@@ -96,15 +108,34 @@ export default function ProfileEdit() {
 
   return (
     <AdaptiveLayout>
-      <Header />
-      <div className="min-h-screen bg-gradient-subtle py-8 px-4">
+      <div className="min-h-screen bg-gradient-subtle py-6 px-4">
         <div className="max-w-3xl mx-auto">
+          {/* Back Button */}
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/')}
+            className="mb-4 gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Circle
+          </Button>
+
+          {/* Toggle Buttons */}
+          <div className="mb-6">
+            <ToggleGroup type="single" value={activeTab} onValueChange={(value) => value && setActiveTab(value as 'general' | 'role')} className="justify-start gap-2 bg-muted/50 p-1 rounded-xl w-fit">
+              <ToggleGroupItem value="general" className="px-6 py-2 rounded-lg data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                General
+              </ToggleGroupItem>
+              <ToggleGroupItem value="role" className="px-6 py-2 rounded-lg data-[state=on]:bg-background data-[state=on]:shadow-sm">
+                Role
+              </ToggleGroupItem>
+            </ToggleGroup>
+          </div>
+
           <form onSubmit={handleSave}>
-            <Card className="shadow-apple-lg border-2">
-              <CardHeader>
-                <CardTitle className="text-3xl">Edit Profile</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
+            {activeTab === 'general' ? (
+              <Card className="shadow-apple-lg border-2">
+                <CardContent className="pt-6 space-y-6">
                 {/* Profile Picture Upload */}
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold">Profile Picture</h3>
@@ -189,6 +220,38 @@ export default function ProfileEdit() {
                     <Input
                       value={formData.occupation}
                       onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Industry</label>
+                    <Input
+                      value={formData.industry}
+                      onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                      placeholder="e.g., Technology, Finance"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Place of Work</label>
+                    <Input
+                      value={formData.workPlace}
+                      onChange={(e) => setFormData({ ...formData, workPlace: e.target.value })}
+                      placeholder="Company or organization name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">University</label>
+                    <Input
+                      value={formData.university}
+                      onChange={(e) => setFormData({ ...formData, university: e.target.value })}
+                      placeholder="University name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Field of Study</label>
+                    <Input
+                      value={formData.studyField}
+                      onChange={(e) => setFormData({ ...formData, studyField: e.target.value })}
+                      placeholder="e.g., Computer Science"
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -292,17 +355,36 @@ export default function ProfileEdit() {
                 ))}
               </div>
 
-              {/* Actions */}
-              <div className="flex gap-3 pt-4">
-                <Button type="submit" size="lg" className="flex-1">
-                  Save Changes
-                </Button>
-                <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1">
-                  Cancel
-                </Button>
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4">
+                    <Button type="submit" size="lg" className="flex-1">
+                      Save Changes
+                    </Button>
+                    <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1">
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                <CircleRoleCard
+                  circleName="Mentor the Young"
+                  currentRole={formData.role}
+                  onRoleChange={(role) => setFormData({ ...formData, role })}
+                />
+                
+                {/* Actions for Role tab */}
+                <div className="flex gap-3">
+                  <Button type="submit" size="lg" className="flex-1">
+                    Save Changes
+                  </Button>
+                  <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1">
+                    Cancel
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
           </form>
         </div>
       </div>
