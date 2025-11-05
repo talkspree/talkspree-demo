@@ -108,7 +108,7 @@ export default function WaitingRoom() {
   return (
     <AdaptiveLayout>
       <div className={`h-screen flex items-center ${isMobile ? 'justify-center' : 'justify-center'} p-4 overflow-hidden`}>
-        <Card className={`max-w-4xl w-full ${isMobile ? 'flex flex-col justify-center py-8' : 'h-[95vh] flex flex-col'} p-4 md:p-6 glass shadow-apple-lg`}>
+        <div className={`max-w-4xl w-full ${isMobile ? 'flex flex-col justify-center py-8' : 'h-[95vh] flex flex-col'}`}>
           {/* Header */}
           <div className={`text-center ${isMobile ? 'mb-6' : 'mb-4'} flex-shrink-0`}>
             <div className="mx-auto w-16 h-16 md:w-20 md:h-20 rounded-full bg-gradient-primary flex items-center justify-center mb-3 animate-pulse">
@@ -164,12 +164,13 @@ export default function WaitingRoom() {
             <Button
               variant="destructive"
               onClick={() => navigate('/')}
-              className="transition-spring"
+              className="relative overflow-hidden group"
             >
-              Cancel & Return Home
+              <span className="relative z-10">Cancel & Return Home</span>
+              <span className="absolute inset-0 bg-white/20 scale-0 group-active:scale-100 rounded-xl transition-transform duration-300 origin-center" />
             </Button>
           </div>
-        </Card>
+        </div>
       </div>
     </AdaptiveLayout>
   );

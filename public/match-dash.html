@@ -396,10 +396,10 @@
                 this.drawHUD();
 
                 if (!this.gameStarted) {
-                    this.ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.85)';
                     this.ctx.fillRect(0, 0, this.width, this.height);
                     
-                    this.ctx.fillStyle = '#fff';
+                    this.ctx.fillStyle = '#000';
                     this.ctx.font = 'bold 48px Arial';
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText('MATCH DASH', this.width / 2, this.height / 2 - 40);
@@ -408,12 +408,12 @@
                     this.ctx.fillText('Press SPACE or TAP to Start', this.width / 2, this.height / 2 + 20);
                     
                     this.ctx.font = '18px Arial';
-                    this.ctx.fillStyle = '#aaa';
+                    this.ctx.fillStyle = '#555';
                     this.ctx.fillText('Jump over interests that don\'t match yours!', this.width / 2, this.height / 2 + 60);
                 }
 
                 if (this.gameOver) {
-                    this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                    this.ctx.fillStyle = 'rgba(255,255,255,0.9)';
                     this.ctx.fillRect(0, 0, this.width, this.height);
                     
                     this.ctx.fillStyle = '#ff6b6b';
@@ -421,17 +421,17 @@
                     this.ctx.textAlign = 'center';
                     this.ctx.fillText('INTEREST MISMATCH!', this.width / 2, this.height / 2 - 40);
                     
-                    this.ctx.fillStyle = '#fff';
+                    this.ctx.fillStyle = '#000';
                     this.ctx.font = '32px Arial';
                     this.ctx.fillText('Score: ' + this.score, this.width / 2, this.height / 2 + 20);
                     
                     if (this.score >= this.highScore) {
-                        this.ctx.fillStyle = '#ffd93d';
+                        this.ctx.fillStyle = '#ff8c00';
                         this.ctx.font = 'bold 24px Arial';
                         this.ctx.fillText('🏆 NEW HIGH SCORE! 🏆', this.width / 2, this.height / 2 + 60);
                     }
                     
-                    this.ctx.fillStyle = '#aaa';
+                    this.ctx.fillStyle = '#555';
                     this.ctx.font = '20px Arial';
                     this.ctx.fillText('Press SPACE or TAP to Restart', this.width / 2, this.height / 2 + 100);
                 }
@@ -777,7 +777,10 @@
 
         // Initialize game when page loads
         window.addEventListener('load', () => {
-            new GameEngine('gameCanvas');
+            const game = new GameEngine('gameCanvas');
+            // Focus canvas immediately so spacebar works without clicking
+            document.getElementById('gameCanvas').focus();
+            document.getElementById('gameCanvas').setAttribute('tabindex', '0');
         });
 
     })();
