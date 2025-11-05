@@ -34,7 +34,7 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-4 md:mx-8">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-4 md:mx-8 my-4 md:my-auto max-h-[calc(100vh-2rem)] md:max-h-[90vh] overflow-y-auto">
         <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden">
           <div className="relative p-6 md:p-8">
             {/* Horizontal Layout */}

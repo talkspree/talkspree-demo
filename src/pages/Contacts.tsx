@@ -7,6 +7,7 @@ import { Search, ArrowLeft, ChevronDown } from 'lucide-react';
 import { ContactCircleSection } from '@/components/contacts/ContactCircleSection';
 import { sampleUserManager } from '@/data/sampleUsers';
 import { connectionsManager, Connection } from '@/utils/connections';
+import { useDevice } from '@/hooks/useDevice';
 import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
 import {
   DropdownMenu,
@@ -18,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 
 export default function Contacts() {
   const navigate = useNavigate();
+  const device = useDevice();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'similarity' | 'job'>('recent');
   const [connections, setConnections] = useState(connectionsManager.getConnections());
@@ -89,9 +91,9 @@ export default function Contacts() {
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
-      <Header />
+      {device !== 'mobile' && <Header />}
       
-      <div className="max-w-[1920px] mx-auto px-6 lg:px-12 pt-6 pb-12">
+      <div className={`max-w-[1920px] mx-auto px-6 lg:px-12 pb-12 ${device === 'mobile' ? 'pt-6' : 'pt-6'}`}>
         {/* Back Button */}
         <Button
           variant="ghost"

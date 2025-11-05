@@ -64,7 +64,7 @@ export function Header() {
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 bg-card">
+              <DropdownMenuContent align="end" className="w-80 bg-card z-[100]">
                 <div className="p-3 border-b border-border">
                   <h3 className="font-semibold">Notifications</h3>
                 </div>
@@ -73,7 +73,10 @@ export function Header() {
                     <DropdownMenuItem 
                       key={notif.id} 
                       className="p-4 cursor-pointer"
-                      onClick={() => navigate('/contacts')}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        navigate('/contacts');
+                      }}
                     >
                       <div>
                         <p className="text-sm">{notif.text}</p>

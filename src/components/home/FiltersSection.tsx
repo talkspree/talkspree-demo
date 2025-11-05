@@ -224,7 +224,7 @@ export function FiltersSection() {
                   <Badge
                     key={r.value}
                     variant={role === r.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer px-6 py-2 text-sm ${
+                    className={`cursor-pointer px-6 py-2 md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 ${
                       role === r.value ? 'shadow-glow' : 'shadow-apple-sm'
                     }`}
                     onClick={() => setRole(r.value as Role)}
@@ -255,7 +255,7 @@ export function FiltersSection() {
                   className="py-4"
                 />
               </div>
-              <div className="flex justify-between text-sm w-full max-w-md">
+              <div className="flex justify-between md:text-sm text-xs w-full max-w-md">
                 <span className={similarity === 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}>
                   Different
                 </span>
@@ -284,7 +284,7 @@ export function FiltersSection() {
                   <Badge
                     key={t.value}
                     variant={topic === t.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer px-5 py-2 text-sm ${
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 ${
                       topic === t.value ? 'shadow-glow' : 'shadow-apple-sm'
                     }`}
                     onClick={() => setTopic(t.value as TopicPreset)}
@@ -298,7 +298,7 @@ export function FiltersSection() {
                   <Badge
                     key={`preset-${idx}`}
                     variant={topic === preset.name ? 'default' : 'secondary'}
-                    className={`cursor-pointer px-5 py-2 text-sm flex items-center gap-2 ${
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 ${
                       topic === preset.name ? 'shadow-glow' : 'shadow-apple-sm'
                     }`}
                     onClick={() => setTopic(preset.name)}
@@ -317,7 +317,7 @@ export function FiltersSection() {
 
                 <Badge
                   variant={topic === 'custom' ? 'default' : 'secondary'}
-                  className={`cursor-pointer px-5 py-2 text-sm bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 ${
+                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 ${
                     topic === 'custom' ? 'shadow-glow' : ''
                   }`}
                   onClick={() => {
@@ -338,7 +338,7 @@ export function FiltersSection() {
                 <label className="text-sm font-semibold">Session:</label>
                 <InfoIcon content="Choose your conversation length: 10, 15, or 30 minutes for a timed session, or ∞ for unlimited time to chat." />
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {[
                   { value: 10, label: '10 min' },
                   { value: 15, label: '15 min' },
@@ -348,7 +348,7 @@ export function FiltersSection() {
                   <Badge
                     key={d.value}
                     variant={duration === d.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer px-6 py-2 text-sm ${
+                    className={`cursor-pointer md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 whitespace-nowrap ${
                       duration === d.value ? 'shadow-glow' : 'shadow-apple-sm'
                     }`}
                     onClick={() => setDuration(d.value as Duration)}
