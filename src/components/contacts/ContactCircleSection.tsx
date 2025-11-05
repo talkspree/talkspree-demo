@@ -83,10 +83,10 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
                 <div className="text-center space-y-2">
                   <h3 className="font-semibold text-lg">{circle.name}</h3>
                   <div className="flex items-center justify-center gap-3 text-xs">
-                    <span className="text-muted-foreground">{circle.members} members</span>
+                    <span className="text-muted-foreground">{circle.contacts.length} connections</span>
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                      <span className="font-medium">{circle.online} online</span>
+                      <span className="font-medium">{circle.contacts.filter(c => Math.random() > 0.5).length} online</span>
                     </div>
                   </div>
 

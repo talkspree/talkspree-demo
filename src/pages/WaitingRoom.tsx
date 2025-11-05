@@ -122,17 +122,17 @@ export default function WaitingRoom() {
 
           {/* Stats */}
           <div className={`grid grid-cols-3 gap-2 md:gap-4 ${isMobile ? 'mb-6' : 'mb-4'} flex-shrink-0`}>
-            <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
+            <div className="bg-card/80 rounded-2xl p-2 md:p-4 text-center shadow-apple-md border-2 border-border">
               <Users className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-primary" />
               <div className="text-lg md:text-2xl font-bold">{matchingUsers}</div>
               <div className="text-xs md:text-sm text-muted-foreground">Available Now</div>
             </div>
-            <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
+            <div className="bg-card/80 rounded-2xl p-2 md:p-4 text-center shadow-apple-md border-2 border-border">
               <Users className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-warning" />
               <div className="text-lg md:text-2xl font-bold">{chattingUsers}</div>
               <div className="text-xs md:text-sm text-muted-foreground">Currently Chatting</div>
             </div>
-            <div className="bg-muted/50 rounded-2xl p-2 md:p-4 text-center">
+            <div className="bg-card/80 rounded-2xl p-2 md:p-4 text-center shadow-apple-md border-2 border-border">
               <Clock className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-primary" />
               <div className="text-lg md:text-2xl font-bold">~{estimatedWait}s</div>
               <div className="text-xs md:text-sm text-muted-foreground">Estimated Wait</div>

@@ -55,7 +55,7 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh]">
+      <DialogContent className="max-w-md max-h-[85vh] md:max-h-[90vh] overflow-y-auto mx-auto my-auto">
         {device !== 'mobile' && (
           <DialogHeader>
             <DialogTitle>Contact Details</DialogTitle>
@@ -195,25 +195,6 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
               </div>
             </div>
 
-            {/* Additional Info */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-              <div>
-                <h4 className="text-sm font-semibold mb-1">University</h4>
-                <p className="text-sm text-muted-foreground">{contact.user.university}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold mb-1">Study Field</h4>
-                <p className="text-sm text-muted-foreground">{contact.user.studyField}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold mb-1">Workplace</h4>
-                <p className="text-sm text-muted-foreground">{contact.user.workPlace}</p>
-              </div>
-              <div>
-                <h4 className="text-sm font-semibold mb-1">Industry</h4>
-                <p className="text-sm text-muted-foreground">{contact.user.industry}</p>
-              </div>
-            </div>
           </div>
         </ScrollArea>
       </DialogContent>

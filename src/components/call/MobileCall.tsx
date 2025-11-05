@@ -20,6 +20,7 @@ export function MobileCall() {
   const [isConnected, setIsConnected] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState<Question>(getRandomQuestion(topicPresets[0]));
   const [nextQuestionIn, setNextQuestionIn] = useState(180);
   const [inputValue, setInputValue] = useState('');
@@ -344,13 +345,7 @@ export function MobileCall() {
             <Button
               size="icon"
               className="h-12 w-12 rounded-full bg-destructive hover:bg-destructive/90"
-              onClick={() => handleButtonClick(() => navigate('/wrap-up', { 
-                state: { 
-                  matchedUser,
-                  ...location.state
-                },
-                replace: true 
-              }), 'heavy')}
+              onClick={() => handleButtonClick(() => setShowEndConfirm(true), 'heavy')}
             >
               <PhoneOff className="h-5 w-5" />
             </Button>

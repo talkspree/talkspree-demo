@@ -34,7 +34,7 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-4 md:mx-8 my-4 md:my-auto max-h-[calc(100vh-2rem)] md:max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none max-w-md mx-auto my-auto max-h-[85vh] md:max-h-[90vh] overflow-y-auto">
         <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden">
           <div className="relative p-6 md:p-8">
             {/* Horizontal Layout */}
@@ -127,12 +127,12 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                   </div>
                   
                   <div className="flex flex-wrap gap-1.5">
-                    {userInterests.map((interest) => (
+                     {userInterests.map((interest) => (
                       <div
                         key={interest!.id}
-                        className="px-2 py-1 text-sm font-medium bg-gray-100 rounded-full border border-gray-200 flex items-center gap-1"
+                        className="px-2 py-1 text-xs md:text-sm font-medium bg-gray-100 rounded-full border border-gray-200 flex items-center gap-1"
                       >
-                        <span className="text-sm">{interest!.emoji}</span>
+                        <span className="text-xs md:text-sm">{interest!.emoji}</span>
                         <span className="text-gray-700">{interest!.name}</span>
                       </div>
                     ))}

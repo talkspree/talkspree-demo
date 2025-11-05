@@ -15,7 +15,7 @@ import { CameraView } from './CameraView';
 import { PromptDisplay } from './PromptDisplay';
 import { ChatBox } from './ChatBox';
 import { CorrespondentProfile } from './CorrespondentProfile';
-import { useVideoStream } from '@/hooks/useVideoStream';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCallTimer } from '@/hooks/useCallTimer';
 import { ProfileCard } from '@/components/home/ProfileCard';
 import { SampleUser, sampleUserManager } from '@/data/sampleUsers';
@@ -26,6 +26,7 @@ export function DesktopCall() {
   const matchedUser = location.state?.matchedUser as SampleUser | undefined;
   const [isConnected, setIsConnected] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
   
   // Get duration from navigation state, default to 15 minutes
   const sessionDuration = location.state?.duration || 15;
@@ -67,14 +68,10 @@ export function DesktopCall() {
   };
 
   const handleEndCall = () => {
-    navigate('/wrap-up', { 
-      state: { 
-        matchedUser,
-        ...location.state
-      },
-      replace: true 
-    });
+    setShowEndConfirm(true);
   };
+
+  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   return (
     <div className="h-screen bg-background flex flex-col">
@@ -191,6 +188,41 @@ export function DesktopCall() {
 
       {/* Profile Card Modal */}
       <ProfileCard open={showProfile} onOpenChange={setShowProfile} />
+
+      {/* End Call Confirmation Dialog */}
+      <Dialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
+        <DialogContent className="max-w-sm">
+          <div className="text-center space-y-4 p-4">
+            <h2 className="text-xl font-bold">End Call?</h2>
+            <p className="text-muted-foreground">Are you sure you want to end this call?</p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  setShowEndConfirm(false);
+                  navigate('/wrap-up', { 
+                    state: { 
+                      matchedUser,
+                      ...location.state
+                    },
+                    replace: true 
+                  });
+                }}
+              >
+                END
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
