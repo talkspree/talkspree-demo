@@ -20,6 +20,7 @@ interface Contact {
   gender: string;
   rating: number;
   avatarUrl: string;
+  isSample?: boolean;
 }
 
 interface Circle {
@@ -86,7 +87,7 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
                     <span className="text-muted-foreground">{circle.contacts.length} connections</span>
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                      <span className="font-medium">{circle.contacts.filter(c => Math.random() > 0.5).length} online</span>
+                      <span className="font-medium">{circle.contacts.filter(c => c.isSample).length} online</span>
                     </div>
                   </div>
 

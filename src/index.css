@@ -160,6 +160,12 @@ All colors MUST be HSL.
   /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
+    overflow-y: scroll;
+  }
+
+  /* Prevent layout shift when modals open */
+  body {
+    overflow-y: scroll;
   }
 }
 

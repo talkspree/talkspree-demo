@@ -55,15 +55,14 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] md:max-h-[90vh] overflow-y-auto mx-auto my-auto">
+      <DialogContent className="max-w-[95vw] mx-4 md:mx-auto md:max-w-3xl max-h-[85vh] md:max-h-[90vh] overflow-y-auto my-auto">
         {device !== 'mobile' && (
           <DialogHeader>
             <DialogTitle>Contact Details</DialogTitle>
           </DialogHeader>
         )}
 
-        <ScrollArea className="max-h-[70vh]">
-          <div className="space-y-6 p-6">
+        <div className="space-y-6 p-6">
             {/* Profile Header */}
             <div className={`flex ${device === 'mobile' ? 'flex-col items-center' : 'items-start'} gap-6`}>
               <Avatar className="h-32 w-32 shrink-0 border-4 border-primary">
@@ -196,7 +195,6 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
             </div>
 
           </div>
-        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

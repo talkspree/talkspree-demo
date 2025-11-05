@@ -25,6 +25,7 @@ interface Contact {
   youtube?: string;
   tiktok?: string;
   isOnline?: boolean;
+  isSample?: boolean;
 }
 
 interface ContactCardProps {
@@ -41,7 +42,8 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
   // Convert age string to number
   const ageNum = parseInt(contact.age.replace('y', ''));
 
-  const isOnline = contact.isOnline ?? Math.random() > 0.5;
+  // Sample users are always online, others have their actual status
+  const isOnline = contact.isSample ? true : (contact.isOnline ?? false);
 
   const socialLinks = [
     { platform: 'instagram', icon: Instagram, handle: contact.instagram, color: 'text-[#E4405F]' },
@@ -88,12 +90,19 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
         {/* Name and Online Status */}
         <div className="text-center mb-3">
           <h3 className="font-semibold text-sm">{contact.name}</h3>
-          {isOnline && (
-            <div className="flex items-center justify-center gap-1.5 mt-1">
-              <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-              <span className="text-xs text-success font-medium">online</span>
-            </div>
-          )}
+          <div className="flex items-center justify-center gap-1.5 mt-1">
+            {isOnline ? (
+              <>
+                <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                <span className="text-xs text-success font-medium">online</span>
+              </>
+            ) : (
+              <>
+                <div className="h-2 w-2 rounded-full bg-muted-foreground" />
+                <span className="text-xs text-muted-foreground font-medium">offline</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* About Me Section */}

@@ -90,7 +90,7 @@ export default function Contacts() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-gradient-subtle overflow-y-scroll">
       {device !== 'mobile' && <Header />}
       
       <div className={`max-w-[1920px] mx-auto px-6 lg:px-12 pb-12 ${device === 'mobile' ? 'pt-6' : 'pt-6'}`}>
