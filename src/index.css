@@ -150,7 +150,6 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "rlig" 1, "calt" 1;
-    overflow-y: scroll; /* Prevent content shift when scrollbar appears/disappears */
   }
 
   /* Apple-style focus rings */
