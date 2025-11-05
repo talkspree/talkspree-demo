@@ -500,13 +500,7 @@ export function MobileCall() {
                   <Button
                     size="icon"
                     className="h-10 w-10 rounded-full bg-destructive hover:bg-destructive/90 shrink-0"
-                    onClick={() => navigate('/wrap-up', { 
-                      state: { 
-                        matchedUser,
-                        ...location.state
-                      },
-                      replace: true 
-                    })}
+                    onClick={() => setShowEndConfirm(true)}
                   >
                     <PhoneOff className="h-4 w-4" />
                   </Button>
@@ -540,6 +534,41 @@ export function MobileCall() {
           <ScrollArea className="h-[85vh] p-6">
             <CorrespondentProfile matchedUser={matchedUser} isConnected={isConnected} />
           </ScrollArea>
+        </DialogContent>
+      </Dialog>
+
+      {/* End Call Confirmation Dialog */}
+      <Dialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
+        <DialogContent className="max-w-sm">
+          <div className="text-center space-y-4 p-4">
+            <h2 className="text-xl font-bold">End Call?</h2>
+            <p className="text-muted-foreground">Are you sure you want to end this call?</p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowEndConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={() => {
+                  setShowEndConfirm(false);
+                  navigate('/wrap-up', { 
+                    state: { 
+                      matchedUser,
+                      ...location.state
+                    },
+                    replace: true 
+                  });
+                }}
+              >
+                END
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

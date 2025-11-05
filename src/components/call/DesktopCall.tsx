@@ -16,6 +16,7 @@ import { PromptDisplay } from './PromptDisplay';
 import { ChatBox } from './ChatBox';
 import { CorrespondentProfile } from './CorrespondentProfile';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { useVideoStream } from '@/hooks/useVideoStream';
 import { useCallTimer } from '@/hooks/useCallTimer';
 import { ProfileCard } from '@/components/home/ProfileCard';
 import { SampleUser, sampleUserManager } from '@/data/sampleUsers';
@@ -70,8 +71,6 @@ export function DesktopCall() {
   const handleEndCall = () => {
     setShowEndConfirm(true);
   };
-
-  const [showEndConfirm, setShowEndConfirm] = useState(false);
 
   return (
     <div className="h-screen bg-background flex flex-col">
