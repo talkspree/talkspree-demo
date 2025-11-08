@@ -149,40 +149,128 @@ export default function WrapUp() {
               </Button>
             </div>
 
-            {/* Centered Profile Content */}
-            <div className="flex flex-col items-center space-y-4">
-              <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-white shadow-lg">
-                <AvatarImage src="" />
-                <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl md:text-4xl font-bold">
-                  {matchedUser.firstName[0]}{matchedUser.lastName[0]}
-                </AvatarFallback>
-              </Avatar>
+            {/* Profile Content - Desktop: Split Layout, Mobile: Centered */}
+            {isMobile ? (
+              <div className="flex flex-col items-center space-y-4">
+                <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
+                  <AvatarImage src="" />
+                  <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl font-bold">
+                    {matchedUser.firstName[0]}{matchedUser.lastName[0]}
+                  </AvatarFallback>
+                </Avatar>
 
-              <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center">
-                {matchedUser.firstName} {matchedUser.lastName}
-              </h2>
-              
-              {/* About Me - no title */}
-              <AboutMeSection
-                role={matchedUser.role}
-                occupation={matchedUser.occupation}
-                industry={matchedUser.industry}
-                studyField={matchedUser.studyField}
-                university={matchedUser.university}
-                age={new Date().getFullYear() - new Date(matchedUser.dateOfBirth).getFullYear()}
-                gender={matchedUser.gender}
-                location={matchedUser.location}
-                className="text-gray-700 text-center justify-center text-sm"
-                compact
-              />
+                <h2 className="text-2xl font-bold text-gray-900 text-center">
+                  {matchedUser.firstName} {matchedUser.lastName}
+                </h2>
+                
+                <AboutMeSection
+                  role={matchedUser.role}
+                  occupation={matchedUser.occupation}
+                  industry={matchedUser.industry}
+                  studyField={matchedUser.studyField}
+                  university={matchedUser.university}
+                  age={new Date().getFullYear() - new Date(matchedUser.dateOfBirth).getFullYear()}
+                  gender={matchedUser.gender}
+                  location={matchedUser.location}
+                  className="text-gray-700 text-center justify-center text-sm"
+                  compact
+                />
 
-              {/* Similarity */}
-              <div className="text-center py-2">
-                <p className="text-lg font-semibold text-primary">
-                  Similarity: {similarity}%
-                </p>
+                {/* Similarity - Emphasized on Mobile */}
+                <div className="text-center py-4">
+                  <div className="inline-flex flex-col items-center gap-2 p-6 bg-gradient-primary rounded-2xl">
+                    <p className="text-5xl font-black text-white animate-scale-in">
+                      {similarity}%
+                    </p>
+                    <p className="text-sm font-semibold text-white/90 uppercase tracking-wider">
+                      Similarity
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-stretch gap-0">
+                {/* Left Section - Profile */}
+                <div className="flex-1 flex flex-col items-center space-y-4 pr-8">
+                  <Avatar className="h-40 w-40 border-4 border-white shadow-lg">
+                    <AvatarImage src="" />
+                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-4xl font-bold">
+                      {matchedUser.firstName[0]}{matchedUser.lastName[0]}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <h2 className="text-3xl font-bold text-gray-900 text-center">
+                    {matchedUser.firstName} {matchedUser.lastName}
+                  </h2>
+                  
+                  <AboutMeSection
+                    role={matchedUser.role}
+                    occupation={matchedUser.occupation}
+                    industry={matchedUser.industry}
+                    studyField={matchedUser.studyField}
+                    university={matchedUser.university}
+                    age={new Date().getFullYear() - new Date(matchedUser.dateOfBirth).getFullYear()}
+                    gender={matchedUser.gender}
+                    location={matchedUser.location}
+                    className="text-gray-700 text-center justify-center text-sm"
+                    compact
+                  />
+                </div>
+
+                {/* Divider */}
+                <div className="w-px bg-gradient-to-b from-transparent via-border to-transparent self-stretch" />
+
+                {/* Right Section - Animated Similarity */}
+                <div className="flex-1 flex items-center justify-center pl-8">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="relative">
+                      {/* Outer Ring */}
+                      <svg className="w-48 h-48 transform -rotate-90">
+                        <circle
+                          cx="96"
+                          cy="96"
+                          r="88"
+                          stroke="hsl(var(--border))"
+                          strokeWidth="8"
+                          fill="none"
+                        />
+                        <circle
+                          cx="96"
+                          cy="96"
+                          r="88"
+                          stroke="url(#gradient)"
+                          strokeWidth="8"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 88}`}
+                          strokeDashoffset={`${2 * Math.PI * 88 * (1 - similarity / 100)}`}
+                          className="transition-all duration-2000 ease-out"
+                          strokeLinecap="round"
+                        />
+                        <defs>
+                          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor="hsl(217, 91%, 60%)" />
+                            <stop offset="100%" stopColor="hsl(282, 77%, 61%)" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      
+                      {/* Center Content */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <p className="text-6xl font-black bg-gradient-primary bg-clip-text text-transparent animate-scale-in">
+                            {similarity}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <p className="text-lg font-semibold text-primary uppercase tracking-wider">
+                      Similarity
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 mt-6">

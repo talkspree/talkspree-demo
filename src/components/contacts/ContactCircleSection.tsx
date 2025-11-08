@@ -18,7 +18,6 @@ interface Contact {
   age: string;
   country: string;
   gender: string;
-  rating: number;
   avatarUrl: string;
   isSample?: boolean;
 }

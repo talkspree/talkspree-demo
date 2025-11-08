@@ -52,7 +52,6 @@ export default function Contacts() {
         age: `${age}y`,
         country: conn.user.location,
         gender: conn.user.gender,
-        rating: 4.5,
         avatarUrl: '',
         isSample: true,
         role: conn.user.role,

@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Star, Instagram, Linkedin, Facebook, Youtube, Music } from 'lucide-react';
+import { Instagram, Linkedin, Facebook, Youtube, Music } from 'lucide-react';
 import { Connection } from '@/utils/connections';
 import { interests } from '@/data/interests';
 import { useProfileData } from '@/hooks/useProfileData';
@@ -42,9 +42,6 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
     .map(id => interests.find(i => i.id === id))
     .filter(Boolean);
 
-  const fullStars = Math.floor(4.5);
-  const hasHalfStar = 4.5 % 1 !== 0;
-
   const socialLinks = [
     { platform: 'Instagram', handle: contact.user.instagram, icon: Instagram, url: `https://instagram.com/${contact.user.instagram?.replace('@', '')}`, color: '#E4405F' },
     { platform: 'LinkedIn', handle: contact.user.linkedin, icon: Linkedin, url: contact.user.linkedin?.startsWith('http') ? contact.user.linkedin : `https://linkedin.com/in/${contact.user.linkedin}`, color: '#0A66C2' },
@@ -77,24 +74,6 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
                   <h2 className={`text-2xl font-bold ${device === 'mobile' ? 'text-center' : ''}`}>
                     {contact.user.firstName} {contact.user.lastName}
                   </h2>
-                  
-                  {/* Rating */}
-                  <div className="flex items-center gap-1 my-2">
-                    {[...Array(fullStars)].map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-warning text-warning" />
-                    ))}
-                    {hasHalfStar && (
-                      <div className="relative">
-                        <Star className="h-4 w-4 text-warning" />
-                        <div className="absolute inset-0 overflow-hidden w-1/2">
-                          <Star className="h-4 w-4 fill-warning text-warning" />
-                        </div>
-                      </div>
-                    )}
-                    {[...Array(5 - fullStars - (hasHalfStar ? 1 : 0))].map((_, i) => (
-                      <Star key={`empty-${i}`} className="h-4 w-4 text-muted-foreground/30" />
-                    ))}
-                  </div>
                 </div>
 
                 {/* About Me Section */}

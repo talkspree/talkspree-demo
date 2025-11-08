@@ -162,10 +162,7 @@ All colors MUST be HSL.
     scroll-behavior: smooth;
   }
 
-  /* Prevent layout shift when modals open */
-  body {
-    overflow-y: scroll;
-  }
+  /* Enable smooth scrolling but only show scrollbar when needed */
 }
 
 @layer utilities {
