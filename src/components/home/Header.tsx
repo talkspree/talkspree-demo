@@ -104,6 +104,9 @@ export function Header() {
                 <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer">
                   View Profile
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                  Settings
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('/auth')} className="cursor-pointer">
                   Sign Out
                 </DropdownMenuItem>

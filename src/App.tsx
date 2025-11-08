@@ -4,6 +4,7 @@ import Auth from "./pages/Auth";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
 import ProfileEdit from "./pages/ProfileEdit";
+import Settings from "./pages/Settings";
 import Call from "./pages/Call";
 import Contacts from "./pages/Contacts";
 import WaitingRoom from "./pages/WaitingRoom";
@@ -24,6 +25,7 @@ function App() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/profile/edit" element={<ProfileEdit />} />
+        <Route path="/settings" element={<Settings />} />
         <Route path="/call" element={<Call />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/waiting" element={<WaitingRoom />} />
