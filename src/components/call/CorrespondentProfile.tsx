@@ -57,9 +57,6 @@ export function CorrespondentProfile({ matchedUser, isConnected = false, classNa
               </AvatarFallback>
             </Avatar>
             <h3 className="text-xl font-bold">{matchedUser.firstName} {matchedUser.lastName}</h3>
-            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-              <span>⭐⭐⭐⭐⭐</span>
-            </div>
           </div>
 
           {/* About Me */}

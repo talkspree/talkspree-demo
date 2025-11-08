@@ -52,7 +52,7 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] mx-4 md:mx-auto md:max-w-3xl max-h-[85vh] md:max-h-[90vh] overflow-y-auto my-auto">
+      <DialogContent className="max-w-[95vw] mx-auto md:max-w-3xl max-h-[85vh] md:max-h-[90vh] overflow-y-auto my-auto rounded-[2rem]">
         {device !== 'mobile' && (
           <DialogHeader>
             <DialogTitle>Contact Details</DialogTitle>
