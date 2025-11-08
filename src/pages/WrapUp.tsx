@@ -176,10 +176,10 @@ export default function WrapUp() {
                   compact
                 />
 
-                {/* Similarity - Emphasized on Mobile */}
-                <div className="text-center py-4">
-                  <div className="inline-flex flex-col items-center gap-2 p-6 bg-gradient-primary rounded-2xl">
-                    <p className="text-5xl font-black text-white animate-scale-in">
+                {/* Similarity - Compact on Mobile */}
+                <div className="text-center py-2">
+                  <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-primary rounded-full">
+                    <p className="text-2xl font-bold text-white">
                       {similarity}%
                     </p>
                     <p className="text-sm font-semibold text-white/90 uppercase tracking-wider">
