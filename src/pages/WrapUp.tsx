@@ -223,9 +223,9 @@ export default function WrapUp() {
                 {/* Right Section - Animated Similarity */}
                 <div className="flex-1 flex items-center justify-center pl-8">
                   <div className="flex flex-col items-center gap-4">
-                    <div className="relative">
+                    <div className="relative w-48 h-48">
                       {/* Outer Ring */}
-                      <svg className="w-48 h-48 transform -rotate-90">
+                      <svg className="w-full h-full transform -rotate-90">
                         <circle
                           cx="96"
                           cy="96"
@@ -256,11 +256,9 @@ export default function WrapUp() {
                       
                       {/* Center Content */}
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center">
-                          <p className="text-6xl font-black bg-gradient-primary bg-clip-text text-transparent animate-scale-in">
-                            {similarity}%
-                          </p>
-                        </div>
+                        <p className="text-6xl font-black text-primary animate-scale-in">
+                          {similarity}%
+                        </p>
                       </div>
                     </div>
                     
