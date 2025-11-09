@@ -99,7 +99,7 @@ export function MobileHome() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] md:w-80 bg-card z-[100] max-h-[400px] overflow-y-auto">
+              <DropdownMenuContent align="center" className="w-[calc(100vw-2rem)] md:w-80 bg-card z-[100] max-h-[400px] overflow-y-auto">
                 <div className="p-3 border-b border-border">
                   <h3 className="font-semibold">Notifications</h3>
                 </div>

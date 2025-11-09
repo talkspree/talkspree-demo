@@ -47,12 +47,7 @@ export function CircleRoleCard({ circleName, currentRole, onRoleChange, circleIm
           <Select value={currentRole || undefined} onValueChange={onRoleChange}>
             <SelectTrigger>
               <SelectValue placeholder="Select a role">
-                {currentRole && selectedRole && (
-                  <div className="flex items-center gap-2">
-                    <span>{selectedRole.emoji}</span>
-                    <span>{selectedRole.label}</span>
-                  </div>
-                )}
+                {selectedRole ? `${selectedRole.emoji} ${selectedRole.label}` : 'Select a role'}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
