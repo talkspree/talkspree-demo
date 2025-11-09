@@ -539,7 +539,7 @@ export function MobileCall() {
 
       {/* End Call Confirmation Dialog */}
       <Dialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
-        <DialogContent className="max-w-sm mx-4 md:mx-auto rounded-3xl">
+        <DialogContent className="max-w-sm mx-auto rounded-3xl w-[calc(100vw-2rem)] md:w-auto">
           <div className="text-center space-y-4 p-4">
             <h2 className="text-xl font-bold">End Call?</h2>
             <p className="text-muted-foreground">Are you sure you want to end this call?</p>
