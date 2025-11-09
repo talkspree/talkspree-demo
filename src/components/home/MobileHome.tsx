@@ -99,16 +99,28 @@ export function MobileHome() {
                 )}
               </Button>
             </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72 bg-card max-h-[400px] overflow-y-auto">
+              <DropdownMenuContent align="end" className="w-[calc(100vw-2rem)] md:w-80 bg-card z-[100] max-h-[400px] overflow-y-auto">
+                <div className="p-3 border-b border-border">
+                  <h3 className="font-semibold">Notifications</h3>
+                </div>
                 {notifications.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground text-center">
                     No new notifications
                   </div>
                 ) : (
                   notifications.map((notif) => (
-                    <DropdownMenuItem key={notif.id} className="flex flex-col items-start py-3 cursor-pointer">
-                      <span className="text-sm">{notif.text}</span>
-                      <span className="text-xs text-muted-foreground">{notif.time}</span>
+                    <DropdownMenuItem 
+                      key={notif.id} 
+                      className="p-4 cursor-pointer"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate('/contacts');
+                      }}
+                    >
+                      <div>
+                        <p className="text-sm">{notif.text}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
+                      </div>
                     </DropdownMenuItem>
                   ))
                 )}
@@ -127,9 +139,12 @@ export function MobileHome() {
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-card">
+              <DropdownMenuContent align="end" className="w-48 bg-card z-[100]">
                 <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer">
                   View Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                  Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate('/auth')} className="cursor-pointer">
                   Sign Out
