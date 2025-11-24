@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getCurrentProfile, getUserInterests, getUserSocialLinks } from '@/lib/api/profiles';
 
 export interface ProfileData {
   firstName: string;
@@ -48,23 +49,77 @@ const DEFAULT_PROFILE: ProfileData = {
   industry: ''
 };
 
-const STORAGE_KEY = 'user_profile_data';
-
 export function useProfileData() {
-  const [profileData, setProfileData] = useState<ProfileData>(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT_PROFILE;
-  });
+  const [profileData, setProfileData] = useState<ProfileData>(DEFAULT_PROFILE);
+  const [loading, setLoading] = useState(true);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      const profile = await getCurrentProfile();
+      
+      if (profile) {
+        // Fetch interests
+        const interests = await getUserInterests();
+        const interestIds = interests.map((interest: any) => interest.id);
+
+        // Fetch social links
+        const socialLinks = await getUserSocialLinks();
+        const socialLinksMap: Record<string, string> = {};
+        socialLinks.forEach((link: any) => {
+          socialLinksMap[link.platform] = link.url;
+        });
+
+        // Add cache buster to profile picture URL to force refresh
+        const profilePictureUrl = profile.profile_picture_url 
+          ? `${profile.profile_picture_url}?t=${Date.now()}` 
+          : '';
+
+        setProfileData({
+          firstName: profile.first_name || '',
+          lastName: profile.last_name || '',
+          dateOfBirth: profile.date_of_birth || '',
+          gender: profile.gender || '',
+          location: profile.location || '',
+          occupation: profile.occupation || '',
+          bio: profile.bio || '',
+          phone: profile.phone || '',
+          email: profile.email || '',
+          instagram: socialLinksMap['instagram'] || '',
+          facebook: socialLinksMap['facebook'] || '',
+          linkedin: socialLinksMap['linkedin'] || '',
+          youtube: socialLinksMap['youtube'] || '',
+          tiktok: socialLinksMap['tiktok'] || '',
+          interests: interestIds,
+          profilePicture: profilePictureUrl,
+          role: profile.role || '',
+          university: profile.university || '',
+          studyField: profile.study_field || '',
+          workPlace: profile.work_place || '',
+          industry: profile.industry || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profileData));
-  }, [profileData]);
+    loadProfile();
+  }, []);
 
   const updateProfile = (updates: Partial<ProfileData>) => {
     setProfileData(prev => ({ ...prev, ...updates }));
   };
 
+  const reloadProfile = async () => {
+    await loadProfile();
+  };
+
   const calculateAge = (dateOfBirth: string) => {
+    if (!dateOfBirth) return 0;
     const today = new Date();
     const birthDate = new Date(dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -78,6 +133,8 @@ export function useProfileData() {
   return {
     profileData,
     updateProfile,
-    age: calculateAge(profileData.dateOfBirth)
+    reloadProfile,
+    age: calculateAge(profileData.dateOfBirth),
+    loading
   };
 }

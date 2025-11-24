@@ -153,7 +153,7 @@ export default function WrapUp() {
             {isMobile ? (
               <div className="flex flex-col items-center space-y-4">
                 <Avatar className="h-32 w-32 border-4 border-white shadow-lg">
-                  <AvatarImage src="" />
+                  <AvatarImage src={matchedUser.profilePicture || ''} />
                   <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl font-bold">
                     {matchedUser.firstName[0]}{matchedUser.lastName[0]}
                   </AvatarFallback>
@@ -193,7 +193,7 @@ export default function WrapUp() {
                 {/* Left Section - Profile */}
                 <div className="flex-1 flex flex-col items-center space-y-4 pr-8">
                   <Avatar className="h-40 w-40 border-4 border-white shadow-lg">
-                    <AvatarImage src="" />
+                    <AvatarImage src={matchedUser.profilePicture || ''} />
                     <AvatarFallback className="bg-gradient-primary text-primary-foreground text-4xl font-bold">
                       {matchedUser.firstName[0]}{matchedUser.lastName[0]}
                     </AvatarFallback>

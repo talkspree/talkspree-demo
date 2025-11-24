@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { PlacesAutocomplete } from '@/components/ui/PlacesAutocomplete';
 import { OnboardingData } from '@/pages/Onboarding';
 
 interface PersonalInfoStepMobileProps {
@@ -14,37 +15,12 @@ interface PersonalInfoStepMobileProps {
   field: 'firstName' | 'dateOfBirth' | 'gender' | 'location';
 }
 
-const locations = [
-  'New York, USA',
-  'London, UK',
-  'Paris, France',
-  'Berlin, Germany',
-  'Tokyo, Japan',
-  'Sydney, Australia',
-  'Toronto, Canada',
-  'Singapore',
-  'Dubai, UAE',
-  'Mumbai, India',
-  'São Paulo, Brazil',
-  'Mexico City, Mexico',
-  'Seoul, South Korea',
-  'Madrid, Spain',
-  'Amsterdam, Netherlands',
-  'Stockholm, Sweden',
-  'Copenhagen, Denmark',
-  'Vienna, Austria',
-  'Prague, Czech Republic',
-  'Budapest, Hungary',
-];
-
 export function PersonalInfoStepMobile({ data, updateData, onNext, onPrev, field }: PersonalInfoStepMobileProps) {
   const [firstName, setFirstName] = useState(data.firstName || '');
   const [lastName, setLastName] = useState(data.lastName || '');
   const [dateOfBirth, setDateOfBirth] = useState(data.dateOfBirth || '');
   const [gender, setGender] = useState(data.gender || '');
   const [location, setLocation] = useState(data.location || '');
-  const [filteredLocations, setFilteredLocations] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const handleNext = () => {
     if (field === 'firstName') {
@@ -57,24 +33,6 @@ export function PersonalInfoStepMobile({ data, updateData, onNext, onPrev, field
       updateData({ location });
     }
     onNext();
-  };
-
-  const handleLocationChange = (input: string) => {
-    setLocation(input);
-    if (input.length > 0) {
-      const filtered = locations.filter(loc =>
-        loc.toLowerCase().includes(input.toLowerCase())
-      );
-      setFilteredLocations(filtered);
-      setShowSuggestions(true);
-    } else {
-      setShowSuggestions(false);
-    }
-  };
-
-  const selectLocation = (loc: string) => {
-    setLocation(loc);
-    setShowSuggestions(false);
   };
 
   const getTitle = () => {
@@ -106,7 +64,7 @@ export function PersonalInfoStepMobile({ data, updateData, onNext, onPrev, field
   const handleValueChange = (newValue: string) => {
     if (field === 'dateOfBirth') setDateOfBirth(newValue);
     else if (field === 'gender') setGender(newValue);
-    else if (field === 'location') handleLocationChange(newValue);
+    else if (field === 'location') setLocation(newValue);
   };
 
   const isValid = field === 'firstName' 
@@ -165,34 +123,24 @@ export function PersonalInfoStepMobile({ data, updateData, onNext, onPrev, field
               />
             </div>
           </div>
+        ) : field === 'location' ? (
+          <PlacesAutocomplete
+            value={location}
+            onChange={setLocation}
+            label={getLabel()}
+            placeholder="Start typing a city name..."
+            className="transition-spring"
+          />
         ) : (
           <div className="space-y-2 relative">
             <Label htmlFor={field}>{getLabel()}</Label>
             <Input
               id={field}
               type={field === 'dateOfBirth' ? 'date' : 'text'}
-              placeholder={
-                field === 'location' ? 'Start typing...' : ''
-              }
               value={getCurrentValue()}
               onChange={(e) => handleValueChange(e.target.value)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              onFocus={() => field === 'location' && location && setShowSuggestions(true)}
               className="transition-spring"
             />
-            {field === 'location' && showSuggestions && filteredLocations.length > 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-card border-2 border-border rounded-xl shadow-apple-lg max-h-60 overflow-auto">
-                {filteredLocations.map((location, index) => (
-                  <div
-                    key={index}
-                    onClick={() => selectLocation(location)}
-                    className="p-3 hover:bg-accent cursor-pointer transition-colors first:rounded-t-xl last:rounded-b-xl"
-                  >
-                    {location}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 

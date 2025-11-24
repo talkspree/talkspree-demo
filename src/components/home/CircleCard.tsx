@@ -4,19 +4,35 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Globe, Instagram, Facebook, Linkedin, Mail, Copy } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { sampleUserManager } from "@/data/sampleUsers";
+import { getOrCreateDefaultCircle, getCircleMemberCounts } from "@/lib/api/circles";
 
 export function CircleCard() {
   const [onlineCount, setOnlineCount] = useState(0);
   const [totalMembers, setTotalMembers] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const updateCount = () => {
-      setOnlineCount(sampleUserManager.getOnlineCount());
-      setTotalMembers(sampleUserManager.getUsers().length);
+    const updateCount = async () => {
+      try {
+        // Get the default circle
+        const circle = await getOrCreateDefaultCircle();
+        
+        // Get real member counts from database (only real users, no sample users)
+        const counts = await getCircleMemberCounts(circle.id);
+        
+        setOnlineCount(counts.online);
+        setTotalMembers(counts.total);
+      } catch (error) {
+        console.error('Error fetching circle member counts:', error);
+        setOnlineCount(0);
+        setTotalMembers(0);
+      } finally {
+        setLoading(false);
+      }
     };
+    
     updateCount();
-    const interval = setInterval(updateCount, 10000);
+    const interval = setInterval(updateCount, 30000); // Update every 30 seconds
     return () => clearInterval(interval);
   }, []);
 

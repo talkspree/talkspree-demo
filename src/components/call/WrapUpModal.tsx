@@ -83,7 +83,7 @@ export function WrapUpModal({
             {/* Profile Section */}
             <div className="flex items-start gap-6">
               <Avatar className="h-32 w-32 shrink-0">
-                <AvatarImage src="" />
+                <AvatarImage src={matchedUser.profilePicture || ''} />
                 <AvatarFallback className="bg-warning text-warning-foreground text-3xl">
                   {matchedUser.firstName[0]}{matchedUser.lastName[0]}
                 </AvatarFallback>

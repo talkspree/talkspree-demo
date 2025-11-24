@@ -2,6 +2,8 @@ import { Bell, User } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDevice } from '@/hooks/useDevice';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProfileData } from '@/hooks/useProfileData';
 import logo from '@/assets/logo.svg';
 import headerPattern from '@/assets/header-pattern.png';
 import {
@@ -18,6 +20,8 @@ import { connectionsManager } from '@/utils/connections';
 export function Header() {
   const navigate = useNavigate();
   const device = useDevice();
+  const { signOut } = useAuth();
+  const { profileData } = useProfileData();
   const [showProfile, setShowProfile] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
 
@@ -93,9 +97,14 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="" />
+                    {profileData.profilePicture ? (
+                      <AvatarImage src={profileData.profilePicture} alt="Profile" />
+                    ) : null}
                     <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      <User className="h-5 w-5" />
+                      {profileData.firstName && profileData.lastName 
+                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
+                        : <User className="h-5 w-5" />
+                      }
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -107,7 +116,10 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
                   Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/auth')} className="cursor-pointer">
+                <DropdownMenuItem onClick={async () => {
+                  await signOut();
+                  navigate('/auth');
+                }} className="cursor-pointer">
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>

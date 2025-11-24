@@ -14,10 +14,12 @@ import { interests, interestCategories, getInterestsByCategory } from '@/data/in
 import { useProfileData } from '@/hooks/useProfileData';
 import { Upload, ArrowLeft } from 'lucide-react';
 import { CircleRoleCard } from '@/components/profile/CircleRoleCard';
+import { updateProfile as updateProfileAPI, uploadProfilePicture } from '@/lib/api/profiles';
+import { supabase } from '@/lib/supabase';
 
 export default function ProfileEdit() {
   const navigate = useNavigate();
-  const { profileData, updateProfile } = useProfileData();
+  const { profileData, updateProfile: updateProfileState } = useProfileData();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState<'general' | 'role'>('general');
   
@@ -85,9 +87,30 @@ export default function ProfileEdit() {
     });
   };
 
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadError, setUploadError] = useState<string>('');
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    setUploadError('');
+    
     if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
+      if (!validTypes.includes(file.type)) {
+        setUploadError('Please upload a JPG, PNG, HEIC, or WebP image');
+        return;
+      }
+
+      // Validate file size (10MB limit)
+      const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+      if (file.size > maxSize) {
+        setUploadError('Image must be less than 10MB');
+        return;
+      }
+
+      setUploadedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData({ ...formData, profilePicture: reader.result as string });
@@ -96,14 +119,139 @@ export default function ProfileEdit() {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
-      ...formData,
-      interests: selectedInterests
-    });
-    toast({ description: 'Profile updated successfully!' });
-    navigate('/');
+    setIsSaving(true);
+    
+    try {
+      let profilePictureUrl = formData.profilePicture;
+
+      // Handle profile picture upload if a new file was selected
+      if (uploadedFile) {
+        if (import.meta.env.DEV) {
+          console.log('🖼️  New profile picture file detected:', uploadedFile.name);
+        }
+        toast({ description: 'Uploading profile picture...' });
+        
+        // Delete old profile picture if it exists
+        if (profileData.profilePicture && !profileData.profilePicture.startsWith('data:')) {
+          try {
+            // Extract the file path from the full URL
+            // Remove cache buster query param first (e.g., ?t=123456)
+            const urlWithoutQuery = profileData.profilePicture.split('?')[0];
+            const urlParts = urlWithoutQuery.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const oldPath = `profile-pictures/${fileName}`;
+            
+            if (import.meta.env.DEV) {
+              console.log('🗑️  Deleting old profile picture:', oldPath);
+            }
+            
+            const { error: deleteError } = await supabase.storage
+                .from('avatars')
+                .remove([oldPath]);
+            
+            if (deleteError) {
+              console.error('❌ Delete error:', deleteError);
+            } else if (import.meta.env.DEV) {
+              console.log('✅ Old picture deleted successfully');
+            }
+          } catch (error) {
+            console.error('❌ Failed to delete old profile picture:', error);
+            // Continue even if deletion fails
+          }
+        }
+
+        // Upload new profile picture
+        if (import.meta.env.DEV) {
+          console.log('📤 Uploading new profile picture...');
+        }
+        const uploadedUrl = await uploadProfilePicture(uploadedFile, false);
+        if (import.meta.env.DEV) {
+          console.log('✅ Upload completed, URL:', uploadedUrl);
+        }
+        if (uploadedUrl) {
+          profilePictureUrl = uploadedUrl;
+        }
+      }
+
+      // Update profile in database
+      if (import.meta.env.DEV) {
+        console.log('💾 Saving profile with picture URL:', profilePictureUrl);
+      }
+      await updateProfileAPI({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        date_of_birth: formData.dateOfBirth,
+        gender: formData.gender,
+        location: formData.location,
+        occupation: formData.occupation,
+        bio: formData.bio,
+        phone: formData.phone,
+        profile_picture_url: profilePictureUrl || null,
+        industry: formData.industry || null,
+        work_place: formData.workPlace || null,
+        university: formData.university || null,
+        study_field: formData.studyField || null,
+        role: (formData.role as 'mentor' | 'mentee' | 'alumni') || null,
+      });
+
+      // Update social media links
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Delete existing social links
+        await supabase
+          .from('social_links')
+          .delete()
+          .eq('user_id', user.id);
+
+        // Insert new social links
+        const socialLinks = [];
+        if (formData.instagram) socialLinks.push({ user_id: user.id, platform: 'instagram', url: formData.instagram });
+        if (formData.facebook) socialLinks.push({ user_id: user.id, platform: 'facebook', url: formData.facebook });
+        if (formData.linkedin) socialLinks.push({ user_id: user.id, platform: 'linkedin', url: formData.linkedin });
+        if (formData.youtube) socialLinks.push({ user_id: user.id, platform: 'youtube', url: formData.youtube });
+        if (formData.tiktok) socialLinks.push({ user_id: user.id, platform: 'tiktok', url: formData.tiktok });
+
+        if (socialLinks.length > 0) {
+          await supabase
+            .from('social_links')
+            .insert(socialLinks);
+        }
+
+        // Update interests
+        await supabase
+          .from('user_interests')
+          .delete()
+          .eq('user_id', user.id);
+
+        if (selectedInterests.length > 0) {
+          const interestsToInsert = selectedInterests.map(interestId => ({
+            user_id: user.id,
+            interest_id: interestId,
+          }));
+
+          await supabase
+            .from('user_interests')
+            .insert(interestsToInsert);
+        }
+      }
+
+      toast({ description: 'Profile updated successfully!' });
+      
+      // Reload the page to refresh all profile data
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast({ 
+        description: error.message || 'Failed to update profile', 
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -150,7 +298,7 @@ export default function ProfileEdit() {
                       <input
                         ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/jpg,image/png,image/heic,image/heif,image/webp"
                         onChange={handleImageUpload}
                         className="hidden"
                       />
@@ -163,7 +311,12 @@ export default function ProfileEdit() {
                         <Upload className="h-4 w-4 mr-2" />
                         Upload Image
                       </Button>
-                      <p className="text-xs text-muted-foreground mt-2">Click to upload a profile picture from your device</p>
+                      {uploadError && (
+                        <p className="text-xs text-destructive mt-2">{uploadError}</p>
+                      )}
+                      {!uploadError && (
+                        <p className="text-xs text-muted-foreground mt-2">JPG, PNG, HEIC or WebP • Max 10MB</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -357,10 +510,10 @@ export default function ProfileEdit() {
 
                   {/* Actions */}
                   <div className="flex gap-3 pt-4">
-                    <Button type="submit" size="lg" className="flex-1">
-                      Save Changes
+                    <Button type="submit" size="lg" className="flex-1" disabled={isSaving}>
+                      {isSaving ? 'Saving...' : 'Save Changes'}
                     </Button>
-                    <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1">
+                    <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1" disabled={isSaving}>
                       Cancel
                     </Button>
                   </div>
@@ -377,10 +530,10 @@ export default function ProfileEdit() {
                 
                 {/* Actions for Role tab */}
                 <div className="flex gap-3">
-                  <Button type="submit" size="lg" className="flex-1">
-                    Save Changes
+                  <Button type="submit" size="lg" className="flex-1" disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save Changes'}
                   </Button>
-                  <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1">
+                  <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1" disabled={isSaving}>
                     Cancel
                   </Button>
                 </div>

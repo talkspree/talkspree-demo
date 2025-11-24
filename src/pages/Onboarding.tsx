@@ -1,10 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
+import { EmailConfirmationBanner } from '@/components/auth/EmailConfirmationBanner';
 import { useDevice } from '@/hooks/useDevice';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { hasCompletedOnboarding } from '@/lib/api/profiles';
 import logo from '@/assets/logo.svg';
 
 // We'll create these components next
@@ -40,7 +45,6 @@ export interface OnboardingData {
     tiktok?: string;
   };
   bio: string;
-  phoneNumber: string;
   role: string;
 }
 
@@ -59,18 +63,79 @@ const initialData: OnboardingData = {
   interests: [],
   socialMedia: {},
   bio: '',
-  phoneNumber: '',
   role: '',
 };
 
 export default function Onboarding() {
   const [currentStep, setCurrentStep] = useState(1);
   const [data, setData] = useState<OnboardingData>(initialData);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const device = useDevice();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
-  // Desktop: 7 steps (grouped), Mobile: 12 steps (individual)
-  const totalSteps = device === 'mobile' ? 12 : 7;
+  // Check if user is authenticated and if they've already completed onboarding
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      // Wait a bit for session to be available (might be created after email confirmation)
+      let currentUser = user;
+      
+      if (!currentUser) {
+        // Try to get session directly
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          currentUser = session.user;
+          console.log('Got user from session in onboarding page');
+        } else {
+          // Wait a bit more for session to be created
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          if (retrySession?.user) {
+            currentUser = retrySession.user;
+            console.log('Got user from session after retry');
+          }
+        }
+      }
+
+      // If still no user, redirect to auth
+      // (Email verification via 4-digit code now creates a session)
+      if (!currentUser) {
+        console.log('No authenticated user found, redirecting to auth');
+        navigate('/auth', { replace: true });
+        return;
+      }
+
+      // Check if onboarding is already completed
+      const completed = await hasCompletedOnboarding();
+      if (completed) {
+        // Already completed - redirect to home
+        navigate('/home', { replace: true });
+        return;
+      }
+
+      setLoading(false);
+    };
+
+    checkOnboarding();
+  }, [user, navigate]);
+
+  if (loading) {
+    return (
+      <AdaptiveLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </AdaptiveLayout>
+    );
+  }
+
+  // Desktop: 7 steps (grouped), Mobile: 11 steps (individual)
+  const totalSteps = device === 'mobile' ? 11 : 7;
   const progress = (currentStep / totalSteps) * 100;
 
   const updateData = (updates: Partial<OnboardingData>) => {
@@ -93,36 +158,48 @@ export default function Onboarding() {
   };
 
   const handleComplete = async () => {
-    // Save user data to profile storage
-    const profileData = {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      dateOfBirth: data.dateOfBirth,
-      gender: data.gender,
-      location: data.location,
-      occupation: data.occupation,
-      bio: data.bio,
-      phone: data.phoneNumber,
-      instagram: data.socialMedia.instagram || '',
-      facebook: data.socialMedia.facebook || '',
-      linkedin: data.socialMedia.linkedin || '',
-      youtube: data.socialMedia.youtube || '',
-      tiktok: data.socialMedia.tiktok || '',
-      interests: data.interests,
-      role: data.role,
-      university: data.university,
-      studyField: data.studyField,
-      workPlace: data.workPlace,
-      industry: data.industry
-    };
-    localStorage.setItem('user_profile_data', JSON.stringify(profileData));
-    console.log('Onboarding complete:', data);
-    navigate('/');
+    setSaving(true);
+    try {
+      // Import the completeOnboarding function
+      const { completeOnboarding } = await import('@/lib/api/profiles');
+      
+      console.log('Starting onboarding save...', data);
+      
+      // Save user data to Supabase
+      await completeOnboarding(data);
+      
+      console.log('✅ Onboarding data saved successfully!');
+      
+      toast({
+        title: "Profile saved! 🎉",
+        description: "Your profile has been successfully created.",
+      });
+      
+      navigate('/home');
+    } catch (error: any) {
+      console.error('❌ Error completing onboarding:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
+      
+      toast({
+        title: "Failed to save profile",
+        description: error.message || 'Unknown error occurred. Please try again.',
+        variant: "destructive"
+      });
+      
+      // Don't navigate if save failed
+    } finally {
+      setSaving(false);
+    }
   };
 
   const renderStep = () => {
     if (device === 'mobile') {
-      // Mobile: Individual steps (12 total now)
+      // Mobile: Individual steps (11 total - social media moved, phone removed)
       switch (currentStep) {
         case 1: return <PersonalInfoStepMobile data={data} updateData={updateData} onNext={nextStep} onPrev={currentStep > 1 ? prevStep : undefined} field="firstName" />;
         case 2: return <PersonalInfoStepMobile data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="dateOfBirth" />;
@@ -130,22 +207,21 @@ export default function Onboarding() {
         case 4: return <PersonalInfoStepMobile data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="location" />;
         case 5: return <OccupationStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
         case 6: return <InterestsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
-        case 7: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="profilePicture" />;
-        case 8: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="socialMedia" />;
+        case 7: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
+        case 8: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="profilePicture" />;
         case 9: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="bio" />;
-        case 10: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
-        case 11: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} />;
-        case 12: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
+        case 10: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} />;
+        case 11: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
         default: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
       }
     } else {
-      // Desktop: Grouped steps (7 total now - added welcome screen before role)
+      // Desktop: Grouped steps (7 total - social media moved, phone removed)
       switch (currentStep) {
         case 1: return <PersonalInfoStep data={data} updateData={updateData} onNext={nextStep} grouped />;
         case 2: return <OccupationStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
         case 3: return <InterestsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
-        case 4: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} grouped />;
-        case 5: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
+        case 4: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
+        case 5: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} grouped />;
         case 6: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} />;
         case 7: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
         default: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
@@ -155,6 +231,7 @@ export default function Onboarding() {
 
   return (
     <AdaptiveLayout>
+      <EmailConfirmationBanner />
       <div className="min-h-screen py-8">
         <div className="max-w-2xl mx-auto px-4">
           {/* Logo */}

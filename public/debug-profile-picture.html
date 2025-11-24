@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Profile Picture</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        img {
+            max-width: 200px;
+            max-height: 200px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Profile Picture Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Step 1: Check Browser Console</h2>
+        <p>Open your app, press F12, and look for these console messages:</p>
+        <ul>
+            <li><code>📷 Profile picture URL:</code> - What's the URL from database?</li>
+            <li><code>📷 With cache buster:</code> - What's the URL after adding timestamp?</li>
+        </ul>
+        <button onclick="window.open('/', '_blank')">Open App</button>
+    </div>
+
+    <div class="section">
+        <h2>Step 2: Test Profile Picture URL</h2>
+        <p>Paste your profile picture URL here to test if it loads:</p>
+        <input type="text" id="urlInput" placeholder="Paste URL here..." style="width: 100%; padding: 10px; margin-bottom: 10px;">
+        <button onclick="testUrl()">Test URL</button>
+        <div id="urlResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 3: Check Supabase Storage</h2>
+        <p>Click this button to open Supabase storage in new tab:</p>
+        <input type="text" id="projectUrl" placeholder="Your Supabase project URL..." style="width: 100%; padding: 10px; margin-bottom: 10px;">
+        <button onclick="openStorage()">Open Storage</button>
+    </div>
+
+    <div class="section">
+        <h2>Step 4: Clear All Cache</h2>
+        <button onclick="clearEverything()">Clear All Cache & Reload</button>
+        <div id="clearResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 5: SQL Query to Run</h2>
+        <p>Copy this and run in Supabase SQL Editor:</p>
+        <pre>-- Check your profile picture URL
+SELECT 
+  email, 
+  first_name, 
+  profile_picture_url,
+  LENGTH(profile_picture_url) as url_length
+FROM profiles 
+WHERE email = 'YOUR_EMAIL_HERE';</pre>
+        <button onclick="copyToClipboard(document.querySelector('pre').textContent)">Copy SQL</button>
+        <div id="copyResult"></div>
+    </div>
+
+    <div class="section">
+        <h2>Step 6: Make Bucket Public</h2>
+        <p>Copy this and run in Supabase SQL Editor:</p>
+        <pre>-- Make avatars bucket public
+UPDATE storage.buckets 
+SET public = true 
+WHERE id = 'avatars';</pre>
+        <button onclick="copyToClipboard('UPDATE storage.buckets SET public = true WHERE id = \\'avatars\\';')">Copy SQL</button>
+    </div>
+
+    <script>
+        function testUrl() {
+            const url = document.getElementById('urlInput').value;
+            const resultDiv = document.getElementById('urlResult');
+            
+            if (!url) {
+                resultDiv.innerHTML = '<p class="error">Please enter a URL</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<p>Testing URL...</p>';
+
+            const img = new Image();
+            img.onload = function() {
+                resultDiv.innerHTML = `
+                    <p class="success">✅ URL works! Image loads successfully.</p>
+                    <p>Size: ${img.width}x${img.height}</p>
+                    <img src="${url}" alt="Profile Picture">
+                `;
+            };
+            img.onerror = function() {
+                resultDiv.innerHTML = `
+                    <p class="error">❌ URL failed to load!</p>
+                    <p>Possible issues:</p>
+                    <ul>
+                        <li>File doesn't exist (404)</li>
+                        <li>No permission to access (403)</li>
+                        <li>CORS issue</li>
+                        <li>Bucket not public</li>
+                    </ul>
+                    <p><strong>Fix:</strong> Run the SQL in Step 6 to make bucket public.</p>
+                `;
+            };
+            img.src = url;
+        }
+
+        function openStorage() {
+            const projectUrl = document.getElementById('projectUrl').value;
+            if (!projectUrl) {
+                alert('Please enter your Supabase project URL');
+                return;
+            }
+            window.open(`${projectUrl}/storage/buckets/avatars`, '_blank');
+        }
+
+        function clearEverything() {
+            const resultDiv = document.getElementById('clearResult');
+            
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+                resultDiv.innerHTML = '<p class="success">✅ Cache cleared! Reloading in 2 seconds...</p>';
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } catch (e) {
+                resultDiv.innerHTML = `<p class="error">❌ Error: ${e.message}</p>`;
+            }
+        }
+
+        function copyToClipboard(text) {
+            const resultDiv = document.getElementById('copyResult');
+            
+            navigator.clipboard.writeText(text).then(() => {
+                resultDiv.innerHTML = '<p class="success">✅ Copied to clipboard!</p>';
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 2000);
+            }).catch(err => {
+                resultDiv.innerHTML = `<p class="error">❌ Failed to copy: ${err}</p>`;
+            });
+        }
+    </script>
+</body>
+</html>
+

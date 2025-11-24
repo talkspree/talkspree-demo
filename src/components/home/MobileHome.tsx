@@ -9,8 +9,10 @@ import headerPattern from '@/assets/header-pattern.png';
 import profileViewIcon from '@/assets/profile-view.png';
 import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from './ProfileCard';
-import { sampleUserManager } from '@/data/sampleUsers';
 import { connectionsManager } from '@/utils/connections';
+import { getOrCreateDefaultCircle, getCircleMemberCounts } from '@/lib/api/circles';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProfileData } from '@/hooks/useProfileData';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,14 +23,38 @@ import {
 export function MobileHome() {
   const [activeTab, setActiveTab] = useState<'chat' | 'about'>('chat');
   const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const { profileData } = useProfileData();
   const [showProfile, setShowProfile] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
   const [newContactsCount, setNewContactsCount] = useState(0);
   const [viewedContactsCount, setViewedContactsCount] = useState(0);
 
   // Get actual user counts
-  const totalMembers = sampleUserManager.getUsers().length;
-  const onlineCount = sampleUserManager.getOnlineCount();
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [onlineCount, setOnlineCount] = useState(0);
+
+  // Fetch real member counts from database
+  useEffect(() => {
+    const updateMemberCounts = async () => {
+      try {
+        const circle = await getOrCreateDefaultCircle();
+        const counts = await getCircleMemberCounts(circle.id);
+        
+        // Use only real users (no sample users)
+        setOnlineCount(counts.online);
+        setTotalMembers(counts.total);
+      } catch (error) {
+        console.error('Error fetching circle member counts:', error);
+        setOnlineCount(0);
+        setTotalMembers(0);
+      }
+    };
+    
+    updateMemberCounts();
+    const interval = setInterval(updateMemberCounts, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Update connection notifications and new contacts count
   useEffect(() => {
@@ -60,8 +86,8 @@ export function MobileHome() {
 
   const circleData = {
     name: 'Mentor the Young',
-    members: '7.5k',
-    online: '120',
+    members: totalMembers.toString(),
+    online: onlineCount.toString(),
     bio: 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
     inviteLink: 'http://talkspree.com/mentortheyoung/136872/invite',
     socials: {
@@ -132,9 +158,14 @@ export function MobileHome() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full p-0 ml-2">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src="" />
+                    {profileData.profilePicture ? (
+                      <AvatarImage src={profileData.profilePicture} alt="Profile" />
+                    ) : null}
                     <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      <User className="h-5 w-5" />
+                      {profileData.firstName && profileData.lastName 
+                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
+                        : <User className="h-5 w-5" />
+                      }
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -146,7 +177,10 @@ export function MobileHome() {
                 <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
                   Settings
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/auth')} className="cursor-pointer">
+                <DropdownMenuItem onClick={async () => {
+                  await signOut();
+                  navigate('/auth');
+                }} className="cursor-pointer">
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -178,10 +212,10 @@ export function MobileHome() {
           <div className="text-center mb-4">
             <h1 className="text-2xl font-bold mb-1">{circleData.name}</h1>
             <div className="flex items-center justify-center gap-4 text-sm">
-              <span className="text-muted-foreground">{totalMembers} members</span>
+              <span className="text-muted-foreground">{circleData.members} members</span>
               <div className="flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                <span className="font-medium">{onlineCount} online</span>
+                <span className="font-medium">{circleData.online} online</span>
               </div>
             </div>
           </div>

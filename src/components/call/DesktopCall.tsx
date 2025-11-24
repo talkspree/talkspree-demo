@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { useProfileData } from '@/hooks/useProfileData';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Bell, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,6 +26,8 @@ import { SampleUser, sampleUserManager } from '@/data/sampleUsers';
 export function DesktopCall() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { signOut } = useAuth();
+  const { profileData } = useProfileData();
   const matchedUser = location.state?.matchedUser as SampleUser | undefined;
   const [isConnected, setIsConnected] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -115,9 +119,14 @@ export function DesktopCall() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src="" />
+                    {profileData.profilePicture ? (
+                      <AvatarImage src={profileData.profilePicture} alt="Profile" />
+                    ) : null}
                     <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      <User className="h-5 w-5" />
+                      {profileData.firstName && profileData.lastName 
+                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
+                        : <User className="h-5 w-5" />
+                      }
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -126,7 +135,10 @@ export function DesktopCall() {
                 <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer">
                   View Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/auth')} className="cursor-pointer">
+                <DropdownMenuItem onClick={async () => {
+                  await signOut();
+                  navigate('/auth');
+                }} className="cursor-pointer">
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -143,11 +155,13 @@ export function DesktopCall() {
           <CameraView
             stream={stream}
             name={matchedUser ? `${matchedUser.firstName} ${matchedUser.lastName}` : 'Unknown User'}
+            profilePicture={matchedUser?.profilePicture}
             className="flex-1 min-h-0"
           />
           <CameraView
             stream={stream}
             name="You"
+            profilePicture={profileData.profilePicture}
             isLocal
             cameraEnabled={cameraEnabled}
             micEnabled={micEnabled}

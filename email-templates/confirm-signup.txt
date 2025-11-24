@@ -1,0 +1,27 @@
+TalkSpree - Verify Your Email
+==============================
+
+Welcome to TalkSpree!
+
+You're just one step away from connecting with amazing people through meaningful conversations.
+
+Your verification code is:
+
+{{ .Data.verification_code }}
+
+Enter this code in the app to verify your email address.
+
+This code will expire in 10 minutes.
+
+---
+
+Why did I receive this email?
+You (or someone else) entered this email address when signing up for a TalkSpree account.
+
+If you didn't create an account, you can safely ignore this email.
+
+---
+
+Questions? Contact us at support@talkspree.com
+
+© 2025 TalkSpree. All rights reserved.

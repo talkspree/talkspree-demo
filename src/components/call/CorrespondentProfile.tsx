@@ -51,7 +51,7 @@ export function CorrespondentProfile({ matchedUser, isConnected = false, classNa
           {/* Profile Header */}
           <div className="flex flex-col items-center text-center">
             <Avatar className="h-24 w-24 mb-3">
-              <AvatarImage src="" />
+              <AvatarImage src={matchedUser.profilePicture || ''} />
               <AvatarFallback className="bg-warning text-warning-foreground text-2xl">
                 {matchedUser.firstName[0]}{matchedUser.lastName[0]}
               </AvatarFallback>

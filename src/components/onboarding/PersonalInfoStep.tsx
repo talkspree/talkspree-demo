@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PlacesAutocomplete } from '@/components/ui/PlacesAutocomplete';
 import { OnboardingData } from '@/pages/Onboarding';
 
 interface PersonalInfoStepProps {
@@ -97,13 +98,11 @@ export function PersonalInfoStep({ data, updateData, onNext, onPrev, field, grou
           );
         case 'location':
           return (
-            <Input
-              type="text"
-              value={getValue()}
-              onChange={(e) => handleSingleFieldNext(e.target.value, field)}
-              placeholder="Enter your location"
+            <PlacesAutocomplete
+              value={getValue() || ''}
+              onChange={(value) => handleSingleFieldNext(value, field)}
+              placeholder="Start typing a city name..."
               className="text-lg transition-spring"
-              autoFocus
             />
           );
       }
@@ -183,16 +182,13 @@ export function PersonalInfoStep({ data, updateData, onNext, onPrev, field, grou
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="location">Location</Label>
-          <Input
-            id="location"
-            value={localData.location}
-            onChange={(e) => setLocalData(prev => ({ ...prev, location: e.target.value }))}
-            placeholder="Enter your location"
-            className="transition-spring"
-          />
-        </div>
+        <PlacesAutocomplete
+          value={localData.location}
+          onChange={(value) => setLocalData(prev => ({ ...prev, location: value }))}
+          label="Location"
+          placeholder="Start typing a city name..."
+          className="transition-spring"
+        />
 
         <div className="flex gap-3 pt-4">
           {onPrev && (

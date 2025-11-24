@@ -1,6 +1,12 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider, ProtectedRoute } from "./contexts/AuthContext";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "./components/ui/toaster";
+import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import AuthCallback from "./pages/AuthCallback";
+import ClearSession from "./pages/ClearSession";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
 import ProfileEdit from "./pages/ProfileEdit";
@@ -14,26 +20,44 @@ import NotFound from "./pages/NotFound";
 // ⚠️ TEMPORARY - Remove before production
 import { DevNavigationMenu } from "./components/dev/DevNavigationMenu";
 
+const queryClient = new QueryClient();
+
 function App() {
   return (
-    <BrowserRouter>
-      {/* ⚠️ TEMPORARY - Remove before production */}
-      <DevNavigationMenu />
-      
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/profile/edit" element={<ProfileEdit />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/call" element={<Call />} />
-        <Route path="/contacts" element={<Contacts />} />
-        <Route path="/waiting" element={<WaitingRoom />} />
-        <Route path="/countdown" element={<Countdown />} />
-        <Route path="/wrap-up" element={<WrapUp />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          {/* ⚠️ TEMPORARY - Remove before production */}
+          <DevNavigationMenu />
+          
+          <Routes>
+            {/* Landing page - redirects based on auth status */}
+            <Route path="/" element={<Index />} />
+            
+            {/* Public routes */}
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/clear-session" element={<ClearSession />} />
+            
+            {/* Protected routes */}
+            <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+            <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/call" element={<ProtectedRoute><Call /></ProtectedRoute>} />
+            <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
+            <Route path="/waiting" element={<ProtectedRoute><WaitingRoom /></ProtectedRoute>} />
+            <Route path="/countdown" element={<ProtectedRoute><Countdown /></ProtectedRoute>} />
+            <Route path="/wrap-up" element={<ProtectedRoute><WrapUp /></ProtectedRoute>} />
+            
+            {/* 404 - Keep this last */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          
+          <Toaster />
+        </AuthProvider>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
 

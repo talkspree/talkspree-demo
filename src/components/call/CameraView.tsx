@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 interface CameraViewProps {
   stream: MediaStream | null;
   name: string;
+  profilePicture?: string;
   isLocal?: boolean;
   cameraEnabled?: boolean;
   micEnabled?: boolean;
@@ -17,6 +18,7 @@ interface CameraViewProps {
 export function CameraView({ 
   stream, 
   name, 
+  profilePicture,
   isLocal = false, 
   cameraEnabled = true,
   micEnabled = true,
@@ -45,7 +47,7 @@ export function CameraView({
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-muted">
           <Avatar className="h-24 w-24">
-            <AvatarImage src="" />
+            <AvatarImage src={profilePicture || ''} />
             <AvatarFallback className="bg-primary text-primary-foreground text-3xl">
               {name.charAt(0)}
             </AvatarFallback>

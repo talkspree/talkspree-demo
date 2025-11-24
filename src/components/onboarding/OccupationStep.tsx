@@ -5,6 +5,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { OccupationAutocomplete } from '@/components/ui/OccupationAutocomplete';
+import { UniversityAutocomplete } from '@/components/ui/UniversityAutocomplete';
 import { OnboardingData } from '@/pages/Onboarding';
 
 interface OccupationStepProps {
@@ -42,30 +44,14 @@ export function OccupationStep({ data, updateData, onNext, onPrev }: OccupationS
         <CardTitle className="text-2xl font-medium">What do you do?</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <Label htmlFor="occupation">Occupation *</Label>
-          <Input
-            id="occupation"
-            value={occupation}
-            onChange={(e) => setOccupation(e.target.value)}
-            placeholder="e.g., Software Engineer, Marketing Manager, etc."
-            disabled={isStudent}
-            className="transition-spring"
-            list="job-titles"
-          />
-          <datalist id="job-titles">
-            <option value="Software Engineer" />
-            <option value="Product Manager" />
-            <option value="Data Scientist" />
-            <option value="Marketing Manager" />
-            <option value="Business Analyst" />
-            <option value="Sales Manager" />
-            <option value="Financial Analyst" />
-            <option value="HR Manager" />
-            <option value="Operations Manager" />
-            <option value="Consultant" />
-          </datalist>
-        </div>
+        <OccupationAutocomplete
+          value={occupation}
+          onChange={setOccupation}
+          label="Occupation *"
+          placeholder="e.g., Software Engineer, Marketing Manager, etc."
+          disabled={isStudent}
+          className="transition-spring"
+        />
 
         <div className="flex items-center space-x-2">
           <Checkbox
@@ -162,28 +148,14 @@ export function OccupationStep({ data, updateData, onNext, onPrev }: OccupationS
               />
             </div>
 
-            <div className="space-y-2 animate-in slide-in-from-top-1 duration-300">
-              <Label htmlFor="university">In which University? *</Label>
-              <Input
-                id="university"
+            <div className="animate-in slide-in-from-top-1 duration-300">
+              <UniversityAutocomplete
                 value={university}
-                onChange={(e) => setUniversity(e.target.value)}
-                placeholder="Enter your university name"
+                onChange={setUniversity}
+                label="In which University? *"
+                placeholder="e.g., Harvard University, MIT, etc."
                 className="transition-spring"
-                list="universities"
               />
-              <datalist id="universities">
-                <option value="Harvard University" />
-                <option value="Stanford University" />
-                <option value="Massachusetts Institute of Technology" />
-                <option value="University of Oxford" />
-                <option value="University of Cambridge" />
-                <option value="Yale University" />
-                <option value="Princeton University" />
-                <option value="Columbia University" />
-                <option value="University of California, Berkeley" />
-                <option value="University of Pennsylvania" />
-              </datalist>
             </div>
           </>
         )}

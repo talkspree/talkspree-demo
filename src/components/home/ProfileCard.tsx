@@ -14,7 +14,7 @@ interface ProfileCardProps {
 
 export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
   const navigate = useNavigate();
-  const { profileData, age } = useProfileData();
+  const { profileData, age, loading } = useProfileData();
 
   const getInterestData = (interestId: string) => {
     return interests.find(i => i.id === interestId);
@@ -23,6 +23,23 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
   const userInterests = profileData.interests
     .map(id => getInterestData(id))
     .filter(Boolean);
+
+  if (loading) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-[95vw] md:max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-auto my-auto">
+          <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden">
+            <div className="p-8 flex items-center justify-center min-h-[400px]">
+              <div className="flex flex-col items-center gap-4">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+                <p className="text-sm text-muted-foreground">Loading profile...</p>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   const socialLinks = [
     { platform: 'Instagram', value: profileData.instagram, icon: Instagram, url: `https://instagram.com/${profileData.instagram?.replace('@', '')}`, color: '#E4405F' },

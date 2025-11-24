@@ -1,4 +1,18 @@
-# Welcome to your Lovable project
+# TalkSpree - Community Speed Networking Platform
+
+TalkSpree is a community speed-networking platform that helps members of private groups (like NGOs, universities, or corporate teams) connect through guided 1-on-1 video conversations.
+
+## 🚀 Quick Start
+
+**New to this project?** Start here: **[QUICKSTART.md](./QUICKSTART.md)**
+
+## 📚 Documentation
+
+- **[Quick Start Guide](./QUICKSTART.md)** - Get running in 10 minutes
+- **[Supabase Setup](./SUPABASE_SETUP.md)** - Complete backend setup guide
+- **[API Documentation](./API_DOCUMENTATION.md)** - How to use the API
+- **[Backend Summary](./BACKEND_SETUP_SUMMARY.md)** - What's been built
+- **[Production Checklist](./PRODUCTION_CHECKLIST.md)** - Deploy to production
 
 ## Project info
 
@@ -52,22 +66,158 @@ npm run dev
 
 ## What technologies are used for this project?
 
-This project is built with:
+### Frontend
+- **Vite** - Build tool
+- **TypeScript** - Type safety
+- **React** - UI framework
+- **shadcn-ui** - Component library
+- **Tailwind CSS** - Styling
+- **React Router** - Routing
+- **React Query** - Data fetching
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Backend
+- **Supabase** - Backend as a Service
+  - PostgreSQL database
+  - Authentication
+  - Row Level Security
+  - Real-time subscriptions
+  - Storage for profile pictures
+- **Complete API Layer** - Type-safe API utilities
 
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/c8e8c9e7-4a49-4eb5-b987-e7aa04d6e5a3) and click on Share -> Publish.
 
-## Can I connect a custom domain to my Lovable project?
+## 🎯 Current Status
 
-Yes, you can!
+### ✅ Completed
+- User authentication (email/password, Google OAuth ready)
+- User profiles with interests
+- Onboarding flow
+- Circle (community) management
+- Invite code system
+- Database schema (11 tables)
+- API layer (profiles, circles, matchmaking, calls)
+- Protected routes
+- Type-safe API with full TypeScript support
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### 🚧 In Progress / To Do
+- Video calling integration (WebRTC)
+- Matchmaking UI
+- Real-time notifications
+- Admin dashboard
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 🏗️ Architecture
+
+```
+Frontend (React + TypeScript)
+    ↓
+API Layer (src/lib/api/)
+    ↓
+Supabase (PostgreSQL + Auth + Storage)
+```
+
+### Database Schema
+- **profiles** - User information
+- **interests** - Available interests (163 pre-seeded)
+- **user_interests** - User's selected interests
+- **circles** - Communities/groups
+- **circle_members** - Membership with roles
+- **call_history** - All calls with ratings
+- **matchmaking_queue** - Real-time matching
+- **reports** - User reporting system
+- **notifications** - In-app notifications
+- **blocked_users** - User blocking
+- **invite_codes** - Invitation system
+
+## 🔐 Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+See [QUICKSTART.md](./QUICKSTART.md) for setup instructions.
+
+## 📦 Project Structure
+
+```
+talkspree-demo/
+├── src/
+│   ├── lib/
+│   │   ├── supabase.ts           # Supabase client
+│   │   └── api/                  # API utilities
+│   │       ├── profiles.ts       # Profile operations
+│   │       ├── circles.ts        # Circle management
+│   │       ├── matchmaking.ts    # Matchmaking queue
+│   │       └── calls.ts          # Call management
+│   ├── contexts/
+│   │   └── AuthContext.tsx       # Authentication
+│   ├── components/               # React components
+│   ├── pages/                    # Page components
+│   └── hooks/                    # Custom hooks
+├── supabase/
+│   └── migrations/               # Database migrations
+├── public/                       # Static assets
+└── scripts/                      # Utility scripts
+```
+
+## 🛠️ Development
+
+```bash
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint code
+npm run lint
+```
+
+## 🚀 Deployment
+
+### Option 1: Lovable (Recommended for quick deploys)
+1. Open [Lovable](https://lovable.dev/projects/c8e8c9e7-4a49-4eb5-b987-e7aa04d6e5a3)
+2. Click Share → Publish
+
+### Option 2: Vercel/Netlify
+1. Connect your GitHub repository
+2. Set environment variables
+3. Deploy!
+
+See [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) for complete deployment guide.
+
+## 🤝 Contributing
+
+1. Clone the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests
+5. Submit a pull request
+
+## 📄 License
+
+[Add your license here]
+
+## 🆘 Support
+
+Need help? Check:
+1. [QUICKSTART.md](./QUICKSTART.md) - Quick start guide
+2. [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) - Backend setup
+3. [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) - API usage
+4. [Supabase Documentation](https://supabase.com/docs)
+
+## Can I connect a custom domain?
+
+Yes! Navigate to Project > Settings > Domains and click Connect Domain.
+
+Read more: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)

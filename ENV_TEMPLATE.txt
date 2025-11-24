@@ -1,0 +1,53 @@
+# TalkSpree Environment Variables Template
+# Copy this file to .env and fill in your actual values
+
+# ==============================================================================
+# SUPABASE CONFIGURATION
+# ==============================================================================
+# Get these from your Supabase project dashboard:
+# https://app.supabase.com/project/YOUR_PROJECT/settings/api
+
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+
+# ==============================================================================
+# AGORA VIDEO CHAT CONFIGURATION
+# ==============================================================================
+# Get your Agora App ID from: https://console.agora.io/
+# 
+# Steps:
+# 1. Sign up at console.agora.io
+# 2. Create a new project named "TalkSpree"
+# 3. For development/testing: Disable "App Certificate"
+# 4. Copy your App ID and paste below
+
+VITE_AGORA_APP_ID=your_agora_app_id_here
+
+# ==============================================================================
+# OPTIONAL: PRODUCTION ONLY
+# ==============================================================================
+# Enable these only when deploying to production with App Certificate enabled
+
+# VITE_AGORA_APP_CERTIFICATE=your_app_certificate_here
+
+# ==============================================================================
+# NOTES
+# ==============================================================================
+# 
+# Development Mode (Quick Testing):
+# - Leave App Certificate disabled in Agora Console
+# - Only need VITE_AGORA_APP_ID
+# - Can use null/empty tokens
+# 
+# Production Mode (Secure):
+# - Enable App Certificate in Agora Console
+# - Implement token generation Edge Function
+# - Add VITE_AGORA_APP_CERTIFICATE (stored server-side)
+# 
+# Security:
+# - Never commit .env file to version control
+# - Add .env to .gitignore
+# - Keep these values secret
+# 
+# ==============================================================================
+

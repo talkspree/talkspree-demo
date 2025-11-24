@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,8 +18,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useDevice } from '@/hooks/useDevice';
-import { sampleUserManager, SampleUser } from '@/data/sampleUsers';
 import { useProfileData } from '@/hooks/useProfileData';
+import { supabase } from '@/lib/supabase';
 
 type Role = 'random' | 'alumni' | 'mentee' | 'mentor';
 type TopicPreset = 'none' | 'icebreak' | 'friendship' | 'career' | 'custom' | string;
@@ -44,126 +44,49 @@ export function FiltersSection() {
   };
 
   const { profileData } = useProfileData();
+  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
 
-  // Calculate interest similarity between two users (0-100)
-  const calculateSimilarity = (interests1: string[], interests2: string[]): number => {
-    if (interests1.length === 0 || interests2.length === 0) return 0;
-    const common = interests1.filter(i => interests2.includes(i)).length;
-    const total = new Set([...interests1, ...interests2]).size;
-    return Math.round((common / total) * 100);
-  };
+  // Get real online users count (excluding current user)
+  useEffect(() => {
+    const fetchOnlineUsers = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const { count } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('is_online', true)
+          .neq('id', user?.id || ''); // Exclude current user
+        
+        setOnlineUsersCount(count || 0);
+      } catch (error) {
+        console.error('Error fetching online users:', error);
+      }
+    };
 
-  // Find a matching user based on filters
-  const findMatch = (): SampleUser | null => {
-    const availableUsers = sampleUserManager.getAvailableUsers();
+    fetchOnlineUsers();
     
-    if (availableUsers.length === 0) return null;
-
-    // Filter by role if not random
-    let candidates = availableUsers;
-    if (role !== 'random') {
-      candidates = candidates.filter(u => u.role === role);
-    }
-
-    if (candidates.length === 0) return null;
-
-    // Calculate similarity scores for all candidates
-    const candidatesWithScores = candidates.map(user => ({
-      user,
-      similarityScore: calculateSimilarity(profileData.interests, user.interests)
-    }));
-
-    // Filter based on similarity preference
-    let filtered = candidatesWithScores;
-    if (similarity === 0) {
-      // Different: prefer low similarity (0-40%)
-      filtered = candidatesWithScores.filter(c => c.similarityScore <= 40);
-    } else if (similarity === 100) {
-      // Similar: prefer high similarity (60-100%)
-      filtered = candidatesWithScores.filter(c => c.similarityScore >= 60);
-    }
-    // Balanced: accept any similarity
-
-    if (filtered.length === 0) {
-      // If no one matches the similarity filter, just pick from all candidates
-      filtered = candidatesWithScores;
-    }
-
-    // Pick a random match from filtered candidates
-    const match = filtered[Math.floor(Math.random() * filtered.length)];
-    return match.user;
-  };
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchOnlineUsers, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleStartSession = () => {
     console.log('Starting session with:', { role, similarity, topic, duration });
     
-    // Try to find a match
-    const match = findMatch();
-    
-    if (match) {
-      // Calculate minimum duration between user's filter and matched user's preference
-      let finalDuration = duration;
-      if (duration === 0) {
-        // Unlimited - use other user's preference
-        finalDuration = match.sessionDuration as Duration;
-      } else if (match.sessionDuration !== 0) {
-        // Both have limits - use minimum
-        finalDuration = Math.min(duration, match.sessionDuration) as Duration;
-      }
-      
-      // Navigate directly to call with matched user
-      navigate('/call', { 
-        state: { 
-          duration: finalDuration, 
-          topic, 
-          role, 
-          similarity,
-          matchedUser: match 
-        } 
-      });
-    } else {
-      // Navigate to waiting room if no match available
-      navigate('/waiting', { 
-        state: { 
-          duration, 
-          topic, 
-          role, 
-          similarity 
-        } 
-      });
-    }
+    // Navigate to waiting room - real matchmaking handles everything
+    navigate('/waiting', { 
+      state: { 
+        duration, 
+        topic, 
+        role: role !== 'random' ? role : undefined, 
+        similarity 
+      } 
+    });
   };
 
-  // Calculate matching users count
-  const getMatchingUsersCount = (): number => {
-    const onlineUsers = sampleUserManager.getOnlineUsers();
-    
-    // Filter by role if not random
-    let candidates = onlineUsers;
-    if (role !== 'random') {
-      candidates = candidates.filter(u => u.role === role);
-    }
-    
-    if (candidates.length === 0) return 0;
-    
-    // Calculate similarity scores
-    const candidatesWithScores = candidates.map(user => ({
-      user,
-      similarityScore: calculateSimilarity(profileData.interests, user.interests)
-    }));
-    
-    // Filter based on similarity preference
-    let filtered = candidatesWithScores;
-    if (similarity === 0) {
-      filtered = candidatesWithScores.filter(c => c.similarityScore <= 40);
-    } else if (similarity === 100) {
-      filtered = candidatesWithScores.filter(c => c.similarityScore >= 60);
-    }
-    
-    return filtered.length;
-  };
-
-  const matchingCount = getMatchingUsersCount();
+  // Use real online users count (matchmaking will handle filtering)
+  const matchingCount = onlineUsersCount;
 
   // Info icon component - hoverable on desktop, clickable on mobile/tablet
   const InfoIcon = ({ content }: { content: string }) => {

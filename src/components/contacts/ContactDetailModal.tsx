@@ -63,7 +63,7 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
             {/* Profile Header */}
             <div className={`flex ${device === 'mobile' ? 'flex-col items-center' : 'items-start'} gap-6`}>
               <Avatar className="h-32 w-32 shrink-0 border-4 border-primary">
-                <AvatarImage src="" />
+                <AvatarImage src={contact.user.profilePicture || ''} />
                 <AvatarFallback className="bg-warning text-warning-foreground text-3xl">
                   {contact.user.firstName[0]}{contact.user.lastName[0]}
                 </AvatarFallback>

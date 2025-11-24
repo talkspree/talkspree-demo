@@ -4,9 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, Users, Clock } from 'lucide-react';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
-import { sampleUserManager } from '@/data/sampleUsers';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { 
+  joinMatchmakingQueue, 
+  findMatches, 
+  createMatch, 
+  leaveMatchmakingQueue,
+  getQueueStats,
+  MatchmakingFilters 
+} from '@/lib/api/matchmaking';
 
 export default function WaitingRoom() {
   const navigate = useNavigate();
@@ -18,92 +25,187 @@ export default function WaitingRoom() {
   const [estimatedWait, setEstimatedWait] = useState(45);
   
   // Get filters from navigation state
-  const filters = location.state as { 
+  const navigationFilters = location.state as { 
     role?: string; 
     similarity?: number;
     topic?: string;
     duration?: number;
+    circleId?: string;
   } || {};
 
-  // Calculate interest similarity
-  const calculateSimilarity = (interests1: string[], interests2: string[]): number => {
-    if (interests1.length === 0 || interests2.length === 0) return 0;
-    const common = interests1.filter(i => interests2.includes(i)).length;
-    const total = new Set([...interests1, ...interests2]).size;
-    return Math.round((common / total) * 100);
+  // Join matchmaking queue on mount
+  useEffect(() => {
+    const joinQueue = async () => {
+      try {
+        const matchmakingFilters: MatchmakingFilters = {
+          circleId: navigationFilters.circleId,
+          preferredRoles: navigationFilters.role && navigationFilters.role !== 'random' 
+            ? [navigationFilters.role] 
+            : undefined,
+          filterSimilarInterests: navigationFilters.similarity === 100,
+          filterSimilarBackground: false,
+        };
+
+        await joinMatchmakingQueue(matchmakingFilters);
+        console.log('✅ Joined matchmaking queue');
+      } catch (error) {
+        console.error('Failed to join queue:', error);
+      }
+    };
+
+    joinQueue();
+
+    // Leave queue on unmount
+    return () => {
+      leaveMatchmakingQueue().catch(console.error);
+    };
+  }, []);
+
+  // Check for available matches using real Supabase data
+  const checkForMatch = async () => {
+    try {
+      // Get queue stats
+      const stats = await getQueueStats(navigationFilters.circleId);
+      setMatchingUsers(stats.waitingCount);
+      
+      // Try to find matches
+      const matchmakingFilters: MatchmakingFilters = {
+        circleId: navigationFilters.circleId,
+        preferredRoles: navigationFilters.role && navigationFilters.role !== 'random' 
+          ? [navigationFilters.role] 
+          : undefined,
+        filterSimilarInterests: navigationFilters.similarity === 100,
+        filterSimilarBackground: false,
+      };
+
+      const matches = await findMatches(matchmakingFilters);
+      
+      if (matches && matches.length > 0) {
+        // Found a match! Pick the first one
+        const match = matches[0];
+        const matchProfile = match.profiles as any;
+        
+        console.log('🎉 Match found:', matchProfile);
+        
+        // Create the match and call
+        try {
+          const call = await createMatch(match.user_id);
+          
+          // Convert to matchedUser format for the call interface
+          const matchedUser = {
+            id: matchProfile.id,
+            firstName: matchProfile.first_name,
+            lastName: matchProfile.last_name,
+            profilePicture: matchProfile.profile_picture_url,
+            role: matchProfile.role,
+            location: matchProfile.location,
+            occupation: matchProfile.occupation,
+            bio: matchProfile.bio,
+            university: matchProfile.university,
+            interests: [], // Will be populated by interests query if needed
+          };
+          
+          navigate('/countdown', {
+            state: {
+              matchedUser,
+              callId: call.id,
+              ...navigationFilters
+            },
+            replace: true
+          });
+        } catch (matchError: any) {
+          // If match creation fails (e.g., already matched), it's okay
+          // The other user created the match, and we'll be notified via subscription
+          console.log('Match creation handled by other user:', matchError.message);
+        }
+      }
+    } catch (error) {
+      console.error('Error in matchmaking:', error);
+    }
   };
 
-  // Check for available matches
-  const checkForMatch = () => {
-    const availableUsers = sampleUserManager.getAvailableUsers();
-    
-    // Filter by role if specified
-    let candidates = availableUsers;
-    if (filters.role && filters.role !== 'random') {
-      candidates = candidates.filter(u => u.role === filters.role);
-    }
+  // Subscribe to call_history to detect when we've been matched by another user
+  useEffect(() => {
+    if (!profileData?.id) return;
 
-    // Calculate similarity scores
-    const candidatesWithScores = candidates.map(user => ({
-      user,
-      similarityScore: calculateSimilarity(profileData.interests, user.interests)
-    }));
-
-    // Filter by similarity preference
-    let filtered = candidatesWithScores;
-    if (filters.similarity === 0) {
-      filtered = candidatesWithScores.filter(c => c.similarityScore <= 40);
-    } else if (filters.similarity === 100) {
-      filtered = candidatesWithScores.filter(c => c.similarityScore >= 60);
-    }
-
-    if (filtered.length === 0 && candidatesWithScores.length > 0) {
-      filtered = candidatesWithScores;
-    }
-
-    setMatchingUsers(filtered.length);
-    
-    // Count chatting users (occupied users that match filters)
-    const occupiedUsers = sampleUserManager.getOccupiedUsers();
-    let chattingCandidates = occupiedUsers;
-    if (filters.role && filters.role !== 'random') {
-      chattingCandidates = chattingCandidates.filter(u => u.role === filters.role);
-    }
-    
-    const chattingWithScores = chattingCandidates.map(user => ({
-      user,
-      similarityScore: calculateSimilarity(profileData.interests, user.interests)
-    }));
-    
-    let chattingFiltered = chattingWithScores;
-    if (filters.similarity === 0) {
-      chattingFiltered = chattingWithScores.filter(c => c.similarityScore <= 40);
-    } else if (filters.similarity === 100) {
-      chattingFiltered = chattingWithScores.filter(c => c.similarityScore >= 60);
-    }
-    
-    setChattingUsers(chattingFiltered.length);
-
-    // If match found, navigate to countdown
-    if (filtered.length > 0) {
-      const match = filtered[Math.floor(Math.random() * filtered.length)];
-      navigate('/countdown', {
-        state: {
-          matchedUser: match.user,
-          ...filters
+    const channel = supabase
+      .channel('call_matches')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'call_history',
+          filter: `recipient_id=eq.${profileData.id}`,
         },
-        replace: true
-      });
-    }
-  };
+        async (payload: any) => {
+          console.log('📞 New call received:', payload);
+          
+          // We've been matched! Update our queue status and navigate
+          const call = payload.new;
+          
+          // Update own queue entry to matched
+          await supabase
+            .from('matchmaking_queue')
+            .update({
+              status: 'matched',
+              matched_at: new Date().toISOString(),
+            })
+            .eq('user_id', profileData.id)
+            .eq('status', 'waiting');
+          
+          // Update own profile to in_call
+          await supabase
+            .from('profiles')
+            .update({ in_call: true })
+            .eq('id', profileData.id);
+          
+          // Fetch the caller's profile
+          const { data: callerProfile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', call.caller_id)
+            .single();
+          
+          if (callerProfile) {
+            const matchedUser = {
+              id: callerProfile.id,
+              firstName: callerProfile.first_name,
+              lastName: callerProfile.last_name,
+              profilePicture: callerProfile.profile_picture_url,
+              role: callerProfile.role,
+              location: callerProfile.location,
+              occupation: callerProfile.occupation,
+              bio: callerProfile.bio,
+              university: callerProfile.university,
+              interests: [],
+            };
+            
+            navigate('/countdown', {
+              state: {
+                matchedUser,
+                callId: call.id,
+                ...navigationFilters
+              },
+              replace: true
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profileData?.id]);
 
   useEffect(() => {
-    // Check for matches every 5 seconds
-    const interval = setInterval(checkForMatch, 5000);
+    // Check for matches every 3 seconds (more responsive for testing with 2 users)
+    const interval = setInterval(checkForMatch, 3000);
     checkForMatch(); // Initial check
 
     return () => clearInterval(interval);
-  }, [filters]);
+  }, [navigationFilters]);
 
   return (
     <AdaptiveLayout>
