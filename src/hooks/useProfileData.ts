@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getCurrentProfile, getUserInterests, getUserSocialLinks } from '@/lib/api/profiles';
 
 export interface ProfileData {
+  id: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -26,6 +27,7 @@ export interface ProfileData {
 }
 
 const DEFAULT_PROFILE: ProfileData = {
+  id: '',
   firstName: '',
   lastName: '',
   dateOfBirth: '',
@@ -76,6 +78,7 @@ export function useProfileData() {
           : '';
 
         setProfileData({
+          id: profile.id || '',
           firstName: profile.first_name || '',
           lastName: profile.last_name || '',
           dateOfBirth: profile.date_of_birth || '',

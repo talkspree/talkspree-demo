@@ -565,10 +565,14 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
     console.log('✅ Interests and social links saved via database function');
   }
 
-  // Add user to default circle
+  // Add user to default circle with their selected role
   try {
-    await addUserToDefaultCircle(userId);
-    console.log('✅ User added to default circle');
+    // Capitalize the role for display (mentor -> Mentor, mentee -> Mentee, alumni -> Alumni)
+    const formattedRole = onboardingData.role 
+      ? onboardingData.role.charAt(0).toUpperCase() + onboardingData.role.slice(1)
+      : undefined;
+    await addUserToDefaultCircle(userId, formattedRole);
+    console.log('✅ User added to default circle with role:', formattedRole);
   } catch (error) {
     console.error('Failed to add user to circle:', error);
     // Continue even if circle membership fails

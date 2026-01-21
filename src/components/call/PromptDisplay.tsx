@@ -1,51 +1,52 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Question, TopicPreset, getRandomQuestion, topicPresets } from '@/data/questions';
+import { useSharedPrompt } from '@/hooks/useSharedPrompt';
 
 interface PromptDisplayProps {
-  preset?: TopicPreset;
+  callId?: string;
+  topic?: string;
+  customTopics?: string[];
+  customQuestions?: string[];
   onRequestTopicChange?: () => void;
   className?: string;
 }
 
-export function PromptDisplay({ 
-  preset = topicPresets[0],
+export function PromptDisplay({
+  callId,
+  topic,
+  customTopics,
+  customQuestions,
   onRequestTopicChange,
-  className = '' 
+  className = '',
 }: PromptDisplayProps) {
-  const [currentQuestion, setCurrentQuestion] = useState<Question>(getRandomQuestion(preset));
-  const [nextQuestionIn, setNextQuestionIn] = useState(180);
   const [smallTalkTimer, setSmallTalkTimer] = useState(60);
   const [showSmallTalk, setShowSmallTalk] = useState(true);
 
+  // Don't pass selection - hook will load from database (source of truth)
+  // Only pass selection if there's no callId (local-only mode)
+  const { currentQuestion, nextQuestionIn, refreshPrompt, preset } = useSharedPrompt(
+    callId,
+    !callId ? { topicKey: topic, customTopics, customQuestions } : undefined
+  );
+
   useEffect(() => {
+    if (!showSmallTalk) return;
     const interval = setInterval(() => {
-      if (showSmallTalk) {
-        setSmallTalkTimer(prev => {
-          if (prev <= 1) {
-            setShowSmallTalk(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      } else {
-        setNextQuestionIn(prev => {
-          if (prev <= 1) {
-            setCurrentQuestion(getRandomQuestion(preset));
-            return 180;
-          }
-          return prev - 1;
-        });
-      }
+      setSmallTalkTimer((prev) => {
+        if (prev <= 1) {
+          setShowSmallTalk(false);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [preset, showSmallTalk]);
+  }, [showSmallTalk]);
 
-  const handleRefresh = () => {
-    setCurrentQuestion(getRandomQuestion(preset));
-    setNextQuestionIn(180);
+  const handleRefresh = async () => {
+    await refreshPrompt();
     if (onRequestTopicChange) {
       onRequestTopicChange();
     }
@@ -56,6 +57,9 @@ export function PromptDisplay({
     const secs = seconds % 60;
     return `${mins}m${secs.toString().padStart(2, '0')}s`;
   };
+
+  const questionText = currentQuestion?.text || 'Loading prompt...';
+  const topicText = currentQuestion?.topic || preset.name;
 
   return (
     <div className={`bg-gradient-primary rounded-3xl px-6 py-5 shadow-apple-lg ${className}`}>
@@ -68,7 +72,7 @@ export function PromptDisplay({
         <>
           <div className="flex items-start justify-between gap-4">
             <h2 className="text-lg font-semibold text-white flex-1 leading-relaxed">
-              "{currentQuestion.text}"
+              "{questionText}"
             </h2>
             <Button
               size="icon"
@@ -81,8 +85,8 @@ export function PromptDisplay({
           </div>
           
           <div className="mt-3 text-sm text-white/80">
-            <span>next question in {formatTime(nextQuestionIn)} • </span>
-            <span className="font-medium">*From {currentQuestion.topic}*</span>
+            <span>next question in {formatTime(nextQuestionIn)} ƒ?› </span>
+            <span className="font-medium">*From {topicText}*</span>
           </div>
         </>
       )}

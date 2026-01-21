@@ -4,12 +4,13 @@ import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { SampleUser, sampleUserManager } from '@/data/sampleUsers';
+import { SampleUser } from '@/data/sampleUsers';
 import { connectionsManager } from '@/utils/connections';
 import { AboutMeSection } from '@/components/profile/AboutMeSection';
 import { ReportModal } from '@/components/call/ReportModal';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { computeSimilarityScore, ProfileForSimilarity } from '@/lib/similarity';
 
 export default function WrapUp() {
   const navigate = useNavigate();
@@ -21,55 +22,20 @@ export default function WrapUp() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
 
-  const calculateSimilarity = (user1: any, user2: SampleUser): number => {
-    let score = 0;
-    let maxScore = 0;
+  const toSimilarityProfile = (user: any): ProfileForSimilarity => ({
+    id: user.id,
+    interests: user.interests || [],
+    role: user.role,
+    industry: user.industry,
+    studyField: user.studyField,
+    university: user.university,
+    location: user.location,
+    occupation: user.occupation,
+  });
 
-    // Interests (40% weight)
-    if (user1.interests && user2.interests) {
-      const commonInterests = user1.interests.filter((i: string) => 
-        user2.interests.includes(i)
-      ).length;
-      const totalInterests = Math.max(user1.interests.length, user2.interests.length);
-      score += (commonInterests / totalInterests) * 40;
-    }
-    maxScore += 40;
-
-    // Location/Country (20% weight)
-    if (user1.location && user2.location) {
-      if (user1.location.toLowerCase().includes(user2.location.toLowerCase()) || 
-          user2.location.toLowerCase().includes(user1.location.toLowerCase())) {
-        score += 20;
-      }
-    }
-    maxScore += 20;
-
-    // Field of work/study (20% weight)
-    if ((user1.studyField && user2.studyField && 
-         user1.studyField.toLowerCase() === user2.studyField.toLowerCase()) ||
-        (user1.industry && user2.industry && 
-         user1.industry.toLowerCase() === user2.industry.toLowerCase())) {
-      score += 20;
-    }
-    maxScore += 20;
-
-    // Role (10% weight)
-    if (user1.role && user2.role && user1.role.toLowerCase() === user2.role.toLowerCase()) {
-      score += 10;
-    }
-    maxScore += 10;
-
-    // Occupation (10% weight)
-    if (user1.occupation && user2.occupation && 
-        user1.occupation.toLowerCase() === user2.occupation.toLowerCase()) {
-      score += 10;
-    }
-    maxScore += 10;
-
-    return Math.round((score / maxScore) * 100);
-  };
-
-  const similarity = matchedUser ? calculateSimilarity(profileData, matchedUser) : 0;
+  const similarity = matchedUser
+    ? computeSimilarityScore(toSimilarityProfile(profileData), toSimilarityProfile(matchedUser))
+    : 0;
 
   if (!matchedUser) {
     navigate('/');
@@ -86,48 +52,11 @@ export default function WrapUp() {
   };
 
   const handleNext = () => {
-    const availableUsers = sampleUserManager.getAvailableUsers();
-    let candidates = availableUsers;
-    const filters = location.state || {};
-    
-    if (filters.role && filters.role !== 'random') {
-      candidates = candidates.filter(u => u.role === filters.role);
-    }
-    
-    const candidatesWithScores = candidates.map(user => ({
-      user,
-      similarityScore: calculateSimilarity(profileData, user)
-    }));
-    
-    // Filter by similarity preference
-    let filtered = candidatesWithScores;
-    if (filters.similarity === 0) {
-      filtered = candidatesWithScores.filter(c => c.similarityScore <= 40);
-    } else if (filters.similarity === 100) {
-      filtered = candidatesWithScores.filter(c => c.similarityScore >= 60);
-    }
-    
-    if (filtered.length === 0 && candidatesWithScores.length > 0) {
-      filtered = candidatesWithScores;
-    }
-    
-    if (filtered.length > 0) {
-      // Match found - go to countdown
-      const match = filtered[Math.floor(Math.random() * filtered.length)];
-      navigate('/countdown', { 
-        state: { 
-          matchedUser: match.user,
-          ...filters
-        },
-        replace: true 
-      });
-    } else {
-      // No match - go to waiting room
-      navigate('/waiting', { 
-        state: filters,
-        replace: true 
-      });
-    }
+    const { role, topic, similarity, duration, circleId } = (location.state as any) || {};
+    navigate('/waiting', {
+      state: { role, topic, similarity, duration, circleId },
+      replace: true
+    });
   };
 
   return (

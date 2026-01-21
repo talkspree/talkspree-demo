@@ -1,9 +1,10 @@
-import { Bell, User } from 'lucide-react';
+import { Bell, User, Shield } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDevice } from '@/hooks/useDevice';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useCircleRole } from '@/hooks/useCircleRole';
 import logo from '@/assets/logo.svg';
 import headerPattern from '@/assets/header-pattern.png';
 import {
@@ -15,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ProfileCard } from './ProfileCard';
+import { RoleChangeModal } from './RoleChangeModal';
 import { connectionsManager } from '@/utils/connections';
 
 export function Header() {
@@ -22,8 +24,35 @@ export function Header() {
   const device = useDevice();
   const { signOut } = useAuth();
   const { profileData } = useProfileData();
+  const { role: circleRole, isAdmin, loading: roleLoading, reloadRole } = useCircleRole();
   const [showProfile, setShowProfile] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
+
+  // Get role badge styling based on role type
+  const getRoleBadgeStyle = (role: string) => {
+    switch (role) {
+      case 'Super Admin':
+        return {
+          className: 'bg-gradient-primary text-white shadow-md hover:shadow-lg',
+          isGradient: true
+        };
+      case 'Creator':
+      case 'Admin':
+        return {
+          className: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md hover:shadow-lg',
+          isGradient: true
+        };
+      default:
+        // Neumorphic style for regular roles
+        return {
+          className: 'bg-background text-foreground neu-concave hover:neu-concave-pressed',
+          isGradient: false
+        };
+    }
+  };
+  
+  const isAdminRole = circleRole === 'Super Admin' || circleRole === 'Creator' || circleRole === 'Admin';
 
   useEffect(() => {
     // Update connection notifications
@@ -57,7 +86,29 @@ export function Header() {
             <img src={logo} alt="TalkSpree" className={device === 'mobile' ? 'h-5' : 'h-6'} />
           </button>
 
+        
+
           <div className="flex items-center gap-3 relative z-10">
+              {/* Role Badge Button */}
+          {!roleLoading && circleRole && (
+            <button
+              onClick={() => !isAdminRole && setShowRoleModal(true)}
+              disabled={isAdminRole}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full relative z-10 transition-all ${
+                getRoleBadgeStyle(circleRole).className
+              } ${!isAdminRole ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
+              title={!isAdminRole ? 'Click to change your role' : ''}
+            >
+              <Avatar className={`h-6 w-6 ${isAdminRole ? 'border border-white/30' : 'border border-border/50'}`}>
+                <AvatarImage src={profileData.profilePicture} alt="Profile" />
+                <AvatarFallback className={`text-xs ${isAdminRole ? 'bg-white/20' : 'bg-muted'}`}>
+                  {profileData.firstName?.[0]}{profileData.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium">{circleRole}</span>
+              {isAdmin && <Shield className="h-3.5 w-3.5" />}
+            </button>
+          )}
             {/* Notifications */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -129,6 +180,13 @@ export function Header() {
       </header>
 
       <ProfileCard open={showProfile} onOpenChange={setShowProfile} />
+      
+      <RoleChangeModal
+        open={showRoleModal}
+        onOpenChange={setShowRoleModal}
+        currentRole={circleRole}
+        onRoleChanged={reloadRole}
+      />
     </>
   );
 }

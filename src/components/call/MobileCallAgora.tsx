@@ -6,42 +6,74 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAgoraCall } from '@/hooks/useAgoraCall';
 import { useCallTimer } from '@/hooks/useCallTimer';
-import { Question, getRandomQuestion, topicPresets } from '@/data/questions';
+import { useCallHeartbeat } from '@/hooks/useCallHeartbeat';
+import { useCallExtension } from '@/hooks/useCallExtension';
+import { useSharedPrompt } from '@/hooks/useSharedPrompt';
+import { useSupabaseChat } from '@/hooks/useSupabaseChat';
+import { useProfileData } from '@/hooks/useProfileData';
 import { CorrespondentProfile } from './CorrespondentProfile';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send } from 'lucide-react';
 import { SampleUser } from '@/data/sampleUsers';
-import { endCall } from '@/lib/api/calls';
+import { endCall, updateRecipientPreset } from '@/lib/api/calls';
+import { supabase } from '@/lib/supabase';
 import { EndCallModal } from './EndCallModal';
 import { UserLeftModal } from './UserLeftModal';
+import { ReconnectingOverlay } from './ReconnectingOverlay';
+import { ExtensionBanner } from './ExtensionBanner';
 
 export function MobileCallAgora() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { profileData } = useProfileData();
   const matchedUser = location.state?.matchedUser as SampleUser | undefined;
   const callId = location.state?.callId as string | undefined;
-  
+
   const [isConnected, setIsConnected] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState<Question>(getRandomQuestion(topicPresets[0]));
-  const [nextQuestionIn, setNextQuestionIn] = useState(180);
   const [inputValue, setInputValue] = useState('');
-  const [extendRequestVisible, setExtendRequestVisible] = useState(false);
-  const [messages, setMessages] = useState<Array<{id: string, text: string, sender: string}>>([]);
   const [showEndCallModal, setShowEndCallModal] = useState(false);
   const [showUserLeftModal, setShowUserLeftModal] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [smallTalkTimer, setSmallTalkTimer] = useState(60);
   const [showSmallTalk, setShowSmallTalk] = useState(true);
-  
+
+  // Get agreed duration and start time from navigation state (set in WaitingRoom)
+  const agreedDuration = location.state?.agreedDuration || location.state?.duration || 15;
+  const callStartTime = location.state?.callStartTime || null;
+
+  // Calculate initial small talk timer based on call start time
+  useEffect(() => {
+    if (callStartTime) {
+      const startTime = new Date(callStartTime).getTime();
+      const now = Date.now();
+      const elapsedSeconds = Math.floor((now - startTime) / 1000);
+      const remaining = Math.max(0, 60 - elapsedSeconds);
+
+      setSmallTalkTimer(remaining);
+      setShowSmallTalk(remaining > 0);
+
+      console.log(`⏱️ Small talk timer initialized: ${remaining}s remaining (call started ${elapsedSeconds}s ago)`);
+    }
+  }, [callStartTime]);
+
+  // Don't pass local selection - the hook will load from database
+  const { currentQuestion, nextQuestionIn, refreshPrompt, preset } = useSharedPrompt(callId);
+
   const remoteVideoRef = useRef<HTMLDivElement>(null);
   const localVideoRef = useRef<HTMLDivElement>(null);
 
-  // Get duration from navigation state, default to 15 minutes
-  const sessionDuration = location.state?.duration || 15;
-  const durationInSeconds = sessionDuration === 0 ? 999999 : sessionDuration * 60;
+  // Calculate duration in seconds (use 999999 for unlimited)
+  const durationInSeconds = agreedDuration === 0 ? 999999 : agreedDuration * 60;
+
+  // Log the call details on mount
+  useEffect(() => {
+    console.log(`📊 Call started with agreed duration: ${agreedDuration} minutes, started at ${callStartTime}`);
+  }, [agreedDuration, callStartTime]);
 
   // Agora call hook
   const {
@@ -59,14 +91,28 @@ export function MobileCallAgora() {
     agoraService,
   } = useAgoraCall({
     callId: callId || '',
-    onRemoteUserJoined: (user) => {
-      console.log('🎉 Remote user joined:', user.uid);
-      setIsConnected(true);
-    },
-    onRemoteUserLeft: (user) => {
-      console.log('👋 Remote user left:', user.uid);
+    onRemoteUserJoined: () => setIsConnected(true),
+    onReconnecting: () => {
+      console.log('🔄 Remote user disconnected - showing reconnecting overlay');
       setIsConnected(false);
-      // Show modal that other user left
+      setIsReconnecting(true);
+      setShowUserLeftModal(false);
+    },
+    onReconnectFailed: () => {
+      console.log('❌ Reconnect failed - showing end call modal');
+      setIsReconnecting(false);
+      setShowUserLeftModal(true);
+    },
+    onRemoteUserRejoined: () => {
+      console.log('🎉 Remote user rejoined - closing overlays');
+      setIsConnected(true);
+      setIsReconnecting(false);
+      setShowUserLeftModal(false);
+    },
+    onRemoteHangup: () => {
+      console.log('☎️ Remote user hung up');
+      setIsConnected(false);
+      setIsReconnecting(false);
       setShowUserLeftModal(true);
     },
   });
@@ -77,23 +123,62 @@ export function MobileCallAgora() {
     extendCall: extendCallTimer,
     declineExtend,
     isCallEnded
-  } = useCallTimer(durationInSeconds);
+  } = useCallTimer(durationInSeconds, callStartTime);
+
+  // Handle call extension requiring both users' agreement
+  const {
+    iRequested,
+    theyRequested,
+    bothAgreed,
+    extended,
+    requestExtension,
+    approveExtension,
+    declineExtension,
+  } = useCallExtension(callId, extendCallTimer);
+
+  // Real-time chat using Agora RTM
+  const {
+    messages: chatMessages,
+    sendMessage,
+    isConnected: chatConnected,
+    error: chatError
+  } = useSupabaseChat(
+    callId,
+    profileData?.id,
+    profileData?.firstName || 'You'
+  );
+
+  // Send heartbeats while in call to detect disconnections
+  useCallHeartbeat(callId, isConnected);
 
   // Auto-join call on mount (only once per callId)
   useEffect(() => {
     if (callId && !isConnected && !isConnecting) {
-      console.log('🚀 Auto-joining call:', callId);
       joinCall();
     }
 
     return () => {
       if (callId) {
-        leaveCall();
+        leaveCall(true);
       }
     };
     // Only re-run if callId changes, not if joinCall/leaveCall change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callId]);
+
+  // Send recipient's topic preset when joining call
+  useEffect(() => {
+    if (callId && isConnected) {
+      const nav = location.state as any;
+      if (nav?.topic || nav?.customTopics || nav?.customQuestions) {
+        updateRecipientPreset(callId, {
+          topicPreset: nav.topic,
+          customTopics: nav.customTopics,
+          customQuestions: nav.customQuestions,
+        }).catch(err => console.error('Failed to update recipient preset:', err));
+      }
+    }
+  }, [callId, isConnected, location.state]);
 
   // Play remote video and audio
   useEffect(() => {
@@ -154,33 +239,18 @@ export function MobileCallAgora() {
   }, [isCallEnded]);
 
   useEffect(() => {
+    if (!showSmallTalk) return;
     const interval = setInterval(() => {
-      if (showSmallTalk) {
-        setSmallTalkTimer(prev => {
-          if (prev <= 1) {
-            setShowSmallTalk(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      } else {
-        setNextQuestionIn(prev => {
-          if (prev <= 1) {
-            setCurrentQuestion(getRandomQuestion(topicPresets[0]));
-            return 180;
-          }
-          return prev - 1;
-        });
-      }
+      setSmallTalkTimer(prev => {
+        if (prev <= 1) {
+          setShowSmallTalk(false);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearInterval(interval);
   }, [showSmallTalk]);
-
-  useEffect(() => {
-    if (showExtendPrompt) {
-      setExtendRequestVisible(true);
-    }
-  }, [showExtendPrompt]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -188,19 +258,9 @@ export function MobileCallAgora() {
     return `${mins}m${secs.toString().padStart(2, '0')}s`;
   };
 
-  const handleExtendAccept = () => {
-    extendCallTimer();
-    setExtendRequestVisible(false);
-  };
-
-  const handleExtendDecline = () => {
-    declineExtend();
-    setExtendRequestVisible(false);
-  };
-
   const handleSend = () => {
     if (inputValue.trim()) {
-      setMessages([...messages, { id: Date.now().toString(), text: inputValue, sender: 'You' }]);
+      sendMessage(inputValue);
       setInputValue('');
     }
   };
@@ -356,14 +416,16 @@ export function MobileCallAgora() {
               <>
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-base font-semibold text-white flex-1">
-                    "{currentQuestion.text}"
+                    "{currentQuestion?.text || 'Loading prompt...'}"
                   </p>
                   <Button
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 shrink-0 hover:bg-white/20 text-white"
                     onClick={() => {
-                      handleButtonClick(() => setCurrentQuestion(getRandomQuestion(topicPresets[0])));
+                      handleButtonClick(() => {
+                        refreshPrompt().catch(console.error);
+                      });
                     }}
                   >
                     <RefreshCw className="h-4 w-4" />
@@ -371,36 +433,26 @@ export function MobileCallAgora() {
                 </div>
                 <div className="mt-2 text-xs text-white/80">
                   <span>Next in {formatTime(nextQuestionIn)} • </span>
-                  <span className="font-medium">*{currentQuestion.topic}*</span>
+                  <span className="font-medium">*{currentQuestion?.topic || preset.name}*</span>
                 </div>
               </>
             )}
           </div>
         </div>
 
-        {/* Extend Call Notification */}
-        {extendRequestVisible && (
-          <div className="absolute top-28 left-4 right-4 z-30 animate-fade-in">
-            <div className="bg-card/95 backdrop-blur-md rounded-3xl p-4 shadow-apple-lg border border-border flex items-center justify-between">
-              <span className="text-foreground font-medium text-sm">Call ends in 2 minutes</span>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  className="bg-success hover:bg-success/90 text-white rounded-full px-4"
-                  onClick={() => handleButtonClick(handleExtendAccept, 'medium')}
-                >
-                  Extend
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-full w-8 h-8 p-0 hover:bg-destructive/10"
-                  onClick={() => handleButtonClick(handleExtendDecline, 'light')}
-                >
-                  <X className="h-4 w-4 text-destructive" />
-                </Button>
-              </div>
-            </div>
+        {/* Extension Banner - Above Question Prompt */}
+        {showExtendPrompt && !extended && (
+          <div className="absolute top-28 left-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-300">
+            <ExtensionBanner
+              show={true}
+              iRequested={iRequested}
+              theyRequested={theyRequested}
+              bothAgreed={bothAgreed}
+              userName={matchedUser?.firstName || 'User'}
+              onRequest={requestExtension}
+              onApprove={approveExtension}
+              onDecline={declineExtension}
+            />
           </div>
         )}
 
@@ -468,11 +520,44 @@ export function MobileCallAgora() {
                           You matched with {matchedUser ? `${matchedUser.firstName} ${matchedUser.lastName}` : 'Unknown User'}!
                         </div>
                       </div>
-                      {messages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.sender === 'You' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${msg.sender === 'You' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                            <p className="text-sm">{msg.text}</p>
+                      {chatMessages.map((msg) => (
+                        <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'} gap-2 items-end`}>
+                          {!msg.isMe && (
+                            <Avatar className="h-8 w-8 mb-5 flex-shrink-0">
+                              <AvatarImage src={matchedUser?.profilePicture} />
+                              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                                {matchedUser?.firstName?.charAt(0) || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
+                          
+                          <div className="flex flex-col gap-1 max-w-[70%]">
+                            <div className={`relative px-4 py-2 ${
+                              msg.isMe 
+                                ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm' 
+                                : 'bg-muted text-foreground rounded-2xl rounded-bl-sm'
+                            }`}>
+                              <p className="text-sm break-words">{msg.text}</p>
+                            </div>
+                            <span className={`text-xs text-muted-foreground ${
+                              msg.isMe ? 'text-right' : 'text-left'
+                            }`}>
+                              {msg.timestamp.toLocaleTimeString('en-US', { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                              })}
+                            </span>
                           </div>
+
+                          {msg.isMe && (
+                            <Avatar className="h-8 w-8 mb-5 flex-shrink-0">
+                              <AvatarImage src={profileData?.profilePicture} />
+                              <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                                You
+                              </AvatarFallback>
+                            </Avatar>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -611,20 +696,20 @@ export function MobileCallAgora() {
             <div className="bg-gradient-primary rounded-3xl px-5 py-4 shadow-apple-lg">
               <div className="flex items-start justify-between gap-3">
                 <p className="text-base font-semibold text-white flex-1">
-                  "{currentQuestion.text}"
+                  "{currentQuestion?.text || 'Loading prompt...'}"
                 </p>
                 <Button
                   size="icon"
                   variant="ghost"
                   className="h-8 w-8 shrink-0 hover:bg-white/20 text-white"
-                  onClick={() => setCurrentQuestion(getRandomQuestion(topicPresets[0]))}
+                  onClick={() => refreshPrompt().catch(console.error)}
                 >
                   <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
               <div className="mt-2 text-xs text-white/80">
                 <span>Next in {formatTime(nextQuestionIn)} • </span>
-                <span className="font-medium">*{currentQuestion.topic}*</span>
+                <span className="font-medium">*{currentQuestion?.topic || preset.name}*</span>
               </div>
             </div>
 
@@ -639,11 +724,44 @@ export function MobileCallAgora() {
                         You matched with {matchedUser ? `${matchedUser.firstName} ${matchedUser.lastName}` : 'Unknown User'}!
                       </div>
                     </div>
-                    {messages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.sender === 'You' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] rounded-2xl px-4 py-2 ${msg.sender === 'You' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                          <p className="text-sm">{msg.text}</p>
+                    {chatMessages.map((msg) => (
+                      <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'} gap-2 items-end`}>
+                        {!msg.isMe && (
+                          <Avatar className="h-8 w-8 mb-5 flex-shrink-0">
+                            <AvatarImage src={matchedUser?.profilePicture} />
+                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                              {matchedUser?.firstName?.charAt(0) || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                        
+                        <div className="flex flex-col gap-1 max-w-[70%]">
+                          <div className={`relative px-4 py-2 ${
+                            msg.isMe 
+                              ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm' 
+                              : 'bg-muted text-foreground rounded-2xl rounded-bl-sm'
+                          }`}>
+                            <p className="text-sm break-words">{msg.text}</p>
+                          </div>
+                          <span className={`text-xs text-muted-foreground ${
+                            msg.isMe ? 'text-right' : 'text-left'
+                          }`}>
+                            {msg.timestamp.toLocaleTimeString('en-US', { 
+                              hour: 'numeric', 
+                              minute: '2-digit',
+                              hour12: true 
+                            })}
+                          </span>
                         </div>
+
+                        {msg.isMe && (
+                          <Avatar className="h-8 w-8 mb-5 flex-shrink-0">
+                            <AvatarImage src={profileData?.profilePicture} />
+                            <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
+                              You
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -720,6 +838,12 @@ export function MobileCallAgora() {
         open={showEndCallModal}
         onConfirm={handleEndCallConfirm}
         onCancel={handleEndCallCancel}
+      />
+
+      {/* Reconnecting Overlay */}
+      <ReconnectingOverlay
+        show={isReconnecting}
+        userName={matchedUser?.firstName || 'User'}
       />
 
       {/* User Left Modal */}

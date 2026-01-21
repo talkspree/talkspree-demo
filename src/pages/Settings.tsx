@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Mail, Lock, Globe, Moon, Sun } from "lucide-react";
+import { ArrowLeft, User, Mail, Lock, Globe, Moon, Sun, Settings2, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,11 +15,13 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDevice } from "@/hooks/useDevice";
 import { useProfileData } from "@/hooks/useProfileData";
+import { useCircleRole } from "@/hooks/useCircleRole";
 
 export default function Settings() {
   const navigate = useNavigate();
   const device = useDevice();
   const { profileData, updateProfile } = useProfileData();
+  const { isAdmin, adminType, loading: roleLoading } = useCircleRole();
   const [activeSection, setActiveSection] = useState("profile");
   const [theme, setTheme] = useState("light");
   
@@ -30,10 +32,12 @@ export default function Settings() {
   const [timezone, setTimezone] = useState("GMT+02:00");
   const [language, setLanguage] = useState("en");
 
+  // Build sections dynamically based on admin status
   const sections = [
     { id: "profile", label: "Profile", icon: User },
     { id: "account", label: "Account", icon: Mail },
     { id: "theme", label: "Theme", icon: Moon },
+    ...(isAdmin ? [{ id: "circle", label: "Circle Settings", icon: Settings2 }] : []),
   ];
 
   const renderProfileSection = () => (
@@ -215,6 +219,32 @@ export default function Settings() {
     </div>
   );
 
+  const renderCircleSection = () => (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold mb-2">Circle Settings</h2>
+        <p className="text-muted-foreground">Manage circle as {adminType === 'super_admin' ? 'Super Admin' : adminType === 'creator' ? 'Creator' : 'Admin'}</p>
+      </div>
+      <Card className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 flex items-center justify-center">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Circle Administration</h3>
+              <p className="text-sm text-muted-foreground">Edit circle details, roles, and topic presets</p>
+            </div>
+          </div>
+          <Button onClick={() => navigate("/settings/circle")}>
+            <Settings2 className="h-4 w-4 mr-2" />
+            Open Settings
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+
   const renderContent = () => {
     switch (activeSection) {
       case "profile":
@@ -223,6 +253,8 @@ export default function Settings() {
         return renderAccountSection();
       case "theme":
         return renderThemeSection();
+      case "circle":
+        return renderCircleSection();
       default:
         return renderProfileSection();
     }

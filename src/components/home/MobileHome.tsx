@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User, Bell } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User, Bell, Shield } from 'lucide-react';
 import { FiltersSection } from './FiltersSection';
 import { toast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.svg';
@@ -9,10 +9,12 @@ import headerPattern from '@/assets/header-pattern.png';
 import profileViewIcon from '@/assets/profile-view.png';
 import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from './ProfileCard';
+import { RoleChangeModal } from './RoleChangeModal';
 import { connectionsManager } from '@/utils/connections';
 import { getOrCreateDefaultCircle, getCircleMemberCounts } from '@/lib/api/circles';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
+import { useCircleRole } from '@/hooks/useCircleRole';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +27,9 @@ export function MobileHome() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { profileData } = useProfileData();
+  const { role: circleRole, isAdmin, loading: roleLoading, reloadRole } = useCircleRole();
   const [showProfile, setShowProfile] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
   const [newContactsCount, setNewContactsCount] = useState(0);
   const [viewedContactsCount, setViewedContactsCount] = useState(0);
@@ -33,6 +37,31 @@ export function MobileHome() {
   // Get actual user counts
   const [totalMembers, setTotalMembers] = useState(0);
   const [onlineCount, setOnlineCount] = useState(0);
+
+  // Get role badge styling based on role type
+  const getRoleBadgeStyle = (role: string) => {
+    switch (role) {
+      case 'Super Admin':
+        return {
+          className: 'bg-gradient-primary text-white shadow-md hover:shadow-lg',
+          isGradient: true
+        };
+      case 'Creator':
+      case 'Admin':
+        return {
+          className: 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-md hover:shadow-lg',
+          isGradient: true
+        };
+      default:
+        // Neumorphic style for regular roles
+        return {
+          className: 'bg-background text-foreground neu-concave hover:neu-concave-pressed',
+          isGradient: false
+        };
+    }
+  };
+  
+  const isAdminRole = circleRole === 'Super Admin' || circleRole === 'Creator' || circleRole === 'Admin';
 
   // Fetch real member counts from database
   useEffect(() => {
@@ -218,6 +247,29 @@ export function MobileHome() {
                 <span className="font-medium">{circleData.online} online</span>
               </div>
             </div>
+            
+            {/* Role Badge Button */}
+            {!roleLoading && circleRole && (
+              <div className="flex justify-center mt-3">
+                <button
+                  onClick={() => !isAdminRole && setShowRoleModal(true)}
+                  disabled={isAdminRole}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
+                    getRoleBadgeStyle(circleRole).className
+                  } ${!isAdminRole ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
+                  title={!isAdminRole ? 'Tap to change your role' : ''}
+                >
+                  <Avatar className={`h-6 w-6 ${isAdminRole ? 'border border-white/30' : 'border border-border/50'}`}>
+                    <AvatarImage src={profileData.profilePicture} alt="Profile" />
+                    <AvatarFallback className={`text-xs ${isAdminRole ? 'bg-white/20' : 'bg-muted'}`}>
+                      {profileData.firstName?.[0]}{profileData.lastName?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="text-sm font-medium">{circleRole}</span>
+                  {isAdmin && <Shield className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Tab Toggle */}
@@ -315,6 +367,13 @@ export function MobileHome() {
       </Button>
 
       <ProfileCard open={showProfile} onOpenChange={setShowProfile} />
+      
+      <RoleChangeModal
+        open={showRoleModal}
+        onOpenChange={setShowRoleModal}
+        currentRole={circleRole}
+        onRoleChanged={reloadRole}
+      />
     </div>
   );
 }

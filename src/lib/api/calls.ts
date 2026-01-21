@@ -14,6 +14,36 @@ export interface CallHistory {
   recipient_feedback: string | null;
   topics: string[] | null;
   status: 'scheduled' | 'ongoing' | 'completed' | 'cancelled' | 'missed';
+  caller_topic_preset: string | null;
+  caller_custom_topics: string[] | null;
+  caller_custom_questions: string[] | null;
+  recipient_topic_preset: string | null;
+  recipient_custom_topics: string[] | null;
+  recipient_custom_questions: string[] | null;
+}
+
+/**
+ * Update recipient's topic preset when joining a call
+ */
+export async function updateRecipientPreset(
+  callId: string,
+  topicConfig: {
+    topicPreset?: string;
+    customTopics?: string[];
+    customQuestions?: string[];
+  }
+) {
+  const { error } = await supabase.rpc('update_recipient_preset', {
+    p_call_id: callId,
+    recipient_topic_preset: topicConfig.topicPreset || null,
+    recipient_custom_topics: topicConfig.customTopics || null,
+    recipient_custom_questions: topicConfig.customQuestions || null,
+  });
+
+  if (error) {
+    console.error('Failed to update recipient preset:', error);
+    throw error;
+  }
 }
 
 /**

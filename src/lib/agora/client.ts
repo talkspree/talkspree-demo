@@ -32,9 +32,9 @@ export class AgoraService {
   private localAudioTrack: IMicrophoneAudioTrack | null = null;
   private localVideoTrack: ICameraVideoTrack | null = null;
   private remoteUsers: Map<UID, IAgoraRTCRemoteUser> = new Map();
-  private isJoined: boolean = false;
-  private isCameraOn: boolean = true;
-  private isMicOn: boolean = true;
+  private isJoined = false;
+  private isCameraOn = true;
+  private isMicOn = true;
 
   // Event callbacks
   private onUserJoinedCallback?: (user: IAgoraRTCRemoteUser) => void;
@@ -53,44 +53,65 @@ export class AgoraService {
 
     // Handle remote user joined
     this.client.on('user-joined', (user) => {
-      console.log('👤 Remote user joined:', user.uid);
+      console.log('Remote user joined:', user.uid);
       this.remoteUsers.set(user.uid, user);
       this.onUserJoinedCallback?.(user);
     });
 
     // Handle remote user left
     this.client.on('user-left', (user, reason) => {
-      console.log('👋 Remote user left:', user.uid, 'Reason:', reason);
+      console.log('Remote user left:', user.uid, 'Reason:', reason);
       this.remoteUsers.delete(user.uid);
       this.onUserLeftCallback?.(user);
     });
 
     // Handle remote user published media
     this.client.on('user-published', async (user, mediaType) => {
-      console.log('📡 Remote user published:', user.uid, 'Media:', mediaType);
-      await this.client!.subscribe(user, mediaType);
-      this.remoteUsers.set(user.uid, user);
-      this.onUserPublishedCallback?.(user, mediaType);
+      console.log('Remote user published:', user.uid, 'Media:', mediaType);
+      try {
+        await this.client!.subscribe(user, mediaType);
+        this.remoteUsers.set(user.uid, user);
+
+        // CRITICAL: Auto-play audio tracks immediately
+        if (mediaType === 'audio' && user.audioTrack) {
+          console.log('🔊 Auto-playing remote audio for user:', user.uid);
+          user.audioTrack.play();
+        }
+
+        this.onUserPublishedCallback?.(user, mediaType);
+      } catch (error) {
+        console.error('Failed to subscribe to remote user:', user.uid, mediaType, error);
+      }
     });
 
     // Handle remote user unpublished media
     this.client.on('user-unpublished', (user, mediaType) => {
-      console.log('📴 Remote user unpublished:', user.uid, 'Media:', mediaType);
+      console.log('Remote user unpublished:', user.uid, 'Media:', mediaType);
       this.onUserUnpublishedCallback?.(user, mediaType);
     });
 
     // Handle connection state changes
     this.client.on('connection-state-change', (curState, revState, reason) => {
-      console.log('🔄 Connection state changed:', { curState, revState, reason });
+      console.log('Connection state changed:', { curState, revState, reason });
+
+      // Handle disconnection and network issues
+      if (curState === 'DISCONNECTED') {
+        console.warn('⚠️ Agora disconnected. Reason:', reason);
+        // The SDK will automatically try to reconnect
+      } else if (curState === 'RECONNECTING') {
+        console.log('🔄 Agora reconnecting...');
+      } else if (curState === 'CONNECTED') {
+        console.log('✅ Agora connection established/restored');
+      }
+
       this.onConnectionStateChangeCallback?.(curState, revState, reason);
     });
 
-    // Handle network quality - only when joined
+    // Handle network quality changes (detect poor connection)
     this.client.on('network-quality', (stats) => {
-      // Only log if actually in a call
-      if (this.isJoined) {
-        // Log very infrequently to reduce spam
-        // This will be removed when leaving anyway
+      // Quality levels: 0 (unknown), 1 (excellent), 2 (good), 3 (poor), 4 (bad), 5 (very bad), 6 (down)
+      if (stats.downlinkNetworkQuality >= 4 || stats.uplinkNetworkQuality >= 4) {
+        console.warn('⚠️ Poor network quality detected:', stats);
       }
     });
   }
@@ -108,24 +129,31 @@ export class AgoraService {
     }
 
     try {
-      console.log('🔐 Joining channel:', channelName, 'with UID:', uid);
-      
-      // Join the channel
-      await this.client.join(agoraConfig.appId, channelName, token, uid);
-      this.isJoined = true;
-      
-      console.log('✅ Successfully joined channel');
+      console.log('🚀 Joining channel:', channelName, 'with UID:', uid);
 
-      // Create local tracks
+      // Pre-create local tracks BEFORE joining to speed up connection
+      // This allows faster publishing after join
+      console.log('📹 Pre-creating local media tracks...');
       await this.createLocalTracks();
 
-      // Publish local tracks
-      if (this.localAudioTrack && this.localVideoTrack) {
-        await this.client.publish([this.localAudioTrack, this.localVideoTrack]);
-        console.log('✅ Published local tracks');
+      console.log('🔗 Joining Agora channel...');
+      await this.client.join(agoraConfig.appId, channelName, token, uid);
+      this.isJoined = true;
+
+      console.log('✅ Successfully joined channel');
+
+      // Publish tracks immediately
+      const tracksToPublish = [this.localAudioTrack, this.localVideoTrack].filter(Boolean) as any[];
+      if (tracksToPublish.length > 0) {
+        console.log('📤 Publishing local tracks...');
+        await this.client.publish(tracksToPublish);
+        console.log('✅ Published', tracksToPublish.length, 'track(s)');
+      } else {
+        console.warn('⚠️ No media tracks available to publish (mic/camera unavailable)');
       }
     } catch (error) {
       console.error('❌ Failed to join channel:', error);
+      this.isJoined = false;
       throw error;
     }
   }
@@ -134,31 +162,44 @@ export class AgoraService {
    * Create local audio and video tracks
    */
   async createLocalTracks(): Promise<void> {
+    console.log('Creating local tracks (mic + camera)...');
+
+    // Microphone
     try {
-      console.log('🎥 Creating local tracks...');
-
-      // Create microphone and camera tracks
-      [this.localAudioTrack, this.localVideoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
-        {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        {
-          encoderConfig: {
-            width: { ideal: 1280, max: 1920 },
-            height: { ideal: 720, max: 1080 },
-            frameRate: 30,
-            bitrateMax: 2000,
-          },
-          optimizationMode: 'detail',
-        }
-      );
-
-      console.log('✅ Local tracks created successfully');
+      this.localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      });
+      this.isMicOn = true;
     } catch (error) {
-      console.error('❌ Failed to create local tracks:', error);
-      throw error;
+      console.warn('Microphone track failed:', error);
+      this.localAudioTrack = null;
+      this.isMicOn = false;
+    }
+
+    // Camera (prefer front-facing on mobile)
+    try {
+      this.localVideoTrack = await AgoraRTC.createCameraVideoTrack({
+        encoderConfig: {
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          frameRate: 30,
+          bitrateMax: 2000,
+        },
+        optimizationMode: 'detail',
+        // @ts-ignore facingMode supported; helps mobile choose front cam
+        cameraFacingMode: 'user',
+      });
+      this.isCameraOn = true;
+    } catch (error) {
+      console.warn('Camera track failed (continuing with audio if available):', error);
+      this.localVideoTrack = null;
+      this.isCameraOn = false;
+    }
+
+    if (!this.localAudioTrack && !this.localVideoTrack) {
+      throw new Error('Failed to create microphone or camera tracks');
     }
   }
 
@@ -167,7 +208,7 @@ export class AgoraService {
    */
   async leave(): Promise<void> {
     try {
-      console.log('👋 Leaving channel...');
+      console.log('Leaving channel...');
 
       // Stop and close local tracks
       if (this.localAudioTrack) {
@@ -184,43 +225,40 @@ export class AgoraService {
 
       // Unpublish and leave
       if (this.client && this.isJoined) {
-        // Remove ALL event listeners BEFORE leaving to prevent any events
         this.client.removeAllListeners('user-joined');
         this.client.removeAllListeners('user-left');
         this.client.removeAllListeners('user-published');
         this.client.removeAllListeners('user-unpublished');
         this.client.removeAllListeners('connection-state-change');
-        this.client.removeAllListeners('network-quality');
-        
+
         try {
           await this.client.unpublish();
         } catch (e) {
           console.warn('Error unpublishing:', e);
         }
-        
+
         try {
           await this.client.leave();
         } catch (e) {
           console.warn('Error leaving channel:', e);
         }
-        
+
         this.isJoined = false;
       }
 
       this.remoteUsers.clear();
-      
+
       // Recreate client for next call with fresh event listeners
       this.client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       this.setupEventListeners();
-      
-      console.log('✅ Successfully left channel');
+
+      console.log('Successfully left channel');
     } catch (error) {
-      console.error('❌ Error leaving channel:', error);
-      // Even if there's an error, try to clean up
+      console.error('Error leaving channel:', error);
       this.isJoined = false;
       this.remoteUsers.clear();
-      
-      // Still try to recreate client
+
+      // Try to recreate client anyway
       try {
         if (this.client) {
           this.client.removeAllListeners();
@@ -230,7 +268,7 @@ export class AgoraService {
       } catch (recreateError) {
         console.error('Error recreating client:', recreateError);
       }
-      
+
       throw error;
     }
   }
@@ -244,10 +282,10 @@ export class AgoraService {
     try {
       await this.localVideoTrack.setEnabled(!this.isCameraOn);
       this.isCameraOn = !this.isCameraOn;
-      console.log('📹 Camera:', this.isCameraOn ? 'ON' : 'OFF');
+      console.log('Camera:', this.isCameraOn ? 'ON' : 'OFF');
       return this.isCameraOn;
     } catch (error) {
-      console.error('❌ Failed to toggle camera:', error);
+      console.error('Failed to toggle camera:', error);
       throw error;
     }
   }
@@ -261,10 +299,10 @@ export class AgoraService {
     try {
       await this.localAudioTrack.setEnabled(!this.isMicOn);
       this.isMicOn = !this.isMicOn;
-      console.log('🎤 Microphone:', this.isMicOn ? 'ON' : 'OFF');
+      console.log('Microphone:', this.isMicOn ? 'ON' : 'OFF');
       return this.isMicOn;
     } catch (error) {
-      console.error('❌ Failed to toggle microphone:', error);
+      console.error('Failed to toggle microphone:', error);
       throw error;
     }
   }
@@ -278,9 +316,9 @@ export class AgoraService {
     try {
       // @ts-ignore - switchDevice is available but not in types
       await this.localVideoTrack.switchDevice();
-      console.log('🔄 Camera switched');
+      console.log('Camera switched');
     } catch (error) {
-      console.error('❌ Failed to switch camera:', error);
+      console.error('Failed to switch camera:', error);
       throw error;
     }
   }
@@ -359,4 +397,3 @@ export class AgoraService {
 
 // Export singleton instance
 export const agoraService = new AgoraService();
-

@@ -15,6 +15,7 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { Upload, ArrowLeft } from 'lucide-react';
 import { CircleRoleCard } from '@/components/profile/CircleRoleCard';
 import { updateProfile as updateProfileAPI, uploadProfilePicture } from '@/lib/api/profiles';
+import { getMyCircles, updateMyCircleRole } from '@/lib/api/circles';
 import { supabase } from '@/lib/supabase';
 
 export default function ProfileEdit() {
@@ -71,6 +72,27 @@ export default function ProfileEdit() {
     });
     setSelectedInterests(profileData.interests);
   }, [profileData]);
+
+  // Load user's circles
+  useEffect(() => {
+    const loadCircles = async () => {
+      try {
+        const circles = await getMyCircles();
+        setUserCircles(circles);
+      } catch (error) {
+        console.error('Error loading circles:', error);
+      }
+    };
+
+    loadCircles();
+  }, []);
+
+  const handleCircleRoleChange = (circleId: string, role: string) => {
+    setCircleRoleChanges(prev => ({
+      ...prev,
+      [circleId]: role
+    }));
+  };
   
   const MAX_INTERESTS = 20;
 
@@ -90,6 +112,10 @@ export default function ProfileEdit() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
+  
+  // Circle roles
+  const [userCircles, setUserCircles] = useState<any[]>([]);
+  const [circleRoleChanges, setCircleRoleChanges] = useState<Record<string, string>>({});
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -124,6 +150,30 @@ export default function ProfileEdit() {
     setIsSaving(true);
     
     try {
+      // If on role tab, save circle role changes
+      if (activeTab === 'role') {
+        const roleUpdates = Object.entries(circleRoleChanges);
+        if (roleUpdates.length > 0) {
+          await Promise.all(
+            roleUpdates.map(([circleId, role]) => 
+              updateMyCircleRole(circleId, role)
+            )
+          );
+          toast({
+            title: 'Success',
+            description: 'Your circle roles have been updated',
+          });
+          setCircleRoleChanges({}); // Clear pending changes
+        } else {
+          toast({
+            description: 'No changes to save',
+          });
+        }
+        setIsSaving(false);
+        return;
+      }
+
+      // Otherwise, save profile data
       let profilePictureUrl = formData.profilePicture;
 
       // Handle profile picture upload if a new file was selected
@@ -521,22 +571,40 @@ export default function ProfileEdit() {
               </Card>
             ) : (
               <div className="space-y-4">
-                <CircleRoleCard
-                  circleName="Mentor the Young"
-                  currentRole={formData.role}
-                  onRoleChange={(role) => setFormData({ ...formData, role })}
-                  circleImage="/placeholder.svg"
-                />
+                {userCircles.length === 0 ? (
+                  <Card className="shadow-apple-md">
+                    <CardContent className="py-8 text-center">
+                      <p className="text-muted-foreground">You are not a member of any circles yet.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {userCircles.map((membership) => (
+                      <CircleRoleCard
+                        key={membership.circle_id}
+                        circleId={membership.circle_id}
+                        onRoleChange={handleCircleRoleChange}
+                      />
+                    ))}
+                  </>
+                )}
                 
                 {/* Actions for Role tab */}
-                <div className="flex gap-3">
-                  <Button type="submit" size="lg" className="flex-1" disabled={isSaving}>
-                    {isSaving ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                  <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1" disabled={isSaving}>
-                    Cancel
-                  </Button>
-                </div>
+                {userCircles.length > 0 && (
+                  <div className="flex gap-3">
+                    <Button 
+                      type="submit" 
+                      size="lg" 
+                      className="flex-1" 
+                      disabled={isSaving || Object.keys(circleRoleChanges).length === 0}
+                    >
+                      {isSaving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                    <Button type="button" onClick={() => navigate('/')} variant="secondary" size="lg" className="flex-1" disabled={isSaving}>
+                      Cancel
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </form>

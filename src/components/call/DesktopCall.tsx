@@ -173,7 +173,12 @@ export function DesktopCall() {
 
         {/* Middle: Prompt & Chat */}
         <div className="flex flex-col gap-3 overflow-hidden">
-          <PromptDisplay className="flex-shrink-0" />
+          <PromptDisplay
+            topic={(location.state as any)?.topic}
+            customTopics={(location.state as any)?.customTopics}
+            customQuestions={(location.state as any)?.customQuestions}
+            className="flex-shrink-0"
+          />
           <div className="flex-1 min-h-0 bg-card rounded-lg border border-border shadow-apple-md overflow-hidden">
             <ChatBox
               correspondentName={matchedUser ? `${matchedUser.firstName} ${matchedUser.lastName}` : 'Unknown User'}

@@ -19,12 +19,16 @@ import { CorrespondentProfile } from './CorrespondentProfile';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAgoraCall } from '@/hooks/useAgoraCall';
 import { useCallTimer } from '@/hooks/useCallTimer';
+import { useCallHeartbeat } from '@/hooks/useCallHeartbeat';
+import { useCallExtension } from '@/hooks/useCallExtension';
+import { useSupabaseChat } from '@/hooks/useSupabaseChat';
 import { ProfileCard } from '@/components/home/ProfileCard';
 import { SampleUser } from '@/data/sampleUsers';
-import { endCall } from '@/lib/api/calls';
+import { endCall, updateRecipientPreset } from '@/lib/api/calls';
 import { supabase } from '@/lib/supabase';
 import { EndCallModal } from './EndCallModal';
 import { UserLeftModal } from './UserLeftModal';
+import { ReconnectingOverlay } from './ReconnectingOverlay';
 
 export function DesktopCallAgora() {
   const navigate = useNavigate();
@@ -39,10 +43,19 @@ export function DesktopCallAgora() {
   const [showEndConfirm, setShowEndConfirm] = useState(false);
   const [showEndCallModal, setShowEndCallModal] = useState(false);
   const [showUserLeftModal, setShowUserLeftModal] = useState(false);
-  
-  // Get duration from navigation state, default to 15 minutes
-  const sessionDuration = location.state?.duration || 15;
-  const durationInSeconds = sessionDuration === 0 ? 999999 : sessionDuration * 60;
+  const [isReconnecting, setIsReconnecting] = useState(false);
+
+  // Get agreed duration and start time from navigation state (set in WaitingRoom)
+  const agreedDuration = location.state?.agreedDuration || location.state?.duration || 15;
+  const callStartTime = location.state?.callStartTime || null;
+
+  // Calculate duration in seconds (use 999999 for unlimited)
+  const durationInSeconds = agreedDuration === 0 ? 999999 : agreedDuration * 60;
+
+  // Log the call details on mount
+  useEffect(() => {
+    console.log(`📊 Call started with agreed duration: ${agreedDuration} minutes, started at ${callStartTime}`);
+  }, [agreedDuration, callStartTime]);
   
   // Agora call hook
   const {
@@ -59,14 +72,28 @@ export function DesktopCallAgora() {
     agoraService,
   } = useAgoraCall({
     callId: callId || '',
-    onRemoteUserJoined: (user) => {
-      console.log('🎉 Remote user joined:', user.uid);
-      setIsConnected(true);
-    },
-    onRemoteUserLeft: (user) => {
-      console.log('👋 Remote user left:', user.uid);
+    onRemoteUserJoined: () => setIsConnected(true),
+    onReconnecting: () => {
+      console.log('🔄 Remote user disconnected - showing reconnecting overlay');
       setIsConnected(false);
-      // Show modal that other user left
+      setIsReconnecting(true);
+      setShowUserLeftModal(false);
+    },
+    onReconnectFailed: () => {
+      console.log('❌ Reconnect failed - showing end call modal');
+      setIsReconnecting(false);
+      setShowUserLeftModal(true);
+    },
+    onRemoteUserRejoined: () => {
+      console.log('🎉 Remote user rejoined - closing overlays');
+      setIsConnected(true);
+      setIsReconnecting(false);
+      setShowUserLeftModal(false);
+    },
+    onRemoteHangup: () => {
+      console.log('☎️ Remote user hung up');
+      setIsConnected(false);
+      setIsReconnecting(false);
       setShowUserLeftModal(true);
     },
   });
@@ -77,23 +104,62 @@ export function DesktopCallAgora() {
     extendCall,
     declineExtend,
     isCallEnded
-  } = useCallTimer(durationInSeconds);
+  } = useCallTimer(durationInSeconds, callStartTime);
+
+  // Handle call extension requiring both users' agreement
+  const {
+    iRequested,
+    theyRequested,
+    bothAgreed,
+    extended,
+    requestExtension,
+    approveExtension,
+    declineExtension,
+  } = useCallExtension(callId, extendCall);
+
+  // Real-time chat using Agora RTM
+  const {
+    messages: chatMessages,
+    sendMessage,
+    isConnected: chatConnected,
+    error: chatError
+  } = useSupabaseChat(
+    callId,
+    profileData?.id,
+    profileData?.firstName || 'You'
+  );
+
+  // Send heartbeats while in call to detect disconnections
+  useCallHeartbeat(callId, isConnected);
 
   // Auto-join call on mount (only once per callId)
   useEffect(() => {
     if (callId && !isConnected && !isConnecting) {
-      console.log('🚀 Auto-joining call:', callId);
       joinCall();
     }
 
     return () => {
       if (callId) {
-        leaveCall();
+        leaveCall(true);
       }
     };
     // Only re-run if callId changes, not if joinCall/leaveCall change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callId]);
+
+  // Send recipient's topic preset when joining call
+  useEffect(() => {
+    if (callId && isConnected) {
+      const nav = location.state as any;
+      if (nav?.topic || nav?.customTopics || nav?.customQuestions) {
+        updateRecipientPreset(callId, {
+          topicPreset: nav.topic,
+          customTopics: nav.customTopics,
+          customQuestions: nav.customQuestions,
+        }).catch(err => console.error('Failed to update recipient preset:', err));
+      }
+    }
+  }, [callId, isConnected, location.state]);
 
   // Navigate to wrap-up when call timer ends
   useEffect(() => {
@@ -331,13 +397,24 @@ export function DesktopCallAgora() {
 
         {/* Middle: Prompt & Chat */}
         <div className="flex flex-col gap-3 overflow-hidden">
-          <PromptDisplay className="flex-shrink-0" />
+          <PromptDisplay
+            callId={callId}
+            className="flex-shrink-0"
+          />
           <div className="flex-1 min-h-0 bg-card rounded-lg border border-border shadow-apple-md overflow-hidden">
             <ChatBox
               correspondentName={matchedUser ? `${matchedUser.firstName} ${matchedUser.lastName}` : 'Unknown User'}
+              correspondentPicture={matchedUser?.profilePicture}
+              myPicture={profileData?.profilePicture}
               showExtendPrompt={showExtendPrompt}
-              onExtendAccept={extendCall}
-              onExtendDecline={declineExtend}
+              iRequested={iRequested}
+              theyRequested={theyRequested}
+              bothAgreed={bothAgreed}
+              chatMessages={chatMessages}
+              onSendMessage={sendMessage}
+              onExtendRequest={requestExtension}
+              onExtendApprove={approveExtension}
+              onExtendDecline={declineExtension}
               onEndCall={handleEndCallClick}
               className="h-full"
             />
@@ -406,12 +483,19 @@ export function DesktopCallAgora() {
         onCancel={handleEndCallCancel}
       />
 
+      {/* Reconnecting Overlay */}
+      <ReconnectingOverlay
+        show={isReconnecting}
+        userName={matchedUser?.firstName || 'User'}
+      />
+
       {/* User Left Modal */}
       <UserLeftModal
         open={showUserLeftModal}
         userName={matchedUser?.firstName || 'User'}
         onCountdownComplete={handleUserLeftCountdownComplete}
       />
+
     </div>
   );
 }
@@ -434,34 +518,37 @@ function AgoraCameraViewDesktop({
   const videoRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
-    const playVideo = async () => {
-      if (!videoRef.current) return;
+  const playVideo = async () => {
+    if (!videoRef.current) return;
 
-      try {
-        if (isRemote && remoteUsers && remoteUsers.length > 0) {
-          const remoteUser = remoteUsers[0];
-          if (remoteUser.videoTrack) {
-            console.log('🎥 Playing remote video in desktop view');
-            await remoteUser.videoTrack.play(videoRef.current);
-          }
-        } else if (!isRemote && localVideoTrack && cameraEnabled) {
-          console.log('🎥 Playing local video in desktop view');
-          await localVideoTrack.play(videoRef.current);
+    try {
+      if (isRemote && remoteUsers && remoteUsers.length > 0) {
+        const remoteUser = remoteUsers[0];
+        if (remoteUser.videoTrack) {
+          await remoteUser.videoTrack.play(videoRef.current);
         }
-      } catch (error) {
-        console.error('Error playing video:', error);
+      } else if (!isRemote && localVideoTrack && cameraEnabled) {
+        await localVideoTrack.play(videoRef.current);
       }
-    };
+    } catch (error) {
+      console.error('Error playing video:', error);
+    }
+  };
 
-    playVideo();
+  playVideo();
 
-    return () => {
-      // Cleanup: stop playing video when component unmounts or track changes
-      if (videoRef.current) {
-        videoRef.current.innerHTML = '';
-      }
-    };
-  }, [isRemote, remoteUsers, localVideoTrack, cameraEnabled]);
+  return () => {
+    if (isRemote && remoteUsers && remoteUsers.length > 0) {
+      remoteUsers[0].videoTrack?.stop();
+    }
+    if (!isRemote && localVideoTrack) {
+      localVideoTrack.stop();
+    }
+    if (videoRef.current) {
+      videoRef.current.innerHTML = '';
+    }
+  };
+}, [isRemote, remoteUsers, localVideoTrack, cameraEnabled]);
 
   const hasVideo = isRemote ? (remoteUsers && remoteUsers.length > 0 && remoteUsers[0].videoTrack) : (localVideoTrack && cameraEnabled);
 

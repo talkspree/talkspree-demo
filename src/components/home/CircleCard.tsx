@@ -1,24 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy } from "lucide-react";
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, Settings, Upload, Camera } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { getOrCreateDefaultCircle, getCircleMemberCounts } from "@/lib/api/circles";
+import { getOrCreateDefaultCircle, getCircleMemberCounts, updateCircle, Circle } from "@/lib/api/circles";
+import { useCircleRole } from "@/hooks/useCircleRole";
+import { supabase } from "@/lib/supabase";
 
 export function CircleCard() {
+  const navigate = useNavigate();
+  const { isAdmin, loading: roleLoading } = useCircleRole();
   const [onlineCount, setOnlineCount] = useState(0);
   const [totalMembers, setTotalMembers] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [circle, setCircle] = useState<Circle | null>(null);
+  const [logoHover, setLogoHover] = useState(false);
+  const [coverHover, setCoverHover] = useState(false);
+  
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const updateCount = async () => {
       try {
         // Get the default circle
-        const circle = await getOrCreateDefaultCircle();
+        const circleData = await getOrCreateDefaultCircle();
+        setCircle(circleData);
         
         // Get real member counts from database (only real users, no sample users)
-        const counts = await getCircleMemberCounts(circle.id);
+        const counts = await getCircleMemberCounts(circleData.id);
         
         setOnlineCount(counts.online);
         setTotalMembers(counts.total);
@@ -36,18 +48,104 @@ export function CircleCard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Extract file path from Supabase storage URL
+  const extractStoragePath = (url: string): string | null => {
+    if (!url) return null;
+    try {
+      // URL format: https://xxx.supabase.co/storage/v1/object/public/circle-assets/path/to/file
+      const match = url.match(/circle-assets\/(.+)$/);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Delete old image from storage
+  const deleteOldImage = async (oldUrl: string | null | undefined) => {
+    if (!oldUrl) return;
+    
+    const oldPath = extractStoragePath(oldUrl);
+    if (oldPath) {
+      try {
+        await supabase.storage
+          .from('circle-assets')
+          .remove([oldPath]);
+        console.log('Deleted old image:', oldPath);
+      } catch (error) {
+        console.warn('Could not delete old image:', error);
+        // Don't throw - continue with upload even if delete fails
+      }
+    }
+  };
+
+  // Handle image upload
+  const handleImageUpload = async (file: File, type: 'logo' | 'cover') => {
+    if (!circle) return;
+    
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileName = `${circle.id}/${type}_${Date.now()}.${fileExt}`;
+    
+    // Get the old URL to delete after successful upload
+    const oldUrl = type === 'logo' ? circle.logo_url : circle.cover_image_url;
+    
+    try {
+      // Upload new image
+      const { error: uploadError } = await supabase.storage
+        .from('circle-assets')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw uploadError;
+      }
+      
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('circle-assets')
+        .getPublicUrl(fileName);
+      
+      // Update circle in database
+      await updateCircle(circle.id, {
+        [type === 'logo' ? 'logo_url' : 'cover_image_url']: publicUrl
+      });
+      
+      // Delete old image after successful update
+      await deleteOldImage(oldUrl);
+      
+      // Update local state
+      setCircle({
+        ...circle,
+        [type === 'logo' ? 'logo_url' : 'cover_image_url']: publicUrl
+      });
+      
+      toast({ title: 'Success', description: `${type === 'logo' ? 'Profile picture' : 'Cover image'} updated` });
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast({ 
+        title: 'Error', 
+        description: error?.message || 'Failed to upload image. Please try again.', 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   const circleData = {
-    name: "Mentor the Young",
+    name: circle?.name || "Mentor the Young",
     members: totalMembers.toString(),
     online: onlineCount.toString(),
-    bio: "Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering...",
-    inviteLink: "http://talkspree.com/mentortheyoung/136872/invite",
+    bio: circle?.description || "Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering...",
+    inviteLink: `http://talkspree.com/${circle?.invite_code || 'mentortheyoung'}/invite`,
+    logoUrl: circle?.logo_url || "",
+    coverImageUrl: circle?.cover_image_url || "",
     socials: {
-      website: "https://example.com",
-      instagram: "https://instagram.com",
-      facebook: "https://facebook.com",
-      linkedin: "https://linkedin.com",
-      email: "mailto:info@example.com",
+      website: circle?.social_links?.website || "https://example.com",
+      instagram: circle?.social_links?.instagram || "https://instagram.com",
+      facebook: circle?.social_links?.facebook || "https://facebook.com",
+      linkedin: circle?.social_links?.linkedin || "https://linkedin.com",
+      email: circle?.social_links?.email || "mailto:info@example.com",
     },
   };
 
@@ -60,19 +158,86 @@ export function CircleCard() {
     // OUTER WRAPPER - Full height container
     <div className="relative min-h-full">
       {/* COVER = gradient background - wraps around content */}
-      <div className="relative rounded-[2rem] overflow-visible shadow-apple-lg bg-gradient-primary pb-4">
+      <div 
+        className="relative rounded-[2rem] overflow-visible shadow-apple-lg bg-gradient-primary pb-4"
+        onMouseEnter={() => isAdmin && setCoverHover(true)}
+        onMouseLeave={() => setCoverHover(false)}
+        style={circleData.coverImageUrl ? { 
+          backgroundImage: `url(${circleData.coverImageUrl})`, 
+          backgroundSize: 'cover', 
+          backgroundPosition: 'center' 
+        } : {}}
+      >
         {/* subtle dot overlay */}
-        <div className="pointer-events-none absolute inset-0 opacity-30 rounded-[2rem] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]" />
+        {!circleData.coverImageUrl && (
+          <div className="pointer-events-none absolute inset-0 opacity-30 rounded-[2rem] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]" />
+        )}
+
+        {/* Admin: Edit Cover Image overlay */}
+        {isAdmin && coverHover && (
+          <div 
+            className="absolute inset-0 rounded-[2rem] bg-black/40 flex items-center justify-center cursor-pointer z-10 transition-opacity"
+            onClick={() => coverInputRef.current?.click()}
+          >
+            <div className="flex items-center gap-2 px-4 py-2 bg-white/90 rounded-full text-sm font-medium">
+              <Camera className="h-4 w-4" />
+              Change Cover
+            </div>
+          </div>
+        )}
+        <input
+          ref={coverInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'cover')}
+        />
+
+        {/* Admin: Quick Edit Button */}
+        {isAdmin && !roleLoading && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="absolute top-4 right-4 z-30 shadow-lg"
+            onClick={() => navigate('/settings/circle')}
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            Edit
+          </Button>
+        )}
 
         {/* Top cover section - fixed height */}
         <div className="h-32 rounded-t-[2rem]" />
 
         {/* Avatar - positioned to be half on cover, half on content */}
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20">
+        <div 
+          className="absolute top-16 left-1/2 -translate-x-1/2 z-20 group"
+          onMouseEnter={() => isAdmin && setLogoHover(true)}
+          onMouseLeave={() => setLogoHover(false)}
+        >
           <Avatar className="h-32 w-32 border-4 border-card shadow-apple-lg">
-            <AvatarImage src="" />
-            <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">M</AvatarFallback>
+            <AvatarImage src={circleData.logoUrl} />
+            <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
+              {circleData.name?.[0] || 'M'}
+            </AvatarFallback>
           </Avatar>
+          
+          {/* Admin: Edit Avatar overlay */}
+          {isAdmin && logoHover && (
+            <div 
+              className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center cursor-pointer transition-opacity"
+              onClick={() => logoInputRef.current?.click()}
+            >
+              <Camera className="h-6 w-6 text-white" />
+            </div>
+          )}
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'logo')}
+          />
         </div>
 
         {/* CONTENT BUBBLE - positioned inside cover with margin */}

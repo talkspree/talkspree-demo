@@ -36,6 +36,8 @@ export function FiltersSection() {
   const [customPresets, setCustomPresets] = useState<Array<{ name: string; topics: string[]; customQuestions?: string[] }>>([]);
   const [editingPresetIndex, setEditingPresetIndex] = useState<number | null>(null);
   const [tempCustomTopics, setTempCustomTopics] = useState<{ topics: string[]; customQuestions?: string[] } | null>(null);
+  const [matchCount, setMatchCount] = useState<number | null>(null);
+  const [checkingMatches, setCheckingMatches] = useState(false);
 
   const getSimilarityLabel = () => {
     if (similarity <= 33) return 'Different';
@@ -71,8 +73,44 @@ export function FiltersSection() {
     return () => clearInterval(interval);
   }, []);
 
+  // Live check for users that match the current filters
+  useEffect(() => {
+    let cancelled = false;
+    const checkMatches = async () => {
+      setCheckingMatches(true);
+      try {
+        const { getMatchCount } = await import('@/lib/api/matchmaking');
+        const count = await getMatchCount({
+          circleId: undefined,
+          preferredRoles: role && role !== 'random' ? [role] : undefined,
+          preferredTopics: topic && topic !== 'none' && topic !== 'custom' ? [topic] : undefined,
+          filterSimilarInterests: similarity === 100,
+          filterSimilarBackground: false,
+        });
+        if (!cancelled) {
+          setMatchCount(count);
+        }
+      } catch (error) {
+        console.error('Error checking match availability:', error);
+        if (!cancelled) setMatchCount(null);
+      } finally {
+        if (!cancelled) setCheckingMatches(false);
+      }
+    };
+
+    const timer = setTimeout(checkMatches, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [role, similarity, topic, duration]);
+
   const handleStartSession = () => {
     console.log('Starting session with:', { role, similarity, topic, duration });
+    const customSelection =
+      topic === 'custom'
+        ? tempCustomTopics
+        : customPresets.find((preset) => preset.name === topic);
     
     // Navigate to waiting room - real matchmaking handles everything
     navigate('/waiting', { 
@@ -80,13 +118,15 @@ export function FiltersSection() {
         duration, 
         topic, 
         role: role !== 'random' ? role : undefined, 
-        similarity 
+        similarity,
+        customTopics: customSelection?.topics,
+        customQuestions: customSelection?.customQuestions,
       } 
     });
   };
 
   // Use real online users count (matchmaking will handle filtering)
-  const matchingCount = onlineUsersCount;
+  const matchingCount = matchCount !== null ? matchCount : onlineUsersCount;
 
   // Info icon component - hoverable on desktop, clickable on mobile/tablet
   const InfoIcon = ({ content }: { content: string }) => {
@@ -147,8 +187,8 @@ export function FiltersSection() {
                   <Badge
                     key={r.value}
                     variant={role === r.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer px-6 py-2 md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 ${
-                      role === r.value ? 'shadow-glow' : 'shadow-apple-sm'
+                    className={`cursor-pointer px-6 py-2 md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                      role === r.value ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
                     }`}
                     onClick={() => setRole(r.value as Role)}
                   >
@@ -207,8 +247,8 @@ export function FiltersSection() {
                   <Badge
                     key={t.value}
                     variant={topic === t.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 ${
-                      topic === t.value ? 'shadow-glow' : 'shadow-apple-sm'
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                      topic === t.value ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
                     }`}
                     onClick={() => setTopic(t.value as TopicPreset)}
                   >
@@ -221,8 +261,8 @@ export function FiltersSection() {
                   <Badge
                     key={`preset-${idx}`}
                     variant={topic === preset.name ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 ${
-                      topic === preset.name ? 'shadow-glow' : 'shadow-apple-sm'
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 transition-all hover:scale-105 ${
+                      topic === preset.name ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
                     }`}
                     onClick={() => setTopic(preset.name)}
                   >
@@ -240,8 +280,8 @@ export function FiltersSection() {
 
                 <Badge
                   variant={topic === 'custom' ? 'default' : 'secondary'}
-                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 ${
-                    topic === 'custom' ? 'shadow-glow' : ''
+                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 transition-all hover:scale-105 ${
+                    topic === 'custom' ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
                   }`}
                   onClick={() => {
                     setTopic('custom');
@@ -271,8 +311,8 @@ export function FiltersSection() {
                   <Badge
                     key={d.value}
                     variant={duration === d.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 whitespace-nowrap ${
-                      duration === d.value ? 'shadow-glow' : 'shadow-apple-sm'
+                    className={`cursor-pointer md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 whitespace-nowrap transition-all hover:scale-105 ${
+                      duration === d.value ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
                     }`}
                     onClick={() => setDuration(d.value as Duration)}
                   >
@@ -284,6 +324,14 @@ export function FiltersSection() {
           </div>
 
           <div className="flex justify-start flex-col gap-2">
+            {matchCount !== null && matchCount === 0 && (
+              <div className="text-sm text-destructive">
+                No one currently matches your filters. You can still start and wait.
+              </div>
+            )}
+            {checkingMatches && (
+              <div className="text-xs text-muted-foreground">Checking live availability…</div>
+            )}
             <Button
               size="lg"
               className="w-48 text-lg font-semibold py-6 shadow-glow"

@@ -14,20 +14,14 @@ const roles = [
   {
     id: 'alumni',
     title: 'Alumni',
-    description: 'Share your experience and mentor others',
-    icon: '🎓',
   },
   {
     id: 'mentee',
     title: 'Mentee',
-    description: 'Learn from experienced professionals',
-    icon: '🌱',
   },
   {
     id: 'mentor',
     title: 'Mentor',
-    description: 'Guide and support others in their journey',
-    icon: '🧭',
   },
 ];
 
@@ -83,12 +77,8 @@ export function RoleSelectionStep({ data, updateData, onComplete, onPrev }: Role
               onClick={() => handleRoleSelect(role.id)}
             >
               <CardContent className="p-4">
-                <div className="flex items-center space-x-4">
-                  <div className="text-2xl">{role.icon}</div>
-                  <div className="flex-1">
-                    <h3 className="font-medium">{role.title}</h3>
-                    <p className="text-sm text-muted-foreground">{role.description}</p>
-                  </div>
+                <div className="flex items-center justify-center">
+                  <h3 className="font-medium text-center">{role.title}</h3>
                 </div>
               </CardContent>
             </Card>
