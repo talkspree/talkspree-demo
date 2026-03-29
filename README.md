@@ -1,223 +1,198 @@
-# TalkSpree - Community Speed Networking Platform
+# TalkSpree
 
-TalkSpree is a community speed-networking platform that helps members of private groups (like NGOs, universities, or corporate teams) connect through guided 1-on-1 video conversations.
+**TalkSpree** is a community speed-networking platform that connects members of private groups — NGOs, universities, corporate teams, and more — through structured 1-on-1 video conversations. It combines smart matchmaking, real-time video, and community management into a single cohesive experience.
 
-## 🚀 Quick Start
+---
 
-**New to this project?** Start here: **[QUICKSTART.md](./QUICKSTART.md)**
+## Table of Contents
 
-## 📚 Documentation
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Available Scripts](#available-scripts)
+- [Architecture](#architecture)
+- [Database Schema](#database-schema)
+- [Deployment](#deployment)
+- [Contributing](#contributing)
 
-- **[Quick Start Guide](./QUICKSTART.md)** - Get running in 10 minutes
-- **[Supabase Setup](./SUPABASE_SETUP.md)** - Complete backend setup guide
-- **[API Documentation](./API_DOCUMENTATION.md)** - How to use the API
-- **[Backend Summary](./BACKEND_SETUP_SUMMARY.md)** - What's been built
-- **[Production Checklist](./PRODUCTION_CHECKLIST.md)** - Deploy to production
+---
 
-## Project info
-
-**URL**: https://lovable.dev/projects/c8e8c9e7-4a49-4eb5-b987-e7aa04d6e5a3
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/c8e8c9e7-4a49-4eb5-b987-e7aa04d6e5a3) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
+## Tech Stack
 
 ### Frontend
-- **Vite** - Build tool
-- **TypeScript** - Type safety
-- **React** - UI framework
-- **shadcn-ui** - Component library
-- **Tailwind CSS** - Styling
-- **React Router** - Routing
-- **React Query** - Data fetching
+| Technology | Purpose |
+|---|---|
+| React 18 | UI framework |
+| TypeScript | Type safety |
+| Vite | Build tool |
+| Tailwind CSS | Styling |
+| shadcn/ui + Radix UI | Component library |
+| Framer Motion | Animations |
+| React Router v6 | Client-side routing |
+| TanStack Query v5 | Data fetching & caching |
+| React Hook Form + Zod | Form validation |
 
-### Backend
-- **Supabase** - Backend as a Service
-  - PostgreSQL database
-  - Authentication
-  - Row Level Security
-  - Real-time subscriptions
-  - Storage for profile pictures
-- **Complete API Layer** - Type-safe API utilities
+### Backend & Infrastructure
+| Technology | Purpose |
+|---|---|
+| Supabase | Backend-as-a-Service (PostgreSQL, Auth, Storage, Realtime) |
+| Agora RTC SDK | Live video calling |
+| Row Level Security | Database access control |
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/c8e8c9e7-4a49-4eb5-b987-e7aa04d6e5a3) and click on Share -> Publish.
-
-## 🎯 Current Status
-
-### ✅ Completed
-- User authentication (email/password, Google OAuth ready)
-- User profiles with interests
-- Onboarding flow
-- Circle (community) management
-- Invite code system
-- Database schema (11 tables)
-- API layer (profiles, circles, matchmaking, calls)
-- Protected routes
-- Type-safe API with full TypeScript support
-
-### 🚧 In Progress / To Do
-- Video calling integration (WebRTC)
-- Matchmaking UI
-- Real-time notifications
-- Admin dashboard
-
-## 🏗️ Architecture
-
-```
-Frontend (React + TypeScript)
-    ↓
-API Layer (src/lib/api/)
-    ↓
-Supabase (PostgreSQL + Auth + Storage)
-```
-
-### Database Schema
-- **profiles** - User information
-- **interests** - Available interests (163 pre-seeded)
-- **user_interests** - User's selected interests
-- **circles** - Communities/groups
-- **circle_members** - Membership with roles
-- **call_history** - All calls with ratings
-- **matchmaking_queue** - Real-time matching
-- **reports** - User reporting system
-- **notifications** - In-app notifications
-- **blocked_users** - User blocking
-- **invite_codes** - Invitation system
-
-## 🔐 Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-See [QUICKSTART.md](./QUICKSTART.md) for setup instructions.
-
-## 📦 Project Structure
+## Project Structure
 
 ```
 talkspree-demo/
 ├── src/
-│   ├── lib/
-│   │   ├── supabase.ts           # Supabase client
-│   │   └── api/                  # API utilities
-│   │       ├── profiles.ts       # Profile operations
-│   │       ├── circles.ts        # Circle management
-│   │       ├── matchmaking.ts    # Matchmaking queue
-│   │       └── calls.ts          # Call management
+│   ├── components/          # Reusable UI components
+│   │   ├── call/            # Video call components
+│   │   ├── chat/            # Chat components
+│   │   └── ui/              # Base UI components (shadcn)
 │   ├── contexts/
-│   │   └── AuthContext.tsx       # Authentication
-│   ├── components/               # React components
-│   ├── pages/                    # Page components
-│   └── hooks/                    # Custom hooks
+│   │   └── AuthContext.tsx  # Authentication context
+│   ├── hooks/               # Custom React hooks
+│   ├── lib/
+│   │   ├── supabase.ts      # Supabase client
+│   │   └── api/             # Type-safe API utilities
+│   │       ├── profiles.ts
+│   │       ├── circles.ts
+│   │       ├── matchmaking.ts
+│   │       └── calls.ts
+│   └── pages/               # Page-level components
 ├── supabase/
-│   └── migrations/               # Database migrations
-├── public/                       # Static assets
-└── scripts/                      # Utility scripts
+│   └── migrations/          # Database migration files
+├── public/                  # Static assets
+└── scripts/                 # Utility scripts
 ```
 
-## 🛠️ Development
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) v18 or higher
+- [npm](https://npmjs.com/) v9 or higher
+- A [Supabase](https://supabase.com/) project
+
+### Installation
 
 ```bash
+# Clone the repository
+git clone <your-repository-url>
+cd talkspree-demo
+
 # Install dependencies
 npm install
 
-# Start development server
+# Copy the environment template and fill in your values
+cp .env.example .env
+
+# Start the development server
+npm run dev
+```
+
+The app will be available at `http://localhost:8080`.
+
+---
+
+## Environment Variables
+
+Create a `.env` file in the project root. Required variables:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+> Never commit your `.env` file. It is listed in `.gitignore` by default.
+
+---
+
+## Available Scripts
+
+```bash
+# Start development server (with hot module replacement)
 npm run dev
 
 # Build for production
 npm run build
 
-# Preview production build
+# Preview the production build locally
 npm run preview
 
-# Lint code
+# Lint the codebase
 npm run lint
 ```
 
-## 🚀 Deployment
+---
 
-### Option 1: Lovable (Recommended for quick deploys)
-1. Open [Lovable](https://lovable.dev/projects/c8e8c9e7-4a49-4eb5-b987-e7aa04d6e5a3)
-2. Click Share → Publish
+## Architecture
 
-### Option 2: Vercel/Netlify
-1. Connect your GitHub repository
-2. Set environment variables
-3. Deploy!
+```
+Browser (React + TypeScript)
+        │
+        ▼
+  API Layer (src/lib/api/)
+        │
+        ├── Supabase (PostgreSQL · Auth · Storage · Realtime)
+        │
+        └── Agora RTC (Video / Audio Calls)
+```
 
-See [PRODUCTION_CHECKLIST.md](./PRODUCTION_CHECKLIST.md) for complete deployment guide.
+- **Authentication** is handled entirely by Supabase Auth (email/password, OAuth providers).
+- **Database access** is gated by Row Level Security policies — all queries respect the authenticated user's permissions.
+- **Real-time features** (matchmaking queue, notifications) are powered by Supabase Realtime subscriptions.
+- **Video calls** are routed through Agora's global media network.
 
-## 🤝 Contributing
+---
 
-1. Clone the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
+## Database Schema
 
-## 📄 License
+| Table | Description |
+|---|---|
+| `profiles` | User information and preferences |
+| `interests` | Interest taxonomy (163 pre-seeded entries) |
+| `user_interests` | Many-to-many: users ↔ interests |
+| `circles` | Communities / groups |
+| `circle_members` | Membership records with roles |
+| `call_history` | Completed calls with ratings |
+| `matchmaking_queue` | Active matching requests |
+| `reports` | User reports |
+| `notifications` | In-app notification records |
+| `blocked_users` | Blocked user relationships |
+| `invite_codes` | Invitation management |
 
-[Add your license here]
+---
 
-## 🆘 Support
+## Deployment
 
-Need help? Check:
-1. [QUICKSTART.md](./QUICKSTART.md) - Quick start guide
-2. [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) - Backend setup
-3. [API_DOCUMENTATION.md](./API_DOCUMENTATION.md) - API usage
-4. [Supabase Documentation](https://supabase.com/docs)
+### Vercel / Netlify
 
-## Can I connect a custom domain?
+1. Connect your GitHub repository to your hosting provider.
+2. Set the required environment variables in the platform dashboard.
+3. Deploy — the build command is `npm run build` and the output directory is `dist`.
 
-Yes! Navigate to Project > Settings > Domains and click Connect Domain.
+### Self-hosted
 
-Read more: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+1. Build the project: `npm run build`
+2. Serve the `dist/` folder with any static file server (nginx, Caddy, etc.).
+3. Ensure environment variables are injected at build time.
+
+---
+
+## Contributing
+
+1. Fork the repository and create a feature branch.
+2. Make your changes, following the existing code style.
+3. Ensure `npm run lint` passes without errors.
+4. Open a pull request with a clear description of the changes.
+
+---
+
+## License
+
+[Specify your license here.]
