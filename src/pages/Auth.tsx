@@ -8,7 +8,7 @@ import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { useDevice } from '@/hooks/useDevice';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import loginCover from '@/assets/login-cover.jpg';
+import WelcomeAnimation from '@/components/auth/welcome/WelcomeAnimation';
 
 type AuthMode = 'login' | 'signup' | 'invite';
 
@@ -186,9 +186,9 @@ export default function Auth() {
         email={signupEmail}
         onContinue={handleContinueToOnboarding}
       />
-      <div className="min-h-screen grid lg:grid-cols-2">
+      <div className="min-h-screen lg:h-screen lg:overflow-hidden grid lg:grid-cols-2">
         {/* Left side - Auth forms */}
-        <div className="flex items-center justify-center p-8">
+        <div className="flex items-center justify-center p-8 lg:overflow-y-auto custom-scrollbar">
           <div className="w-full max-w-sm">
             {mode === 'login' && (
               <LoginForm
@@ -213,22 +213,9 @@ export default function Auth() {
           </div>
         </div>
 
-        {/* Right side - Cover image */}
-        <div className="hidden lg:block relative overflow-hidden">
-          <img 
-            src={loginCover}
-            alt="TalkSpree - Connect through meaningful conversations"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent" />
-          <div className="absolute bottom-8 left-8 right-8">
-            <h2 className="text-3xl font-medium text-white mb-2">
-              Welcome to TalkSpree
-            </h2>
-            <p className="text-white/80 text-lg">
-              Connect through meaningful conversations and build lasting professional relationships.
-            </p>
-          </div>
+        {/* Right side - Animated welcome */}
+        <div className="hidden lg:block relative overflow-hidden lg:h-full">
+          <WelcomeAnimation />
         </div>
       </div>
     </AdaptiveLayout>

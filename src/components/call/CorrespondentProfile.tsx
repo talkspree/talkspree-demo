@@ -46,7 +46,7 @@ export function CorrespondentProfile({ matchedUser, isConnected = false, classNa
 
   return (
     <div className={`bg-card border border-border rounded-lg overflow-hidden ${className}`}>
-      <ScrollArea className="h-full">
+      <ScrollArea className="h-full custom-scrollbar">
         <div className="p-6 space-y-6">
           {/* Profile Header */}
           <div className="flex flex-col items-center text-center">
@@ -57,13 +57,17 @@ export function CorrespondentProfile({ matchedUser, isConnected = false, classNa
               </AvatarFallback>
             </Avatar>
             <h3 className="text-xl font-bold">{matchedUser.firstName} {matchedUser.lastName}</h3>
+            {matchedUser.role && (
+              <span className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-background text-foreground neu-concave">
+                {matchedUser.role.charAt(0).toUpperCase() + matchedUser.role.slice(1)}
+              </span>
+            )}
           </div>
 
           {/* About Me */}
           <div>
             <h4 className="font-semibold mb-2">About Me</h4>
             <AboutMeSection
-              role={matchedUser.role}
               occupation={matchedUser.occupation}
               industry={matchedUser.industry}
               studyField={matchedUser.studyField}

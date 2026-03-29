@@ -10,6 +10,8 @@ export interface CallExtensionState {
   bothAgreed: boolean;
   // Extension has been applied
   extended: boolean;
+  // Other user declined (shown briefly then auto-dismissed)
+  theyDeclined: boolean;
 }
 
 /**
@@ -21,8 +23,10 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
     theyRequested: false,
     bothAgreed: false,
     extended: false,
+    theyDeclined: false,
   });
   const myUserIdRef = useRef<string | null>(null);
+  const declinedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const extensionMinutes = 10; // Default extension duration
 
   // Get current user ID
@@ -38,7 +42,8 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
   const requestExtension = useCallback(async () => {
     if (!callId || !myUserIdRef.current) return;
 
-    setState(prev => ({ ...prev, iRequested: true }));
+    if (declinedTimerRef.current) { clearTimeout(declinedTimerRef.current); declinedTimerRef.current = null; }
+    setState(prev => ({ ...prev, iRequested: true, theyDeclined: false }));
 
     // Broadcast extension request signal
     const { error } = await supabase
@@ -181,14 +186,21 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
 
             case 'extension_declined':
               if (!isFromMe) {
-                // Other user declined
+                // Other user declined — show the declined message, then auto-dismiss after 4s
                 setState(prev => ({
                   ...prev,
                   iRequested: false,
                   theyRequested: false,
                   bothAgreed: false,
+                  theyDeclined: true,
                 }));
                 console.log('😞 Other user declined extension');
+
+                if (declinedTimerRef.current) clearTimeout(declinedTimerRef.current);
+                declinedTimerRef.current = setTimeout(() => {
+                  setState(prev => ({ ...prev, theyDeclined: false }));
+                  declinedTimerRef.current = null;
+                }, 4000);
               }
               break;
           }
@@ -198,6 +210,10 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
 
     return () => {
       supabase.removeChannel(channel);
+      if (declinedTimerRef.current) {
+        clearTimeout(declinedTimerRef.current);
+        declinedTimerRef.current = null;
+      }
     };
   }, [callId, extensionMinutes, onExtend]);
 

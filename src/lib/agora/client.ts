@@ -128,33 +128,56 @@ export class AgoraService {
       throw new Error('Agora App ID is not configured');
     }
 
+    console.log('🚀 Joining channel:', channelName, 'with UID:', uid);
+
+    // Create tracks first. If this fails entirely we throw before touching the channel.
+    console.log('📹 Pre-creating local media tracks...');
+    await this.createLocalTracks();
+
+    // Join the channel. If this fails, isJoined stays false and we must clean up tracks.
     try {
-      console.log('🚀 Joining channel:', channelName, 'with UID:', uid);
-
-      // Pre-create local tracks BEFORE joining to speed up connection
-      // This allows faster publishing after join
-      console.log('📹 Pre-creating local media tracks...');
-      await this.createLocalTracks();
-
       console.log('🔗 Joining Agora channel...');
       await this.client.join(agoraConfig.appId, channelName, token, uid);
       this.isJoined = true;
-
       console.log('✅ Successfully joined channel');
+    } catch (joinError) {
+      console.error('❌ Failed to join Agora channel:', joinError);
+      // Tracks were created but join failed — release them immediately.
+      this._releaseTracks();
+      throw joinError;
+    }
 
-      // Publish tracks immediately
-      const tracksToPublish = [this.localAudioTrack, this.localVideoTrack].filter(Boolean) as any[];
-      if (tracksToPublish.length > 0) {
+    // Publish tracks. A publish failure does NOT mean we left the channel —
+    // isJoined must stay true so that leave() properly calls client.leave().
+    const tracksToPublish = [this.localAudioTrack, this.localVideoTrack].filter(Boolean) as any[];
+    if (tracksToPublish.length > 0) {
+      try {
         console.log('📤 Publishing local tracks...');
         await this.client.publish(tracksToPublish);
         console.log('✅ Published', tracksToPublish.length, 'track(s)');
-      } else {
-        console.warn('⚠️ No media tracks available to publish (mic/camera unavailable)');
+      } catch (publishError) {
+        // Non-fatal: we are still in the channel. leave() will handle full cleanup.
+        console.warn('⚠️ Failed to publish tracks (still in channel):', publishError);
       }
-    } catch (error) {
-      console.error('❌ Failed to join channel:', error);
-      this.isJoined = false;
-      throw error;
+    } else {
+      console.warn('⚠️ No media tracks available to publish (mic/camera unavailable)');
+    }
+  }
+
+  /**
+   * Stop and close local tracks, releasing camera/mic at the OS level.
+   * Safe to call multiple times.
+   */
+  private _releaseTracks(): void {
+    if (this.localAudioTrack) {
+      try { this.localAudioTrack.stop(); } catch { /* no-op */ }
+      try { this.localAudioTrack.close(); } catch { /* no-op */ }
+      this.localAudioTrack = null;
+    }
+    if (this.localVideoTrack) {
+      try { this.localVideoTrack.stop(); } catch { /* no-op */ }
+      try { this.localVideoTrack.close(); } catch { /* no-op */ }
+      this.localVideoTrack = null;
     }
   }
 
@@ -204,72 +227,49 @@ export class AgoraService {
   }
 
   /**
-   * Leave the channel and clean up
+   * Leave the channel and clean up.
+   * Guaranteed to stop camera/mic and leave the Agora channel regardless of
+   * any intermediate errors — uses finally blocks so nothing is skipped.
    */
   async leave(): Promise<void> {
+    console.log('Leaving Agora channel...');
+
+    // 1. Always release local tracks first (turns off camera/mic indicator).
+    this._releaseTracks();
+
+    // 2. Always leave the Agora channel if we joined it, even if unpublish fails.
+    if (this.client && this.isJoined) {
+      // Remove listeners before leaving to prevent stale callbacks firing.
+      try { this.client.removeAllListeners('user-joined'); } catch { /* no-op */ }
+      try { this.client.removeAllListeners('user-left'); } catch { /* no-op */ }
+      try { this.client.removeAllListeners('user-published'); } catch { /* no-op */ }
+      try { this.client.removeAllListeners('user-unpublished'); } catch { /* no-op */ }
+      try { this.client.removeAllListeners('connection-state-change'); } catch { /* no-op */ }
+
+      try {
+        await this.client.unpublish();
+      } catch (e) {
+        console.warn('[Agora] unpublish error (continuing to leave):', e);
+      }
+
+      try {
+        await this.client.leave();
+        console.log('[Agora] Successfully left channel');
+      } catch (e) {
+        console.warn('[Agora] leave error:', e);
+      }
+
+      this.isJoined = false;
+    }
+
+    this.remoteUsers.clear();
+
+    // 3. Always recreate a fresh client so the next call starts clean.
     try {
-      console.log('Leaving channel...');
-
-      // Stop and close local tracks
-      if (this.localAudioTrack) {
-        this.localAudioTrack.stop();
-        this.localAudioTrack.close();
-        this.localAudioTrack = null;
-      }
-
-      if (this.localVideoTrack) {
-        this.localVideoTrack.stop();
-        this.localVideoTrack.close();
-        this.localVideoTrack = null;
-      }
-
-      // Unpublish and leave
-      if (this.client && this.isJoined) {
-        this.client.removeAllListeners('user-joined');
-        this.client.removeAllListeners('user-left');
-        this.client.removeAllListeners('user-published');
-        this.client.removeAllListeners('user-unpublished');
-        this.client.removeAllListeners('connection-state-change');
-
-        try {
-          await this.client.unpublish();
-        } catch (e) {
-          console.warn('Error unpublishing:', e);
-        }
-
-        try {
-          await this.client.leave();
-        } catch (e) {
-          console.warn('Error leaving channel:', e);
-        }
-
-        this.isJoined = false;
-      }
-
-      this.remoteUsers.clear();
-
-      // Recreate client for next call with fresh event listeners
       this.client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
       this.setupEventListeners();
-
-      console.log('Successfully left channel');
-    } catch (error) {
-      console.error('Error leaving channel:', error);
-      this.isJoined = false;
-      this.remoteUsers.clear();
-
-      // Try to recreate client anyway
-      try {
-        if (this.client) {
-          this.client.removeAllListeners();
-        }
-        this.client = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-        this.setupEventListeners();
-      } catch (recreateError) {
-        console.error('Error recreating client:', recreateError);
-      }
-
-      throw error;
+    } catch (e) {
+      console.error('[Agora] Failed to recreate client:', e);
     }
   }
 
@@ -394,6 +394,3 @@ export class AgoraService {
     return this.remoteUsers;
   }
 }
-
-// Export singleton instance
-export const agoraService = new AgoraService();

@@ -3,16 +3,22 @@ import {
   QUESTION_INTERVAL_SECONDS,
   Question,
   TopicPreset,
-  getPresetById,
   getRandomQuestion,
   resolvePresetFromSelection,
+  loadPresetFromDatabase,
 } from '@/data/questions';
-import { sendCallSignal, subscribeToCallSignals } from '@/lib/api/agora';
+import { 
+  getPresetQuestions, 
+  getAllAvailableQuestions,
+  PresetType,
+} from '@/lib/api/topics';
+import { sendCallSignal } from '@/lib/api/agora';
 import { getCallById } from '@/lib/api/calls';
 import { supabase } from '@/lib/supabase';
 
 interface PromptSelection {
   topicKey?: string;
+  presetType?: PresetType;
   customTopics?: string[];
   customQuestions?: string[];
 }
@@ -20,7 +26,11 @@ interface PromptSelection {
 interface PromptSignalData {
   type: 'prompt_update';
   question: Question;
+  questionIndex: number;
+  currentTurn: 'caller' | 'recipient';
+  usedIndices: number[];
   presetId?: string;
+  presetType?: PresetType;
   presetName?: string;
   topics?: string[];
   customQuestions?: string[];
@@ -34,6 +44,108 @@ export interface SharedPromptState {
   preset: TopicPreset;
   refreshPrompt: () => Promise<void>;
   ready: boolean;
+}
+
+interface LoadedPresetQuestions {
+  questions: Question[];
+  name: string;
+  topics: string[];
+}
+
+/**
+ * Load questions from a database preset (default, circle, or user)
+ */
+async function loadQuestionsFromDbPreset(
+  presetId: string,
+  presetType: PresetType = 'default'
+): Promise<LoadedPresetQuestions | null> {
+  try {
+    const questions = await getPresetQuestions(presetId, presetType);
+    if (!questions || questions.length === 0) {
+      console.warn(`No questions found for preset ${presetId} (${presetType})`);
+      return null;
+    }
+
+    const formattedQuestions: Question[] = questions.map(q => ({
+      text: q.text,
+      topic: q.topic
+    }));
+
+    const topics = [...new Set(questions.map(q => q.topic))];
+
+    return {
+      questions: formattedQuestions,
+      name: `${presetType.charAt(0).toUpperCase() + presetType.slice(1)} Preset`,
+      topics
+    };
+  } catch (error) {
+    console.error('Failed to load questions from DB preset:', error);
+    return null;
+  }
+}
+
+/**
+ * Fisher-Yates shuffle algorithm for randomizing arrays
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
+ * Interleave questions from caller and recipient, alternating between them.
+ * Questions within each person's pool are shuffled randomly.
+ */
+function interleaveQuestions(
+  callerQuestions: Question[],
+  recipientQuestions: Question[]
+): {
+  interleaved: Question[];
+  sources: ('caller' | 'recipient')[];
+} {
+  const interleaved: Question[] = [];
+  const sources: ('caller' | 'recipient')[] = [];
+  
+  // Remove duplicates by text
+  const callerSet = new Map<string, Question>();
+  const recipientSet = new Map<string, Question>();
+  
+  for (const q of callerQuestions) {
+    if (!callerSet.has(q.text)) {
+      callerSet.set(q.text, q);
+    }
+  }
+  
+  for (const q of recipientQuestions) {
+    // Only add if not already in caller's set (avoid duplicates)
+    if (!recipientSet.has(q.text) && !callerSet.has(q.text)) {
+      recipientSet.set(q.text, q);
+    }
+  }
+  
+  // Shuffle each person's questions randomly
+  const callerArr = shuffleArray(Array.from(callerSet.values()));
+  const recipientArr = shuffleArray(Array.from(recipientSet.values()));
+  
+  // Interleave: caller first, then recipient, alternating
+  const maxLen = Math.max(callerArr.length, recipientArr.length);
+  
+  for (let i = 0; i < maxLen; i++) {
+    if (i < callerArr.length) {
+      interleaved.push(callerArr[i]);
+      sources.push('caller');
+    }
+    if (i < recipientArr.length) {
+      interleaved.push(recipientArr[i]);
+      sources.push('recipient');
+    }
+  }
+  
+  return { interleaved, sources };
 }
 
 /**
@@ -65,177 +177,285 @@ export function useSharedPrompt(
 
   const [preset, setPreset] = useState<TopicPreset>(resolvedPreset);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [nextQuestionIn, setNextQuestionIn] = useState<number>(
-    QUESTION_INTERVAL_SECONDS
-  );
+  const [nextQuestionIn, setNextQuestionIn] = useState<number>(QUESTION_INTERVAL_SECONDS);
   const [lastChangeAt, setLastChangeAt] = useState<number>(Date.now());
   const [isLeader, setIsLeader] = useState(false);
   const [ready, setReady] = useState(false);
-  const [presetLoadedFromDb, setPresetLoadedFromDb] = useState(false);
+
+  // Question pool management
+  const interleavedQuestionsRef = useRef<Question[]>([]);
+  const questionSourcesRef = useRef<('caller' | 'recipient')[]>([]);
+  const usedIndicesRef = useRef<Set<number>>(new Set());
+  const currentIndexRef = useRef<number>(-1);
 
   const userIdRef = useRef<string | null>(null);
-  const channelRef = useRef<ReturnType<typeof subscribeToCallSignals> | null>(
-    null
-  );
+  const channelRef = useRef<any>(null);
   const refreshingRef = useRef(false);
+  const initCompletedRef = useRef(false);
 
-  // CRITICAL FIX: Only use resolvedPreset if we haven't loaded from database yet
-  // This prevents local selection from overriding the synchronized database preset
+  // Stable callback ref for broadcast
+  const broadcastPromptRef = useRef<(question: Question, index: number, usedIndices: number[]) => Promise<void>>();
+
+  // Update preset only in local mode
   useEffect(() => {
-    if (!callId && !presetLoadedFromDb) {
-      // No call ID means local-only mode, use the selection
+    if (!callId) {
       setPreset(resolvedPreset);
     }
-  }, [resolvedPreset, callId, presetLoadedFromDb]);
+  }, [resolvedPreset, callId]);
 
-  const updateFromSignal = useCallback(
-    (data: PromptSignalData, createdAt?: string) => {
-      if (!data?.question) return;
+  // Get next question index, cycling through all before repeating
+  const getNextQuestionIndex = useCallback((): number => {
+    const questions = interleavedQuestionsRef.current;
+    const used = usedIndicesRef.current;
+    
+    if (questions.length === 0) return -1;
+    
+    // If all questions used, reset
+    if (used.size >= questions.length) {
+      used.clear();
+    }
+    
+    // Find next unused index
+    for (let i = 0; i < questions.length; i++) {
+      const nextIdx = (currentIndexRef.current + 1 + i) % questions.length;
+      if (!used.has(nextIdx)) {
+        return nextIdx;
+      }
+    }
+    
+    // Fallback: return next index
+    return (currentIndexRef.current + 1) % questions.length;
+  }, []);
 
-      const nextPreset =
-        data.presetId === 'custom' ||
-        (data.customQuestions && data.customQuestions.length > 0)
-          ? resolvePresetFromSelection(
-              'custom',
-              data.topics || [],
-              data.customQuestions || []
-            )
-          : getPresetById(data.presetId || preset.id);
+  // Broadcast prompt to other participant
+  broadcastPromptRef.current = async (question: Question, index: number, usedIndices: number[]) => {
+    const updatedAt = new Date().toISOString();
 
-      setPreset(nextPreset);
-      setCurrentQuestion(data.question);
+    setCurrentQuestion(question);
+    setLastChangeAt(Date.now());
+    setNextQuestionIn(QUESTION_INTERVAL_SECONDS);
+    currentIndexRef.current = index;
+    usedIndicesRef.current = new Set(usedIndices);
 
-      const timestamp = data.updatedAt || createdAt || new Date().toISOString();
-      const timestampMs = new Date(timestamp).getTime();
-      setLastChangeAt(timestampMs);
-      const elapsed = Math.floor((Date.now() - timestampMs) / 1000);
-      setNextQuestionIn(Math.max(0, QUESTION_INTERVAL_SECONDS - elapsed));
-    },
-    [preset.id]
-  );
+    if (!callId || !userIdRef.current) {
+      return;
+    }
 
-  const broadcastPrompt = useCallback(
-    async (question: Question, presetOverride?: TopicPreset) => {
-      const usedPreset = presetOverride || preset || resolvedPreset;
-      const updatedAt = new Date().toISOString();
+    const payload: PromptSignalData = {
+      type: 'prompt_update',
+      question,
+      questionIndex: index,
+      currentTurn: questionSourcesRef.current[index] || 'caller',
+      usedIndices,
+      presetId: preset.id,
+      presetName: preset.name,
+      topics: preset.topics,
+      updatedAt,
+      updatedBy: userIdRef.current,
+    };
 
-      setCurrentQuestion(question);
-      setLastChangeAt(new Date(updatedAt).getTime());
-      setNextQuestionIn(QUESTION_INTERVAL_SECONDS);
+    try {
+      await sendCallSignal(callId, 'call_state', payload, 'connected');
+    } catch (error) {
+      console.error('Failed to broadcast prompt:', error);
+    }
+  };
 
-      if (!callId || !userIdRef.current) {
+  // Refresh prompt (get next question)
+  const refreshPrompt = useCallback(async () => {
+    if (refreshingRef.current) return;
+    
+    refreshingRef.current = true;
+    
+    try {
+      const nextIdx = getNextQuestionIndex();
+      if (nextIdx < 0 || interleavedQuestionsRef.current.length === 0) {
         return;
       }
+      
+      const question = interleavedQuestionsRef.current[nextIdx];
+      usedIndicesRef.current.add(nextIdx);
+      
+      await broadcastPromptRef.current?.(question, nextIdx, Array.from(usedIndicesRef.current));
+    } finally {
+      refreshingRef.current = false;
+    }
+  }, [getNextQuestionIndex]);
 
-      const payload: PromptSignalData = {
-        type: 'prompt_update',
-        question,
-        presetId: usedPreset.id,
-        presetName: usedPreset.name,
-        topics: usedPreset.topics,
-        customQuestions:
-          usedPreset.id === 'custom'
-            ? usedPreset.customQuestions ||
-              usedPreset.questions.map((q) => q.text)
-            : undefined,
-        updatedAt,
-        updatedBy: userIdRef.current,
-      };
+  // Handle incoming signal
+  const handleSignal = useCallback((data: PromptSignalData, createdAt?: string) => {
+    if (!data?.question) return;
+    
+    setCurrentQuestion(data.question);
+    currentIndexRef.current = data.questionIndex ?? -1;
+    
+    if (data.usedIndices) {
+      usedIndicesRef.current = new Set(data.usedIndices);
+    }
 
-      try {
-        console.log('📢 Broadcasting prompt update:', question.text);
-        await sendCallSignal(callId, 'call_state', payload, 'connected');
-        console.log('✅ Prompt broadcast successful');
-      } catch (error) {
-        console.error('❌ Failed to broadcast prompt update:', error);
-      }
-    },
-    [callId, preset, resolvedPreset]
-  );
+    const timestamp = data.updatedAt || createdAt || new Date().toISOString();
+    const timestampMs = new Date(timestamp).getTime();
+    setLastChangeAt(timestampMs);
+    
+    const elapsed = Math.floor((Date.now() - timestampMs) / 1000);
+    setNextQuestionIn(Math.max(0, QUESTION_INTERVAL_SECONDS - elapsed));
+  }, []);
 
-  const refreshPrompt = useCallback(async () => {
-    console.log('🔄 refreshPrompt called', { hasCallId: !!callId, userId: userIdRef.current });
-    const sourcePreset = preset || resolvedPreset;
-    const question = getRandomQuestion(sourcePreset);
-    console.log('🎲 Generated new question:', question.text);
-    await broadcastPrompt(question, sourcePreset);
-    console.log('✅ refreshPrompt completed');
-  }, [broadcastPrompt, preset, resolvedPreset, callId]);
-
-  // Load last prompt and seed an initial one if needed
+  // Reset init flag when callId changes (e.g. from undefined → recovered value)
+  // so the hook re-initializes with the real call data.
+  const prevCallIdRef = useRef(callId);
   useEffect(() => {
+    if (callId !== prevCallIdRef.current) {
+      prevCallIdRef.current = callId;
+      if (callId) {
+        initCompletedRef.current = false;
+      }
+    }
+  }, [callId]);
+
+  // Initialize - load questions and set up
+  useEffect(() => {
+    if (initCompletedRef.current) return;
+    
     let active = true;
 
     const init = async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
         userIdRef.current = user?.id || null;
 
+        // Local-only mode
         if (!callId) {
           const question = getRandomQuestion(resolvedPreset);
           if (!active) return;
+          interleavedQuestionsRef.current = resolvedPreset.questions;
+          questionSourcesRef.current = resolvedPreset.questions.map(() => 'caller');
           setCurrentQuestion(question);
           setLastChangeAt(Date.now());
           setReady(true);
+          initCompletedRef.current = true;
           return;
         }
 
-        // Determine a stable leader to own automatic rotations AND get topic config from call
+        // Load call data with retry for recipient preset
         let leaderId: string | null = null;
-        let callTopicPreset: TopicPreset | null = null;
+        let callerQuestions: Question[] = [];
+        let recipientQuestions: Question[] = [];
+        let callPresetName = 'Conversation';
+        
+        const MAX_RETRIES = 5;
+        const RETRY_DELAY = 1000;
+        
+        for (let retry = 0; retry < MAX_RETRIES && active; retry++) {
+          try {
+            const call = await getCallById(callId);
+            
+            if (!call) {
+              break;
+            }
 
-        try {
-          const call = await getCallById(callId);
-          console.log('📞 Call data from database:', {
-            id: call?.id,
-            caller_topic_preset: call?.caller_topic_preset,
-            caller_custom_topics: call?.caller_custom_topics,
-            caller_custom_questions: call?.caller_custom_questions,
-            recipient_topic_preset: call?.recipient_topic_preset,
-            recipient_custom_topics: call?.recipient_custom_topics,
-            recipient_custom_questions: call?.recipient_custom_questions
-          });
-
-          if (call) {
-            const ids = [call.caller_id, call.recipient_id].filter(
-              Boolean
-            ) as string[];
+            const ids = [call.caller_id, call.recipient_id].filter(Boolean) as string[];
             leaderId = ids.sort()[0] || null;
 
-            // Load topic configuration from call_history - this is the source of truth
-            // For now, use caller's preset (will implement merging in next step)
-            if (call.caller_topic_preset) {
-              if (call.caller_topic_preset === 'custom' && call.caller_custom_topics && call.caller_custom_questions) {
-                callTopicPreset = resolvePresetFromSelection(
-                  'custom',
-                  call.caller_custom_topics,
-                  call.caller_custom_questions
-                );
-              } else {
-                callTopicPreset = getPresetById(call.caller_topic_preset);
-              }
+            const callerPresetId = call.caller_topic_preset;
+            const callerPresetType = ((call as any).caller_preset_type || 'default') as PresetType;
+            const recipientPresetId = call.recipient_topic_preset;
+            const recipientPresetType = ((call as any).recipient_preset_type || 'default') as PresetType;
 
-              // Update the preset to match what's stored in the database
-              if (callTopicPreset && active) {
-                console.log('✅ Loaded caller preset from database:', callTopicPreset.name);
-                setPreset(callTopicPreset);
-                setPresetLoadedFromDb(true);
-              }
+            // Load caller's questions
+            callerQuestions = [];
+            if (!callerPresetId || callerPresetId === 'none') {
+              const allQuestions = await getAllAvailableQuestions(null);
+              callerQuestions = allQuestions.map(q => ({ text: q.text, topic: q.topic }));
+            } else if (callerPresetId === 'custom' && call.caller_custom_questions) {
+              callerQuestions = call.caller_custom_questions.map((q: string) => ({
+                text: q,
+                topic: 'Custom'
+              }));
             } else {
-              console.warn('⚠️ No caller_topic_preset found in call_history! Will use fallback.');
+              const loaded = await loadQuestionsFromDbPreset(callerPresetId, callerPresetType);
+              if (loaded) {
+                callerQuestions = loaded.questions;
+                callPresetName = loaded.name;
+              } else {
+                const legacyPreset = await loadPresetFromDatabase(callerPresetId, callerPresetType);
+                if (legacyPreset) {
+                  callerQuestions = legacyPreset.questions;
+                  callPresetName = legacyPreset.name;
+                }
+              }
+            }
+
+            // Load recipient's questions
+            // Note: always load separately when both use 'custom' — same preset ID string
+            // but each user has their own questions in caller_custom_questions /
+            // recipient_custom_questions, so equality check must be bypassed for 'custom'.
+            recipientQuestions = [];
+            if (recipientPresetId && (recipientPresetId !== callerPresetId || recipientPresetId === 'custom')) {
+              if (recipientPresetId === 'none') {
+                const allQuestions = await getAllAvailableQuestions(null);
+                recipientQuestions = allQuestions.map(q => ({ text: q.text, topic: q.topic }));
+              } else if (recipientPresetId === 'custom' && call.recipient_custom_questions) {
+                recipientQuestions = call.recipient_custom_questions.map((q: string) => ({
+                  text: q,
+                  topic: 'Custom'
+                }));
+              } else {
+                const loaded = await loadQuestionsFromDbPreset(recipientPresetId, recipientPresetType);
+                if (loaded) {
+                  recipientQuestions = loaded.questions;
+                }
+              }
+            }
+
+            // Retry when preset_type is missing for either side.
+            // Both attemptMatch (caller) and updateRecipientPreset (recipient) write
+            // preset_type in a separate DB update after the row is created, so there's
+            // a window where the preset UUID is present but the type is still null.
+            const isSpecialId = (id: string | null) => !id || id === 'none' || id === 'custom';
+
+            const callerTypeNotYetSaved = !isSpecialId(callerPresetId) && !(call as any).caller_preset_type;
+            const recipientTypeNotYetSaved = !isSpecialId(recipientPresetId) && !(call as any).recipient_preset_type;
+
+            if ((!recipientPresetId || callerTypeNotYetSaved || recipientTypeNotYetSaved) && retry < MAX_RETRIES - 1) {
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+              continue;
+            }
+
+            // Success - break out of retry loop
+            break;
+          } catch (error) {
+            console.error('Failed to load call data:', error);
+            if (retry < MAX_RETRIES - 1) {
+              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
             }
           }
-        } catch (error) {
-          console.error('❌ Unable to resolve call participants for prompt sync:', error);
         }
 
-        const isCurrentLeader = !!user?.id && leaderId === user?.id;
         if (!active) return;
+
+        // Interleave questions from both users
+        const { interleaved, sources } = interleaveQuestions(callerQuestions, recipientQuestions);
+        
+        interleavedQuestionsRef.current = interleaved;
+        questionSourcesRef.current = sources;
+
+        // Create preset object
+        if (interleaved.length > 0) {
+          const topics = [...new Set(interleaved.map(q => q.topic))];
+          const mergedPreset: TopicPreset = {
+            id: 'merged',
+            name: callPresetName,
+            topics,
+            questions: interleaved
+          };
+          setPreset(mergedPreset);
+        }
+
+        const isCurrentLeader = !!userIdRef.current && leaderId === userIdRef.current;
         setIsLeader(isCurrentLeader);
 
-        // Try to hydrate from the latest prompt signal
+        // Try to load last prompt from database
         try {
           const { data: lastSignal } = await supabase
             .from('call_signals')
@@ -247,52 +467,37 @@ export function useSharedPrompt(
             .maybeSingle();
 
           if (lastSignal && (lastSignal as any).signal_data?.type === 'prompt_update') {
-            console.log('✅ Loaded prompt from last signal');
-            const signalData = (lastSignal as any).signal_data as PromptSignalData;
-            updateFromSignal(signalData, (lastSignal as any).created_at);
-
-            // If leader, REBROADCAST the loaded question so non-leader gets it
-            if (isCurrentLeader && signalData.question) {
-              console.log('👑 Leader rebroadcasting loaded question for non-leader');
-              await broadcastPrompt(signalData.question, callTopicPreset || resolvedPreset);
-            }
-
+            handleSignal((lastSignal as any).signal_data, (lastSignal as any).created_at);
             if (active) {
-              setPresetLoadedFromDb(true);
               setReady(true);
+              initCompletedRef.current = true;
             }
             return;
           }
         } catch (error) {
-          console.warn('Unable to load last prompt signal:', error);
+          console.warn('Unable to load last prompt:', error);
         }
 
-        // No existing prompt found: seed one
-        // Use callTopicPreset if available (from database), otherwise fall back to resolvedPreset
-        const presetToUse = callTopicPreset || resolvedPreset;
-        const initialQuestion = getRandomQuestion(presetToUse);
-
-        if (isCurrentLeader) {
-          // Leader broadcasts the initial question
-          console.log('👑 Leader seeding initial question from preset:', presetToUse.name);
-          setPreset(presetToUse);
-          setPresetLoadedFromDb(!!callTopicPreset);
-          await broadcastPrompt(initialQuestion, presetToUse);
-        } else {
-          // Non-leader waits for the broadcast - don't seed locally
-          console.log('⏳ Non-leader waiting for initial question from leader...');
-          setPreset(presetToUse);
-          setPresetLoadedFromDb(!!callTopicPreset);
-          // Don't set a question - wait for the broadcast
+        // No existing prompt - leader seeds initial question
+        if (isCurrentLeader && interleavedQuestionsRef.current.length > 0) {
+          const initialIdx = 0;
+          const initialQuestion = interleavedQuestionsRef.current[initialIdx];
+          usedIndicesRef.current.add(initialIdx);
+          
+          await broadcastPromptRef.current?.(initialQuestion, initialIdx, [initialIdx]);
         }
 
-        if (active) setReady(true);
+        if (active) {
+          setReady(true);
+          initCompletedRef.current = true;
+        }
       } catch (error) {
-        console.error('Failed to initialize prompt sync:', error);
+        console.error('Failed to initialize:', error);
         if (active) {
           setCurrentQuestion(getRandomQuestion(resolvedPreset));
           setLastChangeAt(Date.now());
           setReady(true);
+          initCompletedRef.current = true;
         }
       }
     };
@@ -302,16 +507,14 @@ export function useSharedPrompt(
     return () => {
       active = false;
     };
-  }, [broadcastPrompt, callId, resolvedPreset, updateFromSignal]);
+  }, [callId, resolvedPreset, handleSignal]);
 
-  // Subscribe to live prompt updates
+  // Subscribe to prompt updates
   useEffect(() => {
     if (!callId) return;
-    console.log('🎧 Setting up prompt update subscription for call:', callId);
 
-    // Use unique channel name to avoid conflicts with useAgoraCall subscription
     const channel = supabase
-      .channel(`prompt_updates:${callId}`)
+      .channel(`prompt_sync:${callId}`)
       .on(
         'postgres_changes',
         {
@@ -322,24 +525,16 @@ export function useSharedPrompt(
         },
         (payload) => {
           const signal = payload.new;
-          console.log('📨 Raw signal received:', {
-            signal_type: signal?.signal_type,
-            has_signal_data: !!signal?.signal_data,
-            signal_data_type: signal?.signal_data?.type,
-            full_signal: signal
-          });
-
-          if (signal?.signal_type === 'call_state' && signal.signal_data?.type === 'prompt_update') {
-            console.log('🔔 Received prompt update signal:', signal.signal_data);
-            updateFromSignal(signal.signal_data as PromptSignalData, signal.created_at);
-          } else {
-            console.log('⚠️ Signal ignored - not a prompt update');
+          if (
+            signal?.signal_type === 'call_state' &&
+            signal.signal_data?.type === 'prompt_update' &&
+            signal.signal_data?.updatedBy !== userIdRef.current // Ignore own broadcasts
+          ) {
+            handleSignal(signal.signal_data as PromptSignalData, signal.created_at);
           }
         }
       )
-      .subscribe((status) => {
-        console.log('📡 Prompt subscription status:', status);
-      });
+      .subscribe();
 
     channelRef.current = channel;
 
@@ -347,33 +542,24 @@ export function useSharedPrompt(
       if (channelRef.current) {
         try {
           channelRef.current.unsubscribe();
-        } catch (error) {
-          console.warn('Error unsubscribing from prompt channel:', error);
+        } catch (e) {
+          console.warn('Error unsubscribing:', e);
         }
         channelRef.current = null;
       }
     };
-  }, [callId, updateFromSignal]);
+  }, [callId, handleSignal]);
 
-  // Keep countdown in sync and rotate automatically from the leader
+  // Timer countdown and auto-refresh
   useEffect(() => {
     const interval = setInterval(() => {
       const elapsed = Math.floor((Date.now() - lastChangeAt) / 1000);
       const remaining = Math.max(0, QUESTION_INTERVAL_SECONDS - elapsed);
       setNextQuestionIn(remaining);
 
-      if (
-        isLeader &&
-        remaining <= 0 &&
-        !refreshingRef.current &&
-        callId
-      ) {
-        refreshingRef.current = true;
-        refreshPrompt()
-          .catch((error) => console.warn('Auto-refresh prompt failed:', error))
-          .finally(() => {
-            refreshingRef.current = false;
-          });
+      // Leader auto-refreshes when timer hits 0
+      if (isLeader && remaining <= 0 && !refreshingRef.current && callId && initCompletedRef.current) {
+        refreshPrompt();
       }
     }, 1000);
 

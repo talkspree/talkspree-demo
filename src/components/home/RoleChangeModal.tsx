@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
-import { getOrCreateDefaultCircle, updateMyCircleRole } from '@/lib/api/circles';
+import { getOrCreateDefaultCircle, getCircleRoles, updateMyCircleRole, CircleRole } from '@/lib/api/circles';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
@@ -21,7 +21,7 @@ interface RoleChangeModalProps {
   onRoleChanged: () => void;
 }
 
-const roles = [
+const DEFAULT_ROLES = [
   { value: 'Mentor', label: 'Mentor' },
   { value: 'Mentee', label: 'Mentee' },
   { value: 'Alumni', label: 'Alumni' },
@@ -32,6 +32,7 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
   const [saving, setSaving] = useState(false);
   const [selectedRole, setSelectedRole] = useState(currentRole);
   const [circle, setCircle] = useState<any>(null);
+  const [roles, setRoles] = useState<{ value: string; label: string }[]>(DEFAULT_ROLES);
 
   useEffect(() => {
     if (open) {
@@ -44,6 +45,17 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
     try {
       const defaultCircle = await getOrCreateDefaultCircle();
       setCircle(defaultCircle);
+
+      if (defaultCircle) {
+        try {
+          const circleRoles = await getCircleRoles(defaultCircle.id);
+          if (circleRoles.length > 0) {
+            setRoles(circleRoles.map(r => ({ value: r.name, label: r.name })));
+          }
+        } catch {
+          // Fall back to default roles if circle_roles table is unavailable
+        }
+      }
     } catch (error) {
       console.error('Error loading circle:', error);
     } finally {

@@ -33,7 +33,7 @@ export function InterestSelector({ selectedInterests, onInterestsChange, classNa
   return (
     <div className={cn("flex flex-col overflow-hidden", className)}>
       {/* All interests in scrollable view */}
-      <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+      <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-6">
         {interestCategories.map((category) => (
           <div key={category} className="space-y-3">
             <h3 className="font-medium text-sm text-muted-foreground sticky top-0 bg-background py-2 z-10">

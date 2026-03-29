@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Save, Plus, X, Pencil, Trash2, Globe, Instagram, Facebook, Linkedin, Mail, Youtube, Lock } from 'lucide-react';
+import { ArrowLeft, Upload, Save, Plus, X, Pencil, Trash2, Globe, Instagram, Facebook, Linkedin, Mail, Youtube, Lock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
 import { useCircleRole } from '@/hooks/useCircleRole';
 import { 
@@ -16,12 +18,27 @@ import {
   createCircleRole, 
   updateCircleRole, 
   deleteCircleRole,
-  getCircleTopicPresets,
-  createTopicPreset,
+  toggleDefaultPreset,
+  toggleMemberCustomTopics,
   CircleRole,
-  CircleTopicPreset,
   Circle
 } from '@/lib/api/circles';
+import {
+  getCircleTopics,
+  getCirclePresets,
+  getDefaultTopics,
+  getDefaultPresets,
+  createCircleTopic,
+  updateCircleTopic,
+  deleteCircleTopic,
+  createCirclePreset,
+  updateCirclePreset,
+  deleteCirclePreset,
+  DefaultTopic,
+  DefaultPreset,
+  CircleTopic,
+  CirclePreset
+} from '@/lib/api/topics';
 import { supabase } from '@/lib/supabase';
 
 export default function CircleSettings() {
@@ -52,16 +69,65 @@ export default function CircleSettings() {
   const [editingRoleId, setEditingRoleId] = useState<string | null>(null);
   const [editingRoleName, setEditingRoleName] = useState('');
   
-  // Topic Presets
-  const [topicPresets, setTopicPresets] = useState<CircleTopicPreset[]>([]);
+  // Topics (circle-specific)
+  const [circleTopics, setCircleTopics] = useState<CircleTopic[]>([]);
+  const [defaultTopics, setDefaultTopics] = useState<DefaultTopic[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(true);
+  const [isAddingTopic, setIsAddingTopic] = useState(false);
+  const [newTopicName, setNewTopicName] = useState('');
+  const [newTopicQuestions, setNewTopicQuestions] = useState<string[]>([]);
+  const [newTopicQuestion, setNewTopicQuestion] = useState('');
+  
+  // Editing topics
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  const [editingTopicName, setEditingTopicName] = useState('');
+  const [editingTopicQuestions, setEditingTopicQuestions] = useState<string[]>([]);
+  const [editingTopicNewQuestion, setEditingTopicNewQuestion] = useState('');
+  const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
+  
+  // Editing presets
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [editingPresetName, setEditingPresetName] = useState('');
+  const [editingPresetTopicIds, setEditingPresetTopicIds] = useState<string[]>([]);
+  
+  // Topic Presets (default + circle-specific)
+  const [defaultPresets, setDefaultPresets] = useState<DefaultPreset[]>([]);
+  const [disabledDefaultPresetIds, setDisabledDefaultPresetIds] = useState<string[]>([]);
+  const [allowMemberCustomTopics, setAllowMemberCustomTopics] = useState(true);
+  const [circlePresets, setCirclePresets] = useState<CirclePreset[]>([]);
   const [isAddingPreset, setIsAddingPreset] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
-  const [newPresetTopics, setNewPresetTopics] = useState<string[]>([]);
-  const [newPresetQuestion, setNewPresetQuestion] = useState('');
-  const [newPresetQuestions, setNewPresetQuestions] = useState<string[]>([]);
+  const [newPresetTopicIds, setNewPresetTopicIds] = useState<string[]>([]);
+  const [savingPreset, setSavingPreset] = useState(false);
   
   const logoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // Load topics and presets for circle
+  const loadTopicsAndPresets = useCallback(async (circleId: string) => {
+    setLoadingTopics(true);
+    try {
+      // Load default topics
+      const defTopics = await getDefaultTopics();
+      setDefaultTopics(defTopics);
+      
+      // Load default presets
+      const defPresets = await getDefaultPresets();
+      setDefaultPresets(defPresets);
+      
+      // Load circle-specific topics
+      const cTopics = await getCircleTopics(circleId);
+      setCircleTopics(cTopics);
+      
+      // Load circle-specific presets
+      const cPresets = await getCirclePresets(circleId);
+      setCirclePresets(cPresets);
+    } catch (error) {
+      console.warn('Could not load topics/presets:', error);
+    } finally {
+      setLoadingTopics(false);
+    }
+  }, []);
 
   // Load circle data
   useEffect(() => {
@@ -73,6 +139,12 @@ export default function CircleSettings() {
         setDescription(circleData.description || '');
         setLogoUrl(circleData.logo_url || '');
         setCoverImageUrl(circleData.cover_image_url || '');
+        
+        // Load disabled default preset IDs
+        setDisabledDefaultPresetIds(circleData.disabled_default_preset_ids || []);
+        
+        // Load member custom topics permission (default true when column doesn't exist yet)
+        setAllowMemberCustomTopics(circleData.allow_member_custom_topics ?? true);
         
         if (circleData.social_links) {
           setSocialLinks({
@@ -94,14 +166,8 @@ export default function CircleSettings() {
           setRoles([]);
         }
         
-        // Load topic presets (with error handling)
-        try {
-          const presets = await getCircleTopicPresets(circleData.id);
-          setTopicPresets(presets);
-        } catch (presetError) {
-          console.warn('Could not load topic presets (table may not exist yet):', presetError);
-          setTopicPresets([]);
-        }
+        // Load topics and presets
+        await loadTopicsAndPresets(circleData.id);
       } catch (error) {
         console.error('Error loading circle data:', error);
         toast({ title: 'Error', description: 'Failed to load circle settings', variant: 'destructive' });
@@ -111,7 +177,7 @@ export default function CircleSettings() {
     };
     
     loadData();
-  }, []);
+  }, [loadTopicsAndPresets]);
 
   // Redirect if not admin
   useEffect(() => {
@@ -258,26 +324,238 @@ export default function CircleSettings() {
     }
   };
 
-  const handleAddTopicPreset = async () => {
-    if (!circle || !newPresetName.trim()) return;
+  // Handle adding a new circle topic
+  const handleAddCircleTopic = async () => {
+    if (!circle || !newTopicName.trim()) return;
     
     try {
-      const newPreset = await createTopicPreset(circle.id, {
-        name: newPresetName.trim(),
-        topics: newPresetTopics,
-        custom_questions: newPresetQuestions
+      const newTopic = await createCircleTopic(circle.id, {
+        name: newTopicName.trim(),
+        questions: newTopicQuestions
       });
-      setTopicPresets([...topicPresets, newPreset]);
-      setNewPresetName('');
-      setNewPresetTopics([]);
-      setNewPresetQuestions([]);
-      setIsAddingPreset(false);
-      toast({ title: 'Success', description: 'Topic preset created successfully' });
+      setCircleTopics([...circleTopics, newTopic]);
+      setNewTopicName('');
+      setNewTopicQuestions([]);
+      setNewTopicQuestion('');
+      setIsAddingTopic(false);
+      toast({ title: 'Success', description: 'Topic created successfully' });
     } catch (error) {
-      console.error('Error creating topic preset:', error);
-      toast({ title: 'Error', description: 'Failed to create topic preset', variant: 'destructive' });
+      console.error('Error creating topic:', error);
+      toast({ title: 'Error', description: 'Failed to create topic', variant: 'destructive' });
     }
   };
+
+  // Handle deleting a circle topic
+  const handleDeleteCircleTopic = async (topicId: string) => {
+    try {
+      await deleteCircleTopic(topicId);
+      setCircleTopics(circleTopics.filter(t => t.id !== topicId));
+      toast({ title: 'Success', description: 'Topic deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting topic:', error);
+      toast({ title: 'Error', description: 'Failed to delete topic', variant: 'destructive' });
+    }
+  };
+
+  // Handle starting to edit a topic
+  const startEditingTopic = (topic: CircleTopic) => {
+    setEditingTopicId(topic.id);
+    setEditingTopicName(topic.name);
+    setEditingTopicQuestions([...topic.questions]);
+    setEditingTopicNewQuestion('');
+    setExpandedTopicId(topic.id);
+  };
+
+  // Handle saving a topic edit
+  const handleSaveTopicEdit = async () => {
+    if (!editingTopicId || !editingTopicName.trim()) return;
+    
+    try {
+      const updated = await updateCircleTopic(editingTopicId, {
+        name: editingTopicName.trim(),
+        questions: editingTopicQuestions
+      });
+      setCircleTopics(circleTopics.map(t => t.id === editingTopicId ? updated : t));
+      setEditingTopicId(null);
+      toast({ title: 'Success', description: 'Topic updated successfully' });
+    } catch (error) {
+      console.error('Error updating topic:', error);
+      toast({ title: 'Error', description: 'Failed to update topic', variant: 'destructive' });
+    }
+  };
+
+  // Handle canceling topic edit
+  const cancelTopicEdit = () => {
+    setEditingTopicId(null);
+    setEditingTopicName('');
+    setEditingTopicQuestions([]);
+    setEditingTopicNewQuestion('');
+  };
+
+  // Handle adding a new circle preset
+  const handleAddCirclePreset = async () => {
+    if (!circle || !newPresetName.trim()) return;
+    if (newPresetTopicIds.length === 0) {
+      toast({ title: 'Error', description: 'Please select at least one topic', variant: 'destructive' });
+      return;
+    }
+    
+    setSavingPreset(true);
+    try {
+      // Categorize selected topics by type
+      const defaultTopicIds: string[] = [];
+      const circleTopicIds: string[] = [];
+      
+      for (const topicId of newPresetTopicIds) {
+        // Check if it's a default topic
+        if (defaultTopics.some(t => t.id === topicId)) {
+          defaultTopicIds.push(topicId);
+        } else if (circleTopics.some(t => t.id === topicId)) {
+          circleTopicIds.push(topicId);
+        }
+      }
+      
+      const newPreset = await createCirclePreset(circle.id, {
+        name: newPresetName.trim(),
+        defaultTopicIds,
+        circleTopicIds
+      });
+      setCirclePresets([...circlePresets, newPreset]);
+      setNewPresetName('');
+      setNewPresetTopicIds([]);
+      setIsAddingPreset(false);
+      toast({ title: 'Success', description: 'Preset created successfully' });
+    } catch (error) {
+      console.error('Error creating preset:', error);
+      toast({ title: 'Error', description: 'Failed to create preset', variant: 'destructive' });
+    } finally {
+      setSavingPreset(false);
+    }
+  };
+
+  // Handle deleting a circle preset
+  const handleDeleteCirclePreset = async (presetId: string) => {
+    try {
+      await deleteCirclePreset(presetId);
+      setCirclePresets(circlePresets.filter(p => p.id !== presetId));
+      toast({ title: 'Success', description: 'Preset deleted successfully' });
+    } catch (error) {
+      console.error('Error deleting preset:', error);
+      toast({ title: 'Error', description: 'Failed to delete preset', variant: 'destructive' });
+    }
+  };
+
+  // Handle starting to edit a preset
+  const startEditingPreset = (preset: CirclePreset) => {
+    setEditingPresetId(preset.id);
+    setEditingPresetName(preset.name);
+    setEditingPresetTopicIds([...(preset.default_topic_ids || []), ...(preset.circle_topic_ids || [])]);
+  };
+
+  // Handle saving a preset edit
+  const handleSavePresetEdit = async () => {
+    if (!editingPresetId || !editingPresetName.trim()) return;
+    
+    // Categorize topics
+    const defaultTopicIds: string[] = [];
+    const circleTopicIds: string[] = [];
+    
+    for (const topicId of editingPresetTopicIds) {
+      if (defaultTopics.some(t => t.id === topicId)) {
+        defaultTopicIds.push(topicId);
+      } else if (circleTopics.some(t => t.id === topicId)) {
+        circleTopicIds.push(topicId);
+      }
+    }
+    
+    try {
+      const updated = await updateCirclePreset(editingPresetId, {
+        name: editingPresetName.trim(),
+        defaultTopicIds,
+        circleTopicIds
+      });
+      setCirclePresets(circlePresets.map(p => p.id === editingPresetId ? updated : p));
+      setEditingPresetId(null);
+      toast({ title: 'Success', description: 'Preset updated successfully' });
+    } catch (error) {
+      console.error('Error updating preset:', error);
+      toast({ title: 'Error', description: 'Failed to update preset', variant: 'destructive' });
+    }
+  };
+
+  // Toggle topic in editing preset
+  const toggleEditingPresetTopic = (topicId: string) => {
+    if (editingPresetTopicIds.includes(topicId)) {
+      setEditingPresetTopicIds(editingPresetTopicIds.filter(id => id !== topicId));
+    } else {
+      if (editingPresetTopicIds.length < 5) {
+        setEditingPresetTopicIds([...editingPresetTopicIds, topicId]);
+      } else {
+        toast({ description: 'Maximum 5 topics per preset', variant: 'destructive' });
+      }
+    }
+  };
+
+  // Handle toggling a default preset
+  const handleToggleDefaultPreset = async (presetId: string, enabled: boolean) => {
+    if (!circle) return;
+    
+    try {
+      await toggleDefaultPreset(circle.id, presetId, enabled);
+      
+      // Update local state
+      if (enabled) {
+        setDisabledDefaultPresetIds(disabledDefaultPresetIds.filter(id => id !== presetId));
+      } else {
+        setDisabledDefaultPresetIds([...disabledDefaultPresetIds, presetId]);
+      }
+      
+      toast({ 
+        title: 'Success', 
+        description: `Preset ${enabled ? 'enabled' : 'disabled'} successfully` 
+      });
+    } catch (error) {
+      console.error('Error toggling preset:', error);
+      toast({ 
+        title: 'Error', 
+        description: 'Failed to toggle preset', 
+        variant: 'destructive' 
+      });
+    }
+  };
+
+  // Handle toggling whether members can use the Custom topic feature
+  const handleToggleMemberCustomTopics = async (enabled: boolean) => {
+    if (!circle) return;
+    
+    try {
+      await toggleMemberCustomTopics(circle.id, enabled);
+      setAllowMemberCustomTopics(enabled);
+      toast({ 
+        title: 'Success', 
+        description: `Custom topics for members ${enabled ? 'enabled' : 'disabled'}` 
+      });
+    } catch (error) {
+      console.error('Error toggling member custom topics:', error);
+      toast({ title: 'Error', description: 'Failed to update setting', variant: 'destructive' });
+    }
+  };
+
+  // Toggle topic selection for new preset
+  const togglePresetTopic = (topicId: string) => {
+    if (newPresetTopicIds.includes(topicId)) {
+      setNewPresetTopicIds(newPresetTopicIds.filter(id => id !== topicId));
+    } else {
+      if (newPresetTopicIds.length < 5) {
+        setNewPresetTopicIds([...newPresetTopicIds, topicId]);
+      } else {
+        toast({ description: 'Maximum 5 topics per preset', variant: 'destructive' });
+      }
+    }
+  };
+
+  // All available topics (default + circle)
+  const allAvailableTopics = [...defaultTopics, ...circleTopics];
 
   if (loading || roleLoading) {
     return (
@@ -558,72 +836,170 @@ export default function CircleSettings() {
           </CardContent>
         </Card>
 
-        {/* Topic Presets */}
+        {/* Circle Custom Topics */}
         <Card>
           <CardHeader>
-            <CardTitle>Topic Presets</CardTitle>
-            <CardDescription>Create conversation topic presets for your circle members</CardDescription>
+            <div className="flex items-center gap-2">
+              <CardTitle>Circle Topics</CardTitle>
+              {loadingTopics && <Loader2 className="h-4 w-4 animate-spin" />}
+            </div>
+            <CardDescription>Create custom topics with questions for your circle. These will be available to all members.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Existing Presets */}
-            {topicPresets.map((preset) => (
-              <div key={preset.id} className="p-4 border rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">{preset.name}</h4>
-                </div>
-                {preset.description && (
-                  <p className="text-sm text-muted-foreground mb-2">{preset.description}</p>
-                )}
-                {preset.topics.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {preset.topics.map((topic, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-muted rounded text-xs">{topic}</span>
-                    ))}
+            {/* Existing Circle Topics - Expandable */}
+            {circleTopics.length > 0 && (
+              <div className="space-y-2">
+                {circleTopics.map((topic) => (
+                  <div key={topic.id} className="border rounded-lg overflow-hidden">
+                    {/* Topic Header */}
+                    <div 
+                      className="flex items-center justify-between p-3 bg-muted/30 cursor-pointer hover:bg-muted/50"
+                      onClick={() => setExpandedTopicId(expandedTopicId === topic.id ? null : topic.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {expandedTopicId === topic.id ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        <span className="font-medium">{topic.name}</span>
+                        <span className="text-xs text-muted-foreground">({topic.questions.length} questions)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startEditingTopic(topic);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteCircleTopic(topic.id);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* Expanded Content */}
+                    {expandedTopicId === topic.id && (
+                      <div className="p-3 border-t">
+                        {editingTopicId === topic.id ? (
+                          // Edit mode
+                          <div className="space-y-3">
+                            <Input
+                              value={editingTopicName}
+                              onChange={(e) => setEditingTopicName(e.target.value)}
+                              placeholder="Topic name"
+                            />
+                            <Label className="text-sm">Questions</Label>
+                            {editingTopicQuestions.map((q, i) => (
+                              <div key={i} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded">
+                                <span className="flex-1">{q}</span>
+                                <button 
+                                  onClick={() => setEditingTopicQuestions(editingTopicQuestions.filter((_, idx) => idx !== i))}
+                                  className="text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ))}
+                            <div className="flex gap-2">
+                              <Input
+                                value={editingTopicNewQuestion}
+                                onChange={(e) => setEditingTopicNewQuestion(e.target.value)}
+                                placeholder="Add new question"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && editingTopicNewQuestion.trim()) {
+                                    setEditingTopicQuestions([...editingTopicQuestions, editingTopicNewQuestion.trim()]);
+                                    setEditingTopicNewQuestion('');
+                                  }
+                                }}
+                              />
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  if (editingTopicNewQuestion.trim()) {
+                                    setEditingTopicQuestions([...editingTopicQuestions, editingTopicNewQuestion.trim()]);
+                                    setEditingTopicNewQuestion('');
+                                  }
+                                }}
+                              >
+                                Add
+                              </Button>
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                              <Button size="sm" onClick={handleSaveTopicEdit}>Save</Button>
+                              <Button size="sm" variant="outline" onClick={cancelTopicEdit}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          // View mode - show questions
+                          <div className="space-y-1">
+                            {topic.questions.map((q, i) => (
+                              <div key={i} className="text-sm p-2 bg-muted/30 rounded">
+                                {q}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
-            ))}
+            )}
 
-            {/* Add New Preset */}
-            {isAddingPreset ? (
+            {/* Add New Topic */}
+            {isAddingTopic ? (
               <div className="p-4 border rounded-lg space-y-4">
                 <Input
-                  value={newPresetName}
-                  onChange={(e) => setNewPresetName(e.target.value)}
-                  placeholder="Preset name"
+                  value={newTopicName}
+                  onChange={(e) => setNewTopicName(e.target.value)}
+                  placeholder="Topic name (e.g., 'Leadership Tips')"
                 />
                 <div>
-                  <Label className="text-sm">Custom Questions</Label>
+                  <Label className="text-sm">Questions for this topic</Label>
                   <div className="flex gap-2 mt-1">
                     <Input
-                      value={newPresetQuestion}
-                      onChange={(e) => setNewPresetQuestion(e.target.value)}
+                      value={newTopicQuestion}
+                      onChange={(e) => setNewTopicQuestion(e.target.value)}
                       placeholder="Add a conversation starter question"
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newPresetQuestion.trim()) {
-                          setNewPresetQuestions([...newPresetQuestions, newPresetQuestion.trim()]);
-                          setNewPresetQuestion('');
+                        if (e.key === 'Enter' && newTopicQuestion.trim()) {
+                          setNewTopicQuestions([...newTopicQuestions, newTopicQuestion.trim()]);
+                          setNewTopicQuestion('');
                         }
                       }}
                     />
                     <Button
                       size="sm"
                       onClick={() => {
-                        if (newPresetQuestion.trim()) {
-                          setNewPresetQuestions([...newPresetQuestions, newPresetQuestion.trim()]);
-                          setNewPresetQuestion('');
+                        if (newTopicQuestion.trim()) {
+                          setNewTopicQuestions([...newTopicQuestions, newTopicQuestion.trim()]);
+                          setNewTopicQuestion('');
                         }
                       }}
                     >
                       Add
                     </Button>
                   </div>
-                  {newPresetQuestions.length > 0 && (
+                  {newTopicQuestions.length > 0 && (
                     <div className="mt-2 space-y-1">
-                      {newPresetQuestions.map((q, i) => (
-                        <div key={i} className="flex items-center gap-2 text-sm">
+                      {newTopicQuestions.map((q, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm p-2 bg-muted/50 rounded">
                           <span className="flex-1">{q}</span>
-                          <button onClick={() => setNewPresetQuestions(newPresetQuestions.filter((_, idx) => idx !== i))}>
+                          <button onClick={() => setNewTopicQuestions(newTopicQuestions.filter((_, idx) => idx !== i))}>
                             <X className="h-3 w-3" />
                           </button>
                         </div>
@@ -632,13 +1008,219 @@ export default function CircleSettings() {
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={handleAddTopicPreset} disabled={!newPresetName.trim()}>
+                  <Button onClick={handleAddCircleTopic} disabled={!newTopicName.trim() || newTopicQuestions.length === 0}>
+                    Create Topic
+                  </Button>
+                  <Button variant="outline" onClick={() => {
+                    setIsAddingTopic(false);
+                    setNewTopicName('');
+                    setNewTopicQuestions([]);
+                    setNewTopicQuestion('');
+                  }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={() => setIsAddingTopic(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Circle Topic
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Topic Presets */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Topic Presets</CardTitle>
+            <CardDescription>Manage conversation presets. Toggle default presets on/off, or create your own circle presets.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Member Custom Topics Permission */}
+            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+              <div className="flex-1 pr-4">
+                <h5 className="font-medium">Allow Members to Use Custom Topics</h5>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  When enabled, members can create personal topic presets and use the "Custom" option before starting a session. Disable this to restrict members to only the topics and presets you define.
+                </p>
+              </div>
+              <Switch
+                checked={allowMemberCustomTopics}
+                onCheckedChange={handleToggleMemberCustomTopics}
+              />
+            </div>
+
+            {/* Default Presets - with toggles */}
+            {defaultPresets.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground">Default Presets</h4>
+                {defaultPresets.map((preset) => {
+                  const isEnabled = !disabledDefaultPresetIds.includes(preset.id);
+                  return (
+                    <div key={preset.id} className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
+                      <div className="flex-1">
+                        <h5 className="font-medium">{preset.name}</h5>
+                        {preset.description && (
+                          <p className="text-sm text-muted-foreground">{preset.description}</p>
+                        )}
+                      </div>
+                      <Switch
+                        checked={isEnabled}
+                        onCheckedChange={(checked) => handleToggleDefaultPreset(preset.id, checked)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Circle Presets - with edit/delete */}
+            {circlePresets.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground">Circle Presets</h4>
+                {circlePresets.map((preset) => (
+              <div key={preset.id} className="p-4 border rounded-lg">
+                {editingPresetId === preset.id ? (
+                  // Edit mode
+                  <div className="space-y-4">
+                    <Input
+                      value={editingPresetName}
+                      onChange={(e) => setEditingPresetName(e.target.value)}
+                      placeholder="Preset name"
+                    />
+                    <div>
+                      <Label className="text-sm mb-2 block">Select Topics (1-5)</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {defaultTopics.map((topic) => (
+                          <Badge
+                            key={topic.id}
+                            variant={editingPresetTopicIds.includes(topic.id) ? 'default' : 'secondary'}
+                            className={`cursor-pointer ${editingPresetTopicIds.includes(topic.id) ? 'shadow-glow' : ''}`}
+                            onClick={() => toggleEditingPresetTopic(topic.id)}
+                          >
+                            {topic.name}
+                          </Badge>
+                        ))}
+                        {circleTopics.map((topic) => (
+                          <Badge
+                            key={topic.id}
+                            variant={editingPresetTopicIds.includes(topic.id) ? 'default' : 'secondary'}
+                            className={`cursor-pointer border-2 border-blue-300 ${editingPresetTopicIds.includes(topic.id) ? 'shadow-glow' : ''}`}
+                            onClick={() => toggleEditingPresetTopic(topic.id)}
+                          >
+                            {topic.name} (Circle)
+                          </Badge>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {editingPresetTopicIds.length}/5 topics selected
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleSavePresetEdit}>Save</Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingPresetId(null)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  // View mode
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium">{preset.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => startEditingPreset(preset)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteCirclePreset(preset.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {/* Show included topics */}
+                    <div className="flex flex-wrap gap-1">
+                      {(preset.default_topic_ids || []).map(topicId => {
+                        const topic = defaultTopics.find(t => t.id === topicId);
+                        return topic ? (
+                          <Badge key={topicId} variant="secondary" className="text-xs">
+                            {topic.name}
+                          </Badge>
+                        ) : null;
+                      })}
+                      {(preset.circle_topic_ids || []).map(topicId => {
+                        const topic = circleTopics.find(t => t.id === topicId);
+                        return topic ? (
+                          <Badge key={topicId} variant="secondary" className="text-xs border border-blue-300">
+                            {topic.name}
+                          </Badge>
+                        ) : null;
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add New Circle Preset */}
+            {isAddingPreset ? (
+              <div className="p-4 border rounded-lg space-y-4">
+                <Input
+                  value={newPresetName}
+                  onChange={(e) => setNewPresetName(e.target.value)}
+                  placeholder="Preset name (e.g., 'Deep Connections')"
+                />
+                <div>
+                  <Label className="text-sm mb-2 block">Select Topics (1-5)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {/* Default topics */}
+                    {defaultTopics.map((topic) => (
+                      <Badge
+                        key={topic.id}
+                        variant={newPresetTopicIds.includes(topic.id) ? 'default' : 'secondary'}
+                        className={`cursor-pointer ${newPresetTopicIds.includes(topic.id) ? 'shadow-glow' : ''}`}
+                        onClick={() => togglePresetTopic(topic.id)}
+                      >
+                        {topic.name}
+                      </Badge>
+                    ))}
+                    {/* Circle topics */}
+                    {circleTopics.map((topic) => (
+                      <Badge
+                        key={topic.id}
+                        variant={newPresetTopicIds.includes(topic.id) ? 'default' : 'secondary'}
+                        className={`cursor-pointer border-2 border-blue-300 ${newPresetTopicIds.includes(topic.id) ? 'shadow-glow' : ''}`}
+                        onClick={() => togglePresetTopic(topic.id)}
+                      >
+                        {topic.name} (Circle)
+                      </Badge>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {newPresetTopicIds.length}/5 topics selected
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={handleAddCirclePreset} 
+                    disabled={!newPresetName.trim() || newPresetTopicIds.length === 0 || savingPreset}
+                  >
+                    {savingPreset && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Create Preset
                   </Button>
                   <Button variant="outline" onClick={() => {
                     setIsAddingPreset(false);
                     setNewPresetName('');
-                    setNewPresetQuestions([]);
+                    setNewPresetTopicIds([]);
                   }}>
                     Cancel
                   </Button>

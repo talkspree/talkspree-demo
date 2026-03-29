@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User, Bell, Shield } from 'lucide-react';
@@ -11,10 +11,10 @@ import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from './ProfileCard';
 import { RoleChangeModal } from './RoleChangeModal';
 import { connectionsManager } from '@/utils/connections';
-import { getOrCreateDefaultCircle, getCircleMemberCounts } from '@/lib/api/circles';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
-import { useCircleRole } from '@/hooks/useCircleRole';
+import { useCircle } from '@/contexts/CircleContext';
+import { supabase } from '@/lib/supabase';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,16 +27,30 @@ export function MobileHome() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { profileData } = useProfileData();
-  const { role: circleRole, isAdmin, loading: roleLoading, reloadRole } = useCircleRole();
+  const { circle: contextCircle, role: circleRole, isAdmin, memberCounts, loading: roleLoading, reloadRole, unseenContactCount } = useCircle();
   const [showProfile, setShowProfile] = useState(false);
+
+  // Safety net: clean up stale matchmaking state on home page mount
+  useEffect(() => {
+    const cleanup = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await Promise.allSettled([
+        supabase
+          .from('matchmaking_queue')
+          .delete()
+          .eq('user_id', user.id)
+          .in('status', ['waiting', 'matched']),
+        supabase
+          .from('profiles')
+          .update({ in_call: false, is_online: false })
+          .eq('id', user.id),
+      ]);
+    };
+    cleanup();
+  }, []);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
-  const [newContactsCount, setNewContactsCount] = useState(0);
-  const [viewedContactsCount, setViewedContactsCount] = useState(0);
-
-  // Get actual user counts
-  const [totalMembers, setTotalMembers] = useState(0);
-  const [onlineCount, setOnlineCount] = useState(0);
 
   // Get role badge styling based on role type
   const getRoleBadgeStyle = (role: string) => {
@@ -63,68 +77,46 @@ export function MobileHome() {
   
   const isAdminRole = circleRole === 'Super Admin' || circleRole === 'Creator' || circleRole === 'Admin';
 
-  // Fetch real member counts from database
-  useEffect(() => {
-    const updateMemberCounts = async () => {
-      try {
-        const circle = await getOrCreateDefaultCircle();
-        const counts = await getCircleMemberCounts(circle.id);
-        
-        // Use only real users (no sample users)
-        setOnlineCount(counts.online);
-        setTotalMembers(counts.total);
-      } catch (error) {
-        console.error('Error fetching circle member counts:', error);
-        setOnlineCount(0);
-        setTotalMembers(0);
-      }
-    };
-    
-    updateMemberCounts();
-    const interval = setInterval(updateMemberCounts, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  // Derive counts from context (no separate polling needed)
+  const totalMembers = memberCounts.total;
+  const onlineCount = memberCounts.online;
 
-  // Update connection notifications and new contacts count
-  useEffect(() => {
-    const updateNotifications = () => {
-      const connections = connectionsManager.getConnections();
-      const newConnections = connections
-        .slice(-5)
-        .reverse()
+  // Load recent connections for notifications (once on mount, no polling)
+  const loadNotifications = useCallback(async () => {
+    try {
+      const connections = await connectionsManager.getConnectionsAsync();
+      const seenIds = connectionsManager.getSeenContactIds();
+      const recentConnections = connections
+        .slice(0, 5)
         .map(conn => ({
           id: conn.userId,
-          text: `New connection: ${conn.user.firstName} ${conn.user.lastName}`,
+          text: `${conn.user.firstName} ${conn.user.lastName}`,
           time: new Date(conn.connectedAt).toLocaleDateString(),
+          avatarUrl: (conn.user as any).profilePicture || '',
+          initials: `${conn.user.firstName[0]}${conn.user.lastName[0]}`,
+          isNew: !conn.isSeen && !seenIds.includes(conn.userId),
         }));
-      setConnectionNotifications(newConnections);
-      
-      // Update new contacts count
-      const totalContacts = connections.length;
-      const newCount = Math.max(0, totalContacts - viewedContactsCount);
-      setNewContactsCount(newCount);
-    };
-    
-    updateNotifications();
-    const interval = setInterval(updateNotifications, 2000);
-    
-    return () => clearInterval(interval);
-  }, [viewedContactsCount]);
+      setConnectionNotifications(recentConnections);
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => { loadNotifications(); }, [loadNotifications]);
 
   const notifications = connectionNotifications;
 
   const circleData = {
-    name: 'Mentor the Young',
+    name: contextCircle?.name || 'Mentor the Young',
     members: totalMembers.toString(),
     online: onlineCount.toString(),
-    bio: 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
-    inviteLink: 'http://talkspree.com/mentortheyoung/136872/invite',
+    bio: contextCircle?.description || 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
+    inviteLink: `http://talkspree.com/${contextCircle?.invite_code || 'mentortheyoung'}/invite`,
+    logoUrl: contextCircle?.logo_url || '',
     socials: {
-      website: 'https://example.com',
-      instagram: 'https://instagram.com',
-      facebook: 'https://facebook.com',
-      linkedin: 'https://linkedin.com',
-      email: 'mailto:info@example.com'
+      website: contextCircle?.social_links?.website || 'https://example.com',
+      instagram: contextCircle?.social_links?.instagram || 'https://instagram.com',
+      facebook: contextCircle?.social_links?.facebook || 'https://facebook.com',
+      linkedin: contextCircle?.social_links?.linkedin || 'https://linkedin.com',
+      email: contextCircle?.social_links?.email || 'mailto:info@example.com',
     }
   };
 
@@ -147,37 +139,67 @@ export function MobileHome() {
           {/* Notifications */}
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full">
+              <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
                 <Bell className="h-5 w-5" />
-                {connectionNotifications.length > 0 && (
-                  <span className="absolute top-0.5 right-0.5 h-2.5 w-2.5 rounded-full bg-destructive border-2 border-background" />
+                {unseenContactCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
+                    {unseenContactCount > 9 ? '9+' : unseenContactCount}
+                  </span>
                 )}
               </Button>
             </DropdownMenuTrigger>
-              <DropdownMenuContent align="center" className="w-[calc(100vw-2rem)] md:w-80 bg-card z-[100] max-h-[400px] overflow-y-auto">
+              <DropdownMenuContent align="center" className="w-[calc(100vw-2rem)] md:w-80 bg-card z-[100] max-h-[400px] overflow-y-auto custom-scrollbar">
                 <div className="p-3 border-b border-border">
                   <h3 className="font-semibold">Notifications</h3>
+                  {unseenContactCount > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">{unseenContactCount} new contact{unseenContactCount !== 1 ? 's' : ''}</p>
+                  )}
                 </div>
                 {notifications.length === 0 ? (
                   <div className="p-4 text-sm text-muted-foreground text-center">
-                    No new notifications
+                    No contacts yet
                   </div>
                 ) : (
                   notifications.map((notif) => (
                     <DropdownMenuItem 
                       key={notif.id} 
-                      className="p-4 cursor-pointer"
+                      className={`p-4 cursor-pointer flex items-center gap-3 ${notif.isNew ? 'bg-primary/5' : ''}`}
                       onClick={(e) => {
                         e.preventDefault();
                         navigate('/contacts');
                       }}
                     >
-                      <div>
-                        <p className="text-sm">{notif.text}</p>
-                        <p className="text-xs text-muted-foreground mt-1">{notif.time}</p>
+                      <div className="relative">
+                        <Avatar className="h-10 w-10 flex-shrink-0">
+                          <AvatarImage src={notif.avatarUrl} />
+                          <AvatarFallback className="bg-gradient-primary text-primary-foreground text-sm">
+                            {notif.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        {notif.isNew && (
+                          <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary border-2 border-card" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{notif.text}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {notif.isNew ? 'New contact • ' : ''}{notif.time}
+                        </p>
                       </div>
                     </DropdownMenuItem>
                   ))
+                )}
+                {notifications.length > 0 && (
+                  <div className="p-2 border-t border-border">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => navigate('/contacts')}
+                    >
+                      View all contacts
+                    </Button>
+                  </div>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -185,7 +207,7 @@ export function MobileHome() {
             {/* Profile */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full p-0 ml-2">
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full p-0 ml-2 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
                   <Avatar className="h-10 w-10">
                     {profileData.profilePicture ? (
                       <AvatarImage src={profileData.profilePicture} alt="Profile" />
@@ -353,15 +375,14 @@ export function MobileHome() {
         size="lg"
         className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 z-40 p-0 flex items-center justify-center"
         onClick={() => {
-          setViewedContactsCount(connectionsManager.getConnections().length);
-          setNewContactsCount(0);
+          // Navigate to contacts - notifications will be cleared when the page loads
           navigate('/contacts');
         }}
       >
         <img src={profileViewIcon} alt="Contacts" className="h-7 w-7" />
-        {newContactsCount > 0 && (
+        {unseenContactCount > 0 && (
           <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
-            {newContactsCount}
+            {unseenContactCount}
           </span>
         )}
       </Button>

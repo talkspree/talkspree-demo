@@ -35,6 +35,7 @@ interface ChatBoxProps {
   iRequested?: boolean;
   theyRequested?: boolean;
   bothAgreed?: boolean;
+  theyDeclined?: boolean;
   chatMessages?: Array<{ id: string; text: string; isMe: boolean; timestamp: Date }>;
   onSendMessage?: (text: string) => void;
   className?: string;
@@ -52,6 +53,7 @@ export function ChatBox({
   iRequested = false,
   theyRequested = false,
   bothAgreed = false,
+  theyDeclined = false,
   chatMessages = [],
   onSendMessage,
   className = ''
@@ -276,7 +278,10 @@ export function ChatBox({
                     )}
 
                     {/* Show buttons based on state */}
-                    {message.interactionData?.myResponse ? (
+                    {theyDeclined ? (
+                      // They declined
+                      <span className="text-white text-sm font-medium">✗ {correspondentName} declined</span>
+                    ) : message.interactionData?.myResponse ? (
                       // Already responded
                       <span className="text-white text-sm">
                         {message.interactionData.myResponse === 'accepted' ? '✓ Accepted' : '✗ Declined'}

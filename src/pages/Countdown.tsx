@@ -6,10 +6,19 @@ export default function Countdown() {
   const location = useLocation();
   const [count, setCount] = useState(5);
   const matchedUser = location.state?.matchedUser;
+  const callId = location.state?.callId;
+
+  // If the page was hard-refreshed and state is gone, redirect home safely.
+  useEffect(() => {
+    if (!matchedUser || !callId) {
+      navigate('/', { replace: true });
+    }
+  }, [matchedUser, callId, navigate]);
 
   useEffect(() => {
+    if (!matchedUser || !callId) return;
+
     if (count === 0) {
-      // Navigate to call with the matched user and pass all state including duration
       navigate('/call', { 
         state: location.state,
         replace: true 
@@ -22,7 +31,11 @@ export default function Countdown() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [count, navigate, matchedUser]);
+  }, [count, navigate, matchedUser, callId]);
+
+  if (!matchedUser || !callId) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">

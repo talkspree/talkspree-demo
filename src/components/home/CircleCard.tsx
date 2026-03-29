@@ -5,48 +5,51 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, Settings, Upload, Camera } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { getOrCreateDefaultCircle, getCircleMemberCounts, updateCircle, Circle } from "@/lib/api/circles";
-import { useCircleRole } from "@/hooks/useCircleRole";
+import { updateCircle, Circle } from "@/lib/api/circles";
+import { useCircle } from "@/contexts/CircleContext";
 import { supabase } from "@/lib/supabase";
 
 export function CircleCard() {
   const navigate = useNavigate();
-  const { isAdmin, loading: roleLoading } = useCircleRole();
-  const [onlineCount, setOnlineCount] = useState(0);
-  const [totalMembers, setTotalMembers] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [circle, setCircle] = useState<Circle | null>(null);
+  const { circle: contextCircle, isAdmin, memberCounts, loading: roleLoading, reloadCircle } = useCircle();
+  const [localCircle, setLocalCircle] = useState<Circle | null>(null);
   const [logoHover, setLogoHover] = useState(false);
   const [coverHover, setCoverHover] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
+  const [bioOverflows, setBioOverflows] = useState(false);
   
   const logoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const bioRef = useRef<HTMLParagraphElement>(null);
 
+  // Sync local circle state with context (allows local overrides after uploads)
   useEffect(() => {
-    const updateCount = async () => {
-      try {
-        // Get the default circle
-        const circleData = await getOrCreateDefaultCircle();
-        setCircle(circleData);
-        
-        // Get real member counts from database (only real users, no sample users)
-        const counts = await getCircleMemberCounts(circleData.id);
-        
-        setOnlineCount(counts.online);
-        setTotalMembers(counts.total);
-      } catch (error) {
-        console.error('Error fetching circle member counts:', error);
-        setOnlineCount(0);
-        setTotalMembers(0);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    updateCount();
-    const interval = setInterval(updateCount, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+    if (contextCircle) setLocalCircle(contextCircle);
+  }, [contextCircle]);
+
+  const circle = localCircle;
+  const onlineCount = memberCounts.online;
+  const totalMembers = memberCounts.total;
+
+  // Check if bio overflows 3 lines when collapsed (so we only show "read more" when needed)
+  useEffect(() => {
+    if (!circle?.description) {
+      setBioOverflows(false);
+      return;
+    }
+    if (bioExpanded) {
+      setBioOverflows(true); // when expanded, we always show "see less"
+      return;
+    }
+    // When collapsed: measure after layout
+    const raf = requestAnimationFrame(() => {
+      const el = bioRef.current;
+      if (!el) return;
+      const overflows = el.scrollHeight > el.clientHeight;
+      setBioOverflows(overflows);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [circle?.description, bioExpanded]);
 
   // Extract file path from Supabase storage URL
   const extractStoragePath = (url: string): string | null => {
@@ -115,11 +118,12 @@ export function CircleCard() {
       // Delete old image after successful update
       await deleteOldImage(oldUrl);
       
-      // Update local state
-      setCircle({
+      // Update local state immediately, then refresh context
+      setLocalCircle({
         ...circle,
         [type === 'logo' ? 'logo_url' : 'cover_image_url']: publicUrl
       });
+      reloadCircle();
       
       toast({ title: 'Success', description: `${type === 'logo' ? 'Profile picture' : 'Cover image'} updated` });
     } catch (error: any) {
@@ -159,7 +163,7 @@ export function CircleCard() {
     <div className="relative min-h-full">
       {/* COVER = gradient background - wraps around content */}
       <div 
-        className="relative rounded-[2rem] overflow-visible shadow-apple-lg bg-gradient-primary pb-4"
+        className="relative rounded-[1.5rem] overflow-visible shadow-apple-lg bg-gradient-primary pb-4"
         onMouseEnter={() => isAdmin && setCoverHover(true)}
         onMouseLeave={() => setCoverHover(false)}
         style={circleData.coverImageUrl ? { 
@@ -170,13 +174,13 @@ export function CircleCard() {
       >
         {/* subtle dot overlay */}
         {!circleData.coverImageUrl && (
-          <div className="pointer-events-none absolute inset-0 opacity-30 rounded-[2rem] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]" />
+          <div className="pointer-events-none absolute inset-0 opacity-30 rounded-[1.5rem] bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')]" />
         )}
 
         {/* Admin: Edit Cover Image overlay */}
         {isAdmin && coverHover && (
           <div 
-            className="absolute inset-0 rounded-[2rem] bg-black/40 flex items-center justify-center cursor-pointer z-10 transition-opacity"
+            className="absolute inset-0 rounded-[1.5rem] bg-black/40 flex items-center justify-center cursor-pointer z-10 transition-opacity"
             onClick={() => coverInputRef.current?.click()}
           >
             <div className="flex items-center gap-2 px-4 py-2 bg-white/90 rounded-full text-sm font-medium">
@@ -207,7 +211,7 @@ export function CircleCard() {
         )}
 
         {/* Top cover section - fixed height */}
-        <div className="h-32 rounded-t-[2rem]" />
+        <div className="h-32 rounded-t-[1.5rem]" />
 
         {/* Avatar - positioned to be half on cover, half on content */}
         <div 
@@ -256,10 +260,39 @@ export function CircleCard() {
                   </div>
                 </div>
 
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {circleData.bio}
-                  <button className="text-primary hover:underline ml-1">read more</button>
-                </p>
+                <div className="text-sm text-muted-foreground leading-relaxed text-center">
+                  {!bioExpanded ? (
+                    <div className="relative">
+                      <p ref={bioRef} className="line-clamp-3">
+                        {circleData.bio}
+                      </p>
+                      {circleData.bio && bioOverflows && (
+                        <span className="absolute bottom-0 right-0 pl-0 bg-gradient-to-r from-card to-card">
+                          <button
+                            type="button"
+                            className="text-primary hover:underline whitespace-nowrap"
+                            onClick={() => setBioExpanded(true)}
+                          >
+                            ...read more
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <p ref={bioRef}>{circleData.bio}</p>
+                      {circleData.bio && (
+                        <button
+                          type="button"
+                          className="text-primary hover:underline inline"
+                          onClick={() => setBioExpanded(false)}
+                        >
+                          see less
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
 
                 {/* Social Links */}
                 <div>

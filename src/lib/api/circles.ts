@@ -9,6 +9,8 @@ export interface Circle {
   invite_code: string;
   allow_member_invites: boolean;
   require_approval: boolean;
+  disabled_default_preset_ids: string[];
+  allow_member_custom_topics: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -275,68 +277,92 @@ export async function getOnlineCircleMembers(circleId: string) {
 }
 
 /**
- * Get member counts for a circle (total and online)
+ * Get member counts for a circle (total and online) — parallelized
  */
 export async function getCircleMemberCounts(circleId: string) {
-  // Get total member count
-  const { count: totalCount, error: totalError } = await supabase
-    .from('circle_members')
-    .select('*', { count: 'exact', head: true })
-    .eq('circle_id', circleId)
-    .eq('status', 'active');
+  const [totalResult, onlineResult] = await Promise.all([
+    supabase
+      .from('circle_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('circle_id', circleId)
+      .eq('status', 'active'),
+    supabase
+      .from('circle_members')
+      .select('profiles!inner(is_online)', { count: 'exact', head: true })
+      .eq('circle_id', circleId)
+      .eq('status', 'active')
+      .eq('profiles.is_online', true),
+  ]);
 
-  if (totalError) throw totalError;
-
-  // Get online member count
-  const { count: onlineCount, error: onlineError } = await supabase
-    .from('circle_members')
-    .select('profiles!inner(is_online)', { count: 'exact', head: true })
-    .eq('circle_id', circleId)
-    .eq('status', 'active')
-    .eq('profiles.is_online', true);
-
-  if (onlineError) throw onlineError;
+  if (totalResult.error) throw totalResult.error;
+  if (onlineResult.error) throw onlineResult.error;
 
   return {
-    total: totalCount || 0,
-    online: onlineCount || 0
+    total: totalResult.count || 0,
+    online: onlineResult.count || 0
   };
 }
 
+// Module-level cache for default circle (rarely changes during a session)
+let _cachedDefaultCircle: any = null;
+let _defaultCircleFetchPromise: Promise<any> | null = null;
+
 /**
- * Get or create the default "Mentor the Young" circle
+ * Clear the default circle cache (call after admin edits to circle)
+ */
+export function invalidateDefaultCircleCache() {
+  _cachedDefaultCircle = null;
+  _defaultCircleFetchPromise = null;
+}
+
+/**
+ * Get or create the default "Mentor the Young" circle.
+ * Result is cached at module level to avoid redundant DB hits.
  */
 export async function getOrCreateDefaultCircle() {
-  // Try to find existing circle
-  const { data: existingCircle, error: findError } = await supabase
-    .from('circles')
-    .select('*')
-    .eq('name', 'Mentor the Young')
-    .single();
+  if (_cachedDefaultCircle) return _cachedDefaultCircle;
 
-  if (existingCircle) {
-    return existingCircle;
-  }
+  // Deduplicate concurrent calls (multiple components mounting at once)
+  if (_defaultCircleFetchPromise) return _defaultCircleFetchPromise;
 
-  // If not found, create it (use a service account or admin for this in production)
-  const { data: newCircle, error: createError } = await supabase
-    .from('circles')
-    .insert({
-      name: 'Mentor the Young',
-      description: 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
-      invite_code: 'MENTORYOUNG2024',
-      allow_member_invites: true,
-      require_approval: false,
-    })
-    .select()
-    .single();
+  _defaultCircleFetchPromise = (async () => {
+    try {
+      const { data: existingCircle } = await supabase
+        .from('circles')
+        .select('*')
+        .eq('name', 'Mentor the Young')
+        .single();
 
-  if (createError) {
-    console.error('Error creating default circle:', createError);
-    throw createError;
-  }
+      if (existingCircle) {
+        _cachedDefaultCircle = existingCircle;
+        return existingCircle;
+      }
 
-  return newCircle;
+      const { data: newCircle, error: createError } = await supabase
+        .from('circles')
+        .insert({
+          name: 'Mentor the Young',
+          description: 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
+          invite_code: 'MENTORYOUNG2024',
+          allow_member_invites: true,
+          require_approval: false,
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating default circle:', createError);
+        throw createError;
+      }
+
+      _cachedDefaultCircle = newCircle;
+      return newCircle;
+    } finally {
+      _defaultCircleFetchPromise = null;
+    }
+  })();
+
+  return _defaultCircleFetchPromise;
 }
 
 /**
@@ -449,18 +475,13 @@ const SUPER_ADMIN_EMAILS = [
 ];
 
 /**
- * Check if current user is a super admin
+ * Check super admin status for a given user object (avoids re-calling auth.getUser)
  */
-export async function checkIsSuperAdmin(): Promise<boolean> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
-
-  // First, check by email (works even before migrations are applied)
+export async function checkIsSuperAdminForUser(user: { id: string; email?: string | null }): Promise<boolean> {
   if (user.email && SUPER_ADMIN_EMAILS.includes(user.email.toLowerCase())) {
     return true;
   }
 
-  // Then check the database table
   try {
     const { data } = await supabase
       .from('platform_admins')
@@ -470,11 +491,18 @@ export async function checkIsSuperAdmin(): Promise<boolean> {
       .single();
 
     return !!data;
-  } catch (error) {
-    // Table might not exist yet
-    console.warn('platform_admins table not found, using email fallback');
+  } catch {
     return false;
   }
+}
+
+/**
+ * Check if current user is a super admin
+ */
+export async function checkIsSuperAdmin(): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  return checkIsSuperAdminForUser(user);
 }
 
 /**
@@ -484,8 +512,7 @@ export async function checkIsCircleAdmin(circleId: string): Promise<boolean> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return false;
 
-  // Check if super admin first
-  const isSuperAdmin = await checkIsSuperAdmin();
+  const isSuperAdmin = await checkIsSuperAdminForUser(user);
   if (isSuperAdmin) return true;
 
   try {
@@ -510,8 +537,7 @@ export async function getUserAdminType(circleId: string): Promise<AdminType> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  // Check if super admin first
-  const isSuperAdmin = await checkIsSuperAdmin();
+  const isSuperAdmin = await checkIsSuperAdminForUser(user);
   if (isSuperAdmin) return 'super_admin';
 
   try {
@@ -536,11 +562,9 @@ export async function getUserCircleRole(circleId: string): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return 'Member';
 
-  // Check if super admin first
-  const isSuperAdmin = await checkIsSuperAdmin();
+  const isSuperAdmin = await checkIsSuperAdminForUser(user);
   if (isSuperAdmin) return 'Super Admin';
 
-  // Get circle membership with role
   try {
     const { data: membership } = await supabase
       .from('circle_members')
@@ -551,19 +575,14 @@ export async function getUserCircleRole(circleId: string): Promise<string> {
 
     if (!membership) return 'Member';
 
-    console.log('User circle membership:', membership); // Debug log
-
-    // Check admin type first
     if (membership.admin_type === 'creator') return 'Creator';
     if (membership.admin_type === 'circle_admin') return 'Admin';
     if (membership.type === 'admin') return 'Admin';
 
-    // Return the user's role in the circle (Mentor, Mentee, Alumni, etc.)
     if (membership.role) {
       return membership.role;
     }
 
-    // Check for assigned circle role (custom roles system)
     const { data: roleAssignment } = await supabase
       .from('circle_member_roles')
       .select('circle_roles(name)')
@@ -576,9 +595,70 @@ export async function getUserCircleRole(circleId: string): Promise<string> {
 
     return 'Member';
   } catch (error) {
-    // Tables might not exist yet
     console.warn('Error fetching circle role:', error);
     return 'Member';
+  }
+}
+
+/**
+ * Unified function: get role, isAdmin, and adminType in a SINGLE pass.
+ * One auth call, one super-admin check, one membership query.
+ * This replaces calling getUserCircleRole + checkIsCircleAdmin + getUserAdminType separately.
+ */
+export async function getFullCircleRoleData(circleId: string): Promise<{
+  role: string;
+  isAdmin: boolean;
+  adminType: AdminType;
+}> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { role: 'Member', isAdmin: false, adminType: null };
+
+  const isSuperAdmin = await checkIsSuperAdminForUser(user);
+  if (isSuperAdmin) {
+    return { role: 'Super Admin', isAdmin: true, adminType: 'super_admin' };
+  }
+
+  try {
+    const { data: membership } = await supabase
+      .from('circle_members')
+      .select('id, admin_type, type, role')
+      .eq('user_id', user.id)
+      .eq('circle_id', circleId)
+      .single();
+
+    if (!membership) return { role: 'Member', isAdmin: false, adminType: null };
+
+    const isAdmin =
+      membership.admin_type === 'creator' ||
+      membership.admin_type === 'circle_admin' ||
+      membership.type === 'admin';
+
+    const adminType: AdminType =
+      membership.admin_type ||
+      (membership.type === 'admin' ? 'circle_admin' : null);
+
+    let role = 'Member';
+    if (membership.admin_type === 'creator') role = 'Creator';
+    else if (membership.admin_type === 'circle_admin') role = 'Admin';
+    else if (membership.type === 'admin') role = 'Admin';
+    else if (membership.role) role = membership.role;
+    else {
+      try {
+        const { data: roleAssignment } = await supabase
+          .from('circle_member_roles')
+          .select('circle_roles(name)')
+          .eq('circle_member_id', membership.id)
+          .single();
+        if (roleAssignment?.circle_roles) {
+          role = (roleAssignment.circle_roles as any).name;
+        }
+      } catch { /* custom roles table may not exist */ }
+    }
+
+    return { role, isAdmin, adminType };
+  } catch (error) {
+    console.warn('Error fetching circle role data:', error);
+    return { role: 'Member', isAdmin: false, adminType: null };
   }
 }
 
@@ -721,7 +801,7 @@ export async function createTopicPreset(circleId: string, preset: {
 /**
  * Update circle details (for admins)
  */
-export async function updateCircle(circleId: string, updates: Partial<Pick<Circle, 'name' | 'description' | 'logo_url' | 'cover_image_url' | 'social_links'>>) {
+export async function updateCircle(circleId: string, updates: Partial<Pick<Circle, 'name' | 'description' | 'logo_url' | 'cover_image_url' | 'social_links' | 'disabled_default_preset_ids' | 'allow_member_custom_topics'>>) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -799,6 +879,61 @@ export async function removeCircleAdmin(circleId: string, userId: string) {
 
   if (error) throw error;
   return data;
+}
+
+/**
+ * Toggle a default preset's visibility in a circle
+ */
+export async function toggleDefaultPreset(circleId: string, presetId: string, enabled: boolean) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Only admins can toggle default presets
+  const isAdmin = await checkIsCircleAdmin(circleId);
+  if (!isAdmin) throw new Error('Only circle admins can toggle default presets');
+
+  // Get current disabled list
+  const { data: circle } = await supabase
+    .from('circles')
+    .select('disabled_default_preset_ids')
+    .eq('id', circleId)
+    .single();
+
+  const currentDisabled = circle?.disabled_default_preset_ids || [];
+  
+  let newDisabled: string[];
+  if (enabled) {
+    // Remove from disabled list
+    newDisabled = currentDisabled.filter((id: string) => id !== presetId);
+  } else {
+    // Add to disabled list
+    newDisabled = [...currentDisabled, presetId];
+  }
+
+  const { error } = await supabase
+    .from('circles')
+    .update({ disabled_default_preset_ids: newDisabled })
+    .eq('id', circleId);
+
+  if (error) throw error;
+}
+
+/**
+ * Toggle whether circle members can use the Custom topic feature
+ */
+export async function toggleMemberCustomTopics(circleId: string, enabled: boolean) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const isAdmin = await checkIsCircleAdmin(circleId);
+  if (!isAdmin) throw new Error('Only circle admins can change member permissions');
+
+  const { error } = await supabase
+    .from('circles')
+    .update({ allow_member_custom_topics: enabled })
+    .eq('id', circleId);
+
+  if (error) throw error;
 }
 
 /**

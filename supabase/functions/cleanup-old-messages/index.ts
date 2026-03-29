@@ -28,13 +28,13 @@ Deno.serve(async (req) => {
       }
     );
 
-    // Calculate the cutoff time (48 hours ago)
+    // Calculate the cutoff time (5 days ago)
     const cutoffTime = new Date();
-    cutoffTime.setHours(cutoffTime.getHours() - 48);
+    cutoffTime.setDate(cutoffTime.getDate() - 5);
 
     console.log(`Deleting messages older than: ${cutoffTime.toISOString()}`);
 
-    // Delete old messages
+    // Delete old chat messages (in-call messages, not DMs)
     const { data, error, count } = await supabaseClient
       .from('chat_messages')
       .delete({ count: 'exact' })
@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
         success: true,
         deletedCount: count,
         cutoffTime: cutoffTime.toISOString(),
-        message: `Deleted ${count} messages older than 48 hours`
+        message: `Deleted ${count} messages older than 5 days`
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

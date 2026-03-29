@@ -2,6 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom Scrollbar Styles — pill-shaped track with gradient thumb */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 18px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background-color: #f1f5f9;
+  border-radius: 9999px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
+  margin: 16px 0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  /* background: linear-gradient(180deg, #a855f7 0%, #3b82f6 100%); */
+  background: #cbd5e1;
+  border-radius: 9999px;
+  border: 5px solid #f1f5f9;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+  border-radius: 9999px;
+  border: 5px solid #f1f5f9;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar-contact::-webkit-scrollbar {
+  width: 18px;
+}
+.custom-scrollbar-contact::-webkit-scrollbar-track {
+  background-color: #f1f5f9;
+  border-radius: 9999px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
+  /* Start track below the `X` button area */
+  margin-top: 60px;
+  margin-bottom: 16px;
+}
+
+.custom-scrollbar-contact::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+  border: 5px solid #f1f5f9;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar-contact::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+  border-radius: 9999px;
+  border: 5px solid #f1f5f9;
+  background-clip: padding-box;
+}
+
+.custom-scrollbar-chat::-webkit-scrollbar {
+  width: 10px;
+}
+.custom-scrollbar-chat::-webkit-scrollbar-track {
+  background-color: #f1f5f9;
+  border-radius: 0px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.15);
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+.custom-scrollbar-chat::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.dark .custom-scrollbar-contact::-webkit-scrollbar-track {
+  background-color: #1e293b;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.dark .custom-scrollbar-contact::-webkit-scrollbar-thumb {
+  border-color: #1e293b;
+}
+
+.dark .custom-scrollbar-contact::-webkit-scrollbar-thumb:hover {
+  border-color: #1e293b;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-track {
+  background-color: #1e293b;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  border-color: #1e293b;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  border-color: #1e293b;
+}
+
+/* Dino waiting room overlay: bounce hint */
+@keyframes dino-hint-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 /* TalkSpree Design System - Apple-inspired minimalistic design
 All colors MUST be HSL.
 */
@@ -161,8 +262,6 @@ All colors MUST be HSL.
   html {
     scroll-behavior: smooth;
   }
-
-  /* Enable smooth scrolling but only show scrollbar when needed */
 }
 
 @layer utilities {
@@ -181,6 +280,12 @@ All colors MUST be HSL.
 
   .transition-spring {
     transition: var(--transition-spring);
+  }
+
+  /* Elastic snap for similarity slider thumb */
+  .slider-snap {
+    transition: left 420ms cubic-bezier(0.34, 1.56, 0.64, 1),
+                transform 200ms ease;
   }
 
   /* Gradient backgrounds */
@@ -207,25 +312,6 @@ All colors MUST be HSL.
 
   .shadow-glow {
     box-shadow: var(--shadow-glow);
-  }
-
-  /* Custom scrollbar styling */
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: hsl(var(--muted));
-    border-radius: 4px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--primary-glow)));
-    border-radius: 4px;
-  }
-
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, hsl(var(--primary-glow)), hsl(var(--primary)));
   }
 
   .bg-gradient-accent {

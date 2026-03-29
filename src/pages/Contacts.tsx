@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/home/Header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, ArrowLeft, ChevronDown } from 'lucide-react';
 import { ContactCircleSection } from '@/components/contacts/ContactCircleSection';
-import { sampleUserManager } from '@/data/sampleUsers';
 import { connectionsManager, Connection } from '@/utils/connections';
 import { useDevice } from '@/hooks/useDevice';
 import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
@@ -22,13 +21,40 @@ export default function Contacts() {
   const device = useDevice();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'similarity' | 'job'>('recent');
-  const [connections, setConnections] = useState(connectionsManager.getConnections());
+  const [connections, setConnections] = useState<Connection[]>([]);
   const [selectedContact, setSelectedContact] = useState<Connection | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [seenContactIds, setSeenContactIds] = useState<string[]>([]);
 
-  // Update connections when component mounts or when navigating back
+  // Load connections
+  const loadConnections = async () => {
+    // Get all connections from database
+    const allConnections = await connectionsManager.getConnectionsAsync();
+    setConnections(allConnections);
+    
+    // Get seen contact IDs from localStorage (tracks which cards user has clicked on)
+    const previouslySeenIds = connectionsManager.getSeenContactIds();
+    setSeenContactIds(previouslySeenIds);
+  };
+
   useEffect(() => {
-    setConnections(connectionsManager.getConnections());
+    loadConnections();
+    
+    // Mark all contacts as seen in DB to clear the notification badge
+    // This doesn't affect the card animations - those are tracked via localStorage
+    connectionsManager.markAllDbSeen();
+  }, []);
+
+  // Handle marking a contact as seen when clicked
+  const handleMarkContactSeen = useCallback((userId: string, contactDbId?: string) => {
+    // Mark local contact as seen
+    connectionsManager.markContactSeen(userId);
+    setSeenContactIds(prev => [...prev, userId]);
+    
+    // If it's a db contact, mark it in the database too
+    if (contactDbId) {
+      connectionsManager.markDbContactSeen(contactDbId);
+    }
   }, []);
 
   // Get filtered and sorted connections
@@ -37,40 +63,70 @@ export default function Contacts() {
     
     // Apply search
     if (searchQuery) {
-      filtered = connectionsManager.searchConnections(searchQuery);
-    } else {
-      filtered = connectionsManager.getSortedConnections(sortBy);
+      const lowerQuery = searchQuery.toLowerCase();
+      filtered = connections.filter(c => 
+        `${c.user.firstName} ${c.user.lastName}`.toLowerCase().includes(lowerQuery) ||
+        c.user.occupation.toLowerCase().includes(lowerQuery) ||
+        c.user.location.toLowerCase().includes(lowerQuery)
+      );
+    }
+    
+    // Sort
+    switch (sortBy) {
+      case 'recent':
+        filtered = [...filtered].sort((a, b) => 
+          new Date(b.connectedAt).getTime() - new Date(a.connectedAt).getTime()
+        );
+        break;
+      case 'job':
+        filtered = [...filtered].sort((a, b) => 
+          a.user.occupation.localeCompare(b.user.occupation)
+        );
+        break;
     }
     
     // Map to contact format
     return filtered.map((conn) => {
       const age = new Date().getFullYear() - new Date(conn.user.dateOfBirth).getFullYear();
+      // isNew is based only on localStorage - tracks if user has clicked to view this contact's details
+      // This controls the card animation, not the notification badge
+      const isNew = !seenContactIds.includes(conn.userId);
       return {
         id: conn.userId,
+        dbId: conn.id,
         name: `${conn.user.firstName} ${conn.user.lastName}`,
+        email: (conn.user as any).email || '',
         job: conn.user.occupation,
         age: `${age}y`,
         country: conn.user.location,
         gender: conn.user.gender,
-        avatarUrl: '',
-        isSample: true,
+        avatarUrl: (conn.user as any).profilePicture || '',
+        isOnline: conn.user.isOnline,
         role: conn.user.role,
         industry: conn.user.industry,
         studyField: conn.user.studyField,
         university: conn.user.university,
+        instagram: conn.user.instagram,
+        facebook: conn.user.facebook,
+        linkedin: conn.user.linkedin,
+        youtube: conn.user.youtube,
+        tiktok: conn.user.tiktok,
+        isNew,
       };
     });
   };
 
   const filteredContacts = getFilteredContacts();
   
-  // Get online count from sample users
-  const onlineCount = sampleUserManager.getOnlineCount();
+  // Count online contacts from the connections list
+  const onlineCount = connections.filter(c => c.user.isOnline).length;
   const totalMembers = connections.length;
 
   const handleContactClick = (contact: any) => {
     const fullConnection = connections.find(c => c.userId === contact.id);
     if (fullConnection) {
+      // Mark contact as seen when clicking to view details
+      handleMarkContactSeen(contact.id, contact.dbId);
       setSelectedContact(fullConnection);
       setModalOpen(true);
     }
@@ -89,18 +145,18 @@ export default function Contacts() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-gradient-subtle px-6 lg:px-16">
       {device !== 'mobile' && <Header />}
       
-      <div className={`max-w-[1920px] mx-auto px-6 lg:px-12 pb-12 ${device === 'mobile' ? 'pt-6' : 'pt-6'}`}>
+      <div className={`max-w-[1920px] mx-auto pb-10 ${device === 'mobile' ? 'pt-6' : 'pt-6'}`}>
         {/* Back Button */}
         <Button
           variant="ghost"
           size="sm"
           onClick={() => navigate('/')}
-          className="mb-6"
+          className="mb-4 mt-2 text-md"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className="h-20 w-20 mr-2" />
           Back to Home
         </Button>
 
@@ -136,6 +192,11 @@ export default function Contacts() {
         contact={selectedContact}
         open={modalOpen}
         onOpenChange={setModalOpen}
+        onContactDeleted={() => {
+          // Refresh the contacts list after deletion
+          loadConnections();
+          setSelectedContact(null);
+        }}
       />
     </div>
   );

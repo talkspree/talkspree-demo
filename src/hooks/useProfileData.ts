@@ -61,21 +61,20 @@ export function useProfileData() {
       const profile = await getCurrentProfile();
       
       if (profile) {
-        // Fetch interests
-        const interests = await getUserInterests();
+        // Parallel fetch interests and social links (independent of each other)
+        const [interests, socialLinks] = await Promise.all([
+          getUserInterests(),
+          getUserSocialLinks(),
+        ]);
+
         const interestIds = interests.map((interest: any) => interest.id);
 
-        // Fetch social links
-        const socialLinks = await getUserSocialLinks();
         const socialLinksMap: Record<string, string> = {};
         socialLinks.forEach((link: any) => {
           socialLinksMap[link.platform] = link.url;
         });
 
-        // Add cache buster to profile picture URL to force refresh
-        const profilePictureUrl = profile.profile_picture_url 
-          ? `${profile.profile_picture_url}?t=${Date.now()}` 
-          : '';
+        const profilePictureUrl = profile.profile_picture_url || '';
 
         setProfileData({
           id: profile.id || '',

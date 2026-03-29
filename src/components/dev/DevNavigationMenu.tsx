@@ -6,28 +6,77 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Menu, Home, Phone, Users, UserCircle, Settings, X, Bell } from 'lucide-react';
+import { Menu, Home, Phone, Users, UserCircle, Settings, X, Bell, Monitor, Tablet, Smartphone } from 'lucide-react';
 import { connectionsManager } from '@/utils/connections';
+import { useCircle } from '@/contexts/CircleContext';
+import { useDevViewport, type ViewportMode } from './DevViewportContext';
+
+const MODES: { value: ViewportMode; label: string; icon: typeof Monitor }[] = [
+  { value: 'mobile', label: 'Mobile', icon: Smartphone },
+  { value: 'tablet', label: 'Tablet', icon: Tablet },
+  { value: 'desktop', label: 'Desktop', icon: Monitor },
+];
+
+function ViewportToggle() {
+  const { mode, setMode } = useDevViewport();
+
+  const activeIdx = MODES.findIndex((m) => m.value === mode);
+
+  return (
+    <div className="px-1 py-2">
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-2 px-1">
+        Viewport
+      </p>
+      <div className="relative flex h-8 rounded-full bg-muted/60 p-0.5">
+        {/* Sliding indicator */}
+        <div
+          className="absolute top-0.5 h-7 rounded-full bg-primary transition-all duration-200 ease-out"
+          style={{
+            width: `calc(${100 / MODES.length}% - 2px)`,
+            left: `calc(${(activeIdx * 100) / MODES.length}% + 1px)`,
+          }}
+        />
+        {MODES.map(({ value, label, icon: Icon }) => (
+          <button
+            key={value}
+            onClick={() => setMode(value)}
+            className={`relative z-10 flex-1 flex items-center justify-center gap-1.5 rounded-full text-xs font-medium transition-colors duration-200 ${
+              mode === value
+                ? 'text-primary-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            <span className="hidden min-[0px]:inline">{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function DevNavigationMenu() {
   const [isOpen, setIsOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
+  const { adminType, loading } = useCircle();
 
-  // Check for new connections
+  // Only show to super admins
+  const isSuperAdmin = adminType === 'super_admin';
+
   useEffect(() => {
     const updateNotifications = () => {
       setNotificationCount(connectionsManager.getNewConnectionsCount());
     };
     
     updateNotifications();
-    
-    // Update every second to catch new connections
     const interval = setInterval(updateNotifications, 1000);
-    
     return () => clearInterval(interval);
   }, []);
+
+  // Hide entirely for non-superadmins (or while loading)
+  if (loading || !isSuperAdmin) return null;
 
   const pages = [
     { path: '/', label: 'Home', icon: Home },
@@ -43,8 +92,6 @@ export function DevNavigationMenu() {
   const handleNavigate = (path: string) => {
     navigate(path);
     setIsOpen(false);
-    
-    // Clear notifications when navigating to contacts
     if (path === '/contacts') {
       connectionsManager.clearNewConnectionsCount();
       setNotificationCount(0);
@@ -52,7 +99,7 @@ export function DevNavigationMenu() {
   };
 
   return (
-    <div className="fixed bottom-6 left-6 z-50">
+    <div className="fixed bottom-6 left-6 z-[9999]">
       {isOpen && (
         <Card className="mb-4 p-4 shadow-lg border-2 border-primary/20 bg-card/95 backdrop-blur-sm">
           <div className="flex items-center justify-between mb-3">
@@ -66,7 +113,13 @@ export function DevNavigationMenu() {
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <div className="space-y-2 min-w-[180px]">
+
+          {/* Three-way viewport toggle */}
+          <ViewportToggle />
+
+          <div className="my-2 border-t border-border" />
+
+          <div className="space-y-2 min-w-[220px]">
             {pages.map(({ path, label, icon: Icon }) => (
               <Button
                 key={path}

@@ -6,6 +6,7 @@ interface ExtensionBannerProps {
   iRequested: boolean;
   theyRequested: boolean;
   bothAgreed: boolean;
+  theyDeclined?: boolean;
   userName: string;
   onRequest: () => void;
   onApprove: () => void;
@@ -17,12 +18,23 @@ export function ExtensionBanner({
   iRequested,
   theyRequested,
   bothAgreed,
+  theyDeclined = false,
   userName,
   onRequest,
   onApprove,
   onDecline,
 }: ExtensionBannerProps) {
   if (!show) return null;
+
+  // Declined state — partner rejected the extension
+  if (theyDeclined) {
+    return (
+      <div className="bg-destructive text-white px-4 py-3 rounded-2xl flex items-center gap-2 shadow-lg animate-in fade-in slide-in-from-top-2 duration-300">
+        <X className="h-5 w-5 shrink-0" />
+        <span className="font-medium text-sm">{userName} declined the extension request</span>
+      </div>
+    );
+  }
 
   // Success state - show briefly then hide
   if (bothAgreed) {

@@ -1,5 +1,9 @@
 /**
- * Agora Call Hook - resilient join/leave and remote hangup handling
+ * Agora Call Hook - resilient join/leave and remote hangup handling.
+ *
+ * Key design: every (re)mount gets its own AgoraService instance.
+ * joinCall captures the instance at start and does an *identity check*
+ * after every async gap so a Strict-Mode-orphaned join self-cleans.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { IAgoraRTCRemoteUser } from 'agora-rtc-sdk-ng';
@@ -10,11 +14,10 @@ import { supabase } from '@/lib/supabase';
 export interface UseAgoraCallOptions {
   callId: string;
   onRemoteUserJoined?: (user: IAgoraRTCRemoteUser) => void;
-  onReconnecting?: () => void;
-  onReconnectFailed?: () => void;
-  onRemoteUserRejoined?: (user: IAgoraRTCRemoteUser) => void;
   onConnectionStateChange?: (state: string) => void;
   onRemoteHangup?: () => void;
+  onRemoteDisconnect?: () => void;
+  onRemoteReconnected?: () => void;
 }
 
 export interface UseAgoraCallReturn {
@@ -34,7 +37,7 @@ export interface UseAgoraCallReturn {
 }
 
 export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
-  const { callId, onRemoteUserJoined, onRemoteUserLeft, onConnectionStateChange, onRemoteHangup } = options;
+  const { callId } = options;
 
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
@@ -48,82 +51,56 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
   const signalChannelRef = useRef<any>(null);
   const hasJoinedRef = useRef(false);
   const leavingRef = useRef(false);
+  const remoteDisconnectedRef = useRef(false);
+  const userLeftTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const callbacksRef = useRef<UseAgoraCallOptions>({
-    callId,
-    onRemoteUserJoined,
-    onRemoteUserLeft,
-    onConnectionStateChange,
-    onRemoteHangup,
+  const callbacksRef = useRef(options);
+  useEffect(() => {
+    callbacksRef.current = options;
   });
 
+  // ── Service lifecycle ─────────────────────────────────────────────────
   useEffect(() => {
-    callbacksRef.current = {
-      callId,
-      onRemoteUserJoined,
-      onRemoteUserLeft,
-      onConnectionStateChange,
-      onRemoteHangup,
-    };
-  }, [callId, onConnectionStateChange, onRemoteHangup, onRemoteUserJoined, onRemoteUserLeft]);
-
-  // Initialize Agora service once
-  useEffect(() => {
-    if (!agoraServiceRef.current) {
-      agoraServiceRef.current = new AgoraService();
-    }
-
-    const service = agoraServiceRef.current;
+    const service = new AgoraService();
+    agoraServiceRef.current = service;
+    hasJoinedRef.current = false;
+    leavingRef.current = false;
+    remoteDisconnectedRef.current = false;
 
     service.on('user-joined', (user) => {
+      const wasDisconnected = remoteDisconnectedRef.current;
+      remoteDisconnectedRef.current = false;
+
       setRemoteUsers((prev) => {
         const exists = prev.find((u) => u.uid === user.uid);
-        if (exists) return prev;
-        return [...prev, user];
+        return exists ? prev : [...prev, user];
       });
-      callbacksRef.current.onRemoteUserJoined?.(user);
+
+      if (wasDisconnected) {
+        callbacksRef.current.onRemoteReconnected?.();
+      } else {
+        callbacksRef.current.onRemoteUserJoined?.(user);
+      }
     });
 
-    service.on('user-left', async (user) => {
-      console.log('⚠️ Remote user left event fired for:', user.uid);
+    service.on('user-left', (user) => {
+      console.log('[Agora] Remote user left:', user.uid);
+      remoteDisconnectedRef.current = true;
       setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
 
-      // Phase 1: Show "Reconnecting..." animation
-      callbacksRef.current.onReconnecting?.();
-
-      // Wait 5 seconds with reconnecting animation
-      setTimeout(() => {
-        const currentRemoteUsers = agoraServiceRef.current?.getRemoteUsers();
-        if (!currentRemoteUsers || currentRemoteUsers.size === 0) {
-          console.log('⚠️ Still disconnected after 5s - showing end call modal');
-          // Phase 2: Show "Call Ended" modal with 5-second countdown
-          callbacksRef.current.onReconnectFailed?.();
-
-          // Wait another 5 seconds (10 seconds total)
-          setTimeout(() => {
-            const finalCheck = agoraServiceRef.current?.getRemoteUsers();
-            if (!finalCheck || finalCheck.size === 0) {
-              console.log('❌ Remote user did not rejoin - ending call');
-              leaveCall(true);
-              callbacksRef.current.onRemoteHangup?.();
-            } else {
-              console.log('✅ Remote user rejoined during countdown');
-              callbacksRef.current.onRemoteUserRejoined?.(user);
-            }
-          }, 5000);
-        } else {
-          console.log('✅ Remote user rejoined during reconnect phase');
-          callbacksRef.current.onRemoteUserRejoined?.(user);
+      if (userLeftTimerRef.current) clearTimeout(userLeftTimerRef.current);
+      userLeftTimerRef.current = setTimeout(() => {
+        userLeftTimerRef.current = null;
+        if (remoteDisconnectedRef.current) {
+          callbacksRef.current.onRemoteDisconnect?.();
         }
-      }, 5000);
+      }, 400);
     });
 
-    service.on('user-published', (user, mediaType) => {
+    service.on('user-published', (user, _mediaType) => {
       setRemoteUsers((prev) => {
         const exists = prev.find((u) => u.uid === user.uid);
-        if (exists) {
-          return prev.map((u) => (u.uid === user.uid ? user : u));
-        }
+        if (exists) return prev.map((u) => (u.uid === user.uid ? user : u));
         return [...prev, user];
       });
     });
@@ -142,25 +119,35 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
     });
 
     return () => {
-      if (hasJoinedRef.current) {
-        leaveCall(true).catch(console.error);
+      if (userLeftTimerRef.current) {
+        clearTimeout(userLeftTimerRef.current);
+        userLeftTimerRef.current = null;
       }
+
+      // Null the ref IMMEDIATELY — this is the identity signal that tells
+      // any in-flight joinCall on THIS service to abort and self-clean.
+      agoraServiceRef.current = null;
+      hasJoinedRef.current = false;
+      leavingRef.current = false;
+
+      service.leave().catch((e) => console.warn('[Agora] leave on unmount:', e));
+
       if (signalChannelRef.current) {
-        try {
-          signalChannelRef.current.unsubscribe();
-        } catch (e) {
-          console.warn('Error unsubscribing on unmount:', e);
-        }
+        try { signalChannelRef.current.unsubscribe(); } catch { /* no-op */ }
         signalChannelRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Join ───────────────────────────────────────────────────────────────
   const joinCall = useCallback(async () => {
-    if (!agoraServiceRef.current || hasJoinedRef.current || isConnecting || leavingRef.current) {
-      return;
-    }
+    const service = agoraServiceRef.current;
+    if (!service || hasJoinedRef.current || isConnecting) return;
+
+    // Helper: returns true if this service was superseded (cleanup ran).
+    // When that happens, we clean up whatever this orphaned join created.
+    const isStale = () => agoraServiceRef.current !== service;
 
     try {
       hasJoinedRef.current = true;
@@ -169,33 +156,61 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
       setError(null);
 
       const { token, channelName, uid } = await getAgoraToken(callId);
-      await updateCallWithAgoraInfo(callId, channelName, uid);
-      await agoraServiceRef.current.join(channelName, token || null, uid);
 
-      setLocalVideoTrack(agoraServiceRef.current.getLocalVideoTrack());
+      if (isStale()) {
+        console.warn('[Agora] joinCall aborted after getAgoraToken (service replaced)');
+        service.leave().catch(() => {});
+        return;
+      }
+
+      await updateCallWithAgoraInfo(callId, channelName, uid);
+
+      if (isStale()) {
+        console.warn('[Agora] joinCall aborted after updateCallWithAgoraInfo (service replaced)');
+        service.leave().catch(() => {});
+        return;
+      }
+
+      await service.join(channelName, token || null, uid);
+
+      if (isStale()) {
+        console.warn('[Agora] joinCall aborted after service.join (service replaced) — leaving orphan channel');
+        service.leave().catch(() => {});
+        return;
+      }
+
+      setLocalVideoTrack(service.getLocalVideoTrack());
 
       await sendCallSignal(callId, 'agora_join', { channelName, uid }, 'connected');
+
+      if (isStale()) {
+        console.warn('[Agora] joinCall aborted after sendCallSignal (service replaced)');
+        service.leave().catch(() => {});
+        return;
+      }
 
       signalChannelRef.current = subscribeToCallSignals(callId, async (signal) => {
         const { data: { user: currentUser } } = await supabase.auth.getUser();
         if (!currentUser) return;
 
         if (signal.signal_type === 'agora_leave' && signal.user_id !== currentUser.id) {
-          await leaveCall(true);
+          if (userLeftTimerRef.current) {
+            clearTimeout(userLeftTimerRef.current);
+            userLeftTimerRef.current = null;
+          }
+          remoteDisconnectedRef.current = false;
           callbacksRef.current.onRemoteHangup?.();
-
-          const currentRemoteUsers = agoraServiceRef.current?.getRemoteUsers();
-          const remoteUser =
-            currentRemoteUsers && currentRemoteUsers.size > 0
-              ? Array.from(currentRemoteUsers.values())[0]
-              : { uid: signal.user_id } as any;
-          callbacksRef.current.onRemoteUserLeft?.(remoteUser);
         }
       });
 
       setIsConnected(true);
       setIsConnecting(false);
     } catch (err: any) {
+      // If this service was superseded during an error, clean it up silently
+      if (isStale()) {
+        service.leave().catch(() => {});
+        return;
+      }
       setError(err.message || 'Failed to join call');
       setIsConnecting(false);
       setIsConnected(false);
@@ -203,16 +218,16 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
     }
   }, [callId, isConnecting]);
 
+  // ── Leave ──────────────────────────────────────────────────────────────
   const leaveCall = useCallback(
     async (skipSignal = false) => {
-      if (!hasJoinedRef.current && !leavingRef.current) {
-        return;
-      }
+      if (leavingRef.current) return;
+      leavingRef.current = true;
+
+      const service = agoraServiceRef.current;
 
       try {
-        leavingRef.current = true;
-
-        if (!skipSignal && callId) {
+        if (!skipSignal && callId && hasJoinedRef.current && service) {
           try {
             await sendCallSignal(callId, 'agora_leave', {}, 'ended');
           } catch (signalError) {
@@ -220,9 +235,9 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
           }
         }
 
-        if (agoraServiceRef.current) {
+        if (service) {
           try {
-            await agoraServiceRef.current.leave();
+            await service.leave();
           } catch (leaveError) {
             console.warn('Error leaving Agora channel:', leaveError);
           }
@@ -231,11 +246,7 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
         hasJoinedRef.current = false;
 
         if (signalChannelRef.current) {
-          try {
-            signalChannelRef.current.unsubscribe();
-          } catch (unsubError) {
-            console.warn('Error unsubscribing from signals:', unsubError);
-          }
+          try { signalChannelRef.current.unsubscribe(); } catch { /* no-op */ }
           signalChannelRef.current = null;
         }
 
@@ -248,14 +259,16 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
         setIsConnected(false);
         setRemoteUsers([]);
         setLocalVideoTrack(null);
+      } finally {
+        leavingRef.current = false;
       }
     },
     [callId]
   );
 
+  // ── Media toggles ─────────────────────────────────────────────────────
   const toggleCamera = useCallback(async () => {
     if (!agoraServiceRef.current) return;
-
     try {
       const newState = await agoraServiceRef.current.toggleCamera();
       setIsCameraOn(newState);
@@ -266,7 +279,6 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
 
   const toggleMic = useCallback(async () => {
     if (!agoraServiceRef.current) return;
-
     try {
       const newState = await agoraServiceRef.current.toggleMic();
       setIsMicOn(newState);
@@ -277,7 +289,6 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
 
   const switchCamera = useCallback(async () => {
     if (!agoraServiceRef.current) return;
-
     try {
       await agoraServiceRef.current.switchCamera();
     } catch (err: any) {
@@ -301,4 +312,3 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
     agoraService: agoraServiceRef.current,
   };
 }
-

@@ -52,7 +52,7 @@ export function InviteCodeForm({ onValidCode, onBack }: InviteCodeFormProps) {
 
   const cardClasses = device === 'mobile' 
     ? "w-full border-0 bg-transparent shadow-none"
-    : "w-full max-w-sm glass shadow-apple-lg";
+    : "w-full max-w-sm glass shadow-[3px_5px_20px_rgba(0,0,0,0.2)]";
 
   return (
     <Card className={cardClasses}>

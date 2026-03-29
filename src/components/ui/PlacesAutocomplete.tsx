@@ -181,7 +181,7 @@ export function PlacesAutocomplete({
       )}
       
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-card border-2 border-border rounded-xl shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 w-full mt-1 bg-card border-2 border-border rounded-xl shadow-lg max-h-60 overflow-auto custom-scrollbar">
           {suggestions.map((place) => (
             <div
               key={place.place_id}

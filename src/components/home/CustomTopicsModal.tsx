@@ -1,63 +1,124 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, Loader2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
+import {
+  getVisibleTopics,
+  createUserPreset,
+  updateUserPreset,
+  deleteUserPreset,
+  UnifiedTopic,
+} from '@/lib/api/topics';
 
 interface CustomTopicsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  editingPreset?: { name: string; topics: string[]; customQuestions?: string[] };
+  editingPresetId?: string | null;
+  circleId?: string | null;
   tempCustomData?: { topics: string[]; customQuestions?: string[] } | null;
-  onSavePreset: (name: string, topics: string[], customQuestions?: string[]) => void;
+  onSavePreset: () => void | Promise<void>;
   onUseOnce?: (topics: string[], customQuestions?: string[]) => void;
-  onDeletePreset?: () => void;
+  onDeletePreset?: () => void | Promise<void>;
 }
 
-const topicCategories = [
-  'Hobbies', 'Career', 'Business advice', 'Investments',
-  'Traveling & Trips', 'Politics', 'Values & Beliefs', 'Fun Facts',
-  'Would You Rather', 'Bucket List Items', 'This or That', 'Life Lessons',
-  'Passions', 'Books & Movies', 'Sports & Wellness', 'Goals & Ambitions', 'Custom'
-];
-
-export function CustomTopicsModal({ open, onOpenChange, editingPreset, tempCustomData, onSavePreset, onUseOnce, onDeletePreset }: CustomTopicsModalProps) {
+export function CustomTopicsModal({ 
+  open, 
+  onOpenChange, 
+  editingPresetId, 
+  circleId,
+  tempCustomData, 
+  onSavePreset, 
+  onUseOnce, 
+  onDeletePreset 
+}: CustomTopicsModalProps) {
   const [presetName, setPresetName] = useState('');
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [customQuestions, setCustomQuestions] = useState<string[]>([]);
   const [newQuestion, setNewQuestion] = useState('');
   const [nameError, setNameError] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  // Available topics from database
+  const [availableTopics, setAvailableTopics] = useState<UnifiedTopic[]>([]);
+  const [loadingTopics, setLoadingTopics] = useState(true);
 
-  // Load editing preset data or temp custom data
-  useEffect(() => {
-    if (editingPreset) {
-      setPresetName(editingPreset.name);
-      const regularTopics = editingPreset.topics.filter(t => topicCategories.includes(t));
-      setSelectedTopics(regularTopics);
-      setCustomQuestions(editingPreset.customQuestions || []);
-    } else if (tempCustomData) {
-      setPresetName('');
-      const regularTopics = tempCustomData.topics.filter(t => topicCategories.includes(t));
-      setSelectedTopics(regularTopics);
-      setCustomQuestions(tempCustomData.customQuestions || []);
-    } else {
-      setPresetName('');
-      setSelectedTopics([]);
-      setCustomQuestions([]);
-      setNewQuestion('');
+  // Load available topics
+  const loadTopics = useCallback(async () => {
+    setLoadingTopics(true);
+    try {
+      // Pass circleId to get circle-specific topics
+      const topics = await getVisibleTopics(circleId);
+      setAvailableTopics(topics);
+    } catch (error) {
+      console.error('Error loading topics:', error);
+    } finally {
+      setLoadingTopics(false);
     }
-    setNameError(false);
-  }, [editingPreset, tempCustomData, open]);
+  }, [circleId]);
 
-  const toggleTopic = (topic: string) => {
-    if (selectedTopics.includes(topic)) {
-      setSelectedTopics(selectedTopics.filter(t => t !== topic));
+  // Load topics when modal opens
+  useEffect(() => {
+    if (open) {
+      loadTopics();
+    }
+  }, [open, loadTopics]);
+
+  // Load editing preset data
+  useEffect(() => {
+    const loadEditingData = async () => {
+      if (editingPresetId) {
+        try {
+          // Load user preset from database
+          const { data: preset } = await supabase
+            .from('user_presets')
+            .select('*')
+            .eq('id', editingPresetId)
+            .single();
+          
+          if (preset) {
+            setPresetName(preset.name);
+            // Combine all topic IDs
+            const allTopicIds = [
+              ...(preset.default_topic_ids || []),
+              ...(preset.circle_topic_ids || []),
+              ...(preset.user_topic_ids || [])
+            ];
+            setSelectedTopicIds(allTopicIds);
+            // Load custom questions (these are editable)
+            setCustomQuestions(preset.custom_questions || []);
+          }
+        } catch (error) {
+          console.error('Error loading preset:', error);
+        }
+      } else if (tempCustomData) {
+        setPresetName('');
+        setSelectedTopicIds([]);
+        setCustomQuestions(tempCustomData.customQuestions || []);
+      } else {
+        setPresetName('');
+        setSelectedTopicIds([]);
+        setCustomQuestions([]);
+        setNewQuestion('');
+      }
+      setNameError(false);
+    };
+    
+    if (open) {
+      loadEditingData();
+    }
+  }, [editingPresetId, tempCustomData, open]);
+
+  const toggleTopic = (topicId: string) => {
+    if (selectedTopicIds.includes(topicId)) {
+      setSelectedTopicIds(selectedTopicIds.filter(t => t !== topicId));
     } else {
-      if (selectedTopics.length < 5) {
-        setSelectedTopics([...selectedTopics, topic]);
+      if (selectedTopicIds.length < 5) {
+        setSelectedTopicIds([...selectedTopicIds, topicId]);
       } else {
         toast({ description: 'Maximum 5 topics allowed', variant: 'destructive' });
       }
@@ -75,35 +136,106 @@ export function CustomTopicsModal({ open, onOpenChange, editingPreset, tempCusto
     setCustomQuestions(customQuestions.filter((_, i) => i !== idx));
   };
 
-  const handleSavePreset = () => {
+  const handleSavePreset = async () => {
     if (!presetName.trim()) {
       setNameError(true);
       toast({ description: 'Please enter a preset name', variant: 'destructive' });
       return;
     }
-    if (selectedTopics.length === 0 && customQuestions.length === 0) {
+    if (selectedTopicIds.length === 0 && customQuestions.length === 0) {
       toast({ description: 'Select at least 1 topic or add a custom question', variant: 'destructive' });
       return;
     }
-    onSavePreset(presetName, selectedTopics, customQuestions.length > 0 ? customQuestions : undefined);
-    onOpenChange(false);
-    toast({ description: editingPreset ? 'Preset updated successfully!' : 'Preset saved successfully!' });
-    resetForm();
+    
+    setSaving(true);
+    try {
+      // Categorize selected topics by type
+      const defaultTopicIds: string[] = [];
+      const circleTopicIds: string[] = [];
+      const userTopicIds: string[] = [];
+      
+      for (const topicId of selectedTopicIds) {
+        const topic = availableTopics.find(t => t.id === topicId);
+        if (topic) {
+          if (topic.type === 'default') {
+            defaultTopicIds.push(topicId);
+          } else if (topic.type === 'circle') {
+            circleTopicIds.push(topicId);
+          } else if (topic.type === 'user') {
+            userTopicIds.push(topicId);
+          }
+        }
+      }
+      
+      if (editingPresetId) {
+        // Update existing preset - save custom questions directly
+        await updateUserPreset(editingPresetId, {
+          name: presetName,
+          defaultTopicIds,
+          circleTopicIds,
+          userTopicIds,
+          customQuestions // Save as editable custom questions, NOT a frozen topic
+        });
+        toast({ description: 'Preset updated successfully!' });
+      } else {
+        // Create new preset - save custom questions directly
+        await createUserPreset({
+          name: presetName,
+          defaultTopicIds,
+          circleTopicIds,
+          userTopicIds,
+          customQuestions // Save as editable custom questions, NOT a frozen topic
+        });
+        toast({ description: 'Preset saved successfully!' });
+      }
+      
+      await onSavePreset();
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error('Error saving preset:', error);
+      toast({ description: 'Failed to save preset', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleUseOnce = () => {
-    if (selectedTopics.length === 0 && customQuestions.length === 0) {
+    if (selectedTopicIds.length === 0 && customQuestions.length === 0) {
       toast({ description: 'Select at least 1 topic or add a custom question', variant: 'destructive' });
       return;
     }
-    onUseOnce?.(selectedTopics, customQuestions.length > 0 ? customQuestions : undefined);
+    // Get topic names from IDs for legacy compatibility
+    const topicNames = availableTopics
+      .filter(t => selectedTopicIds.includes(t.id))
+      .map(t => t.name);
+    
+    onUseOnce?.(topicNames, customQuestions.length > 0 ? customQuestions : undefined);
     onOpenChange(false);
     toast({ description: 'Custom topics applied!' });
   };
 
+  const handleDeletePreset = async () => {
+    if (!editingPresetId) return;
+    
+    setSaving(true);
+    try {
+      await deleteUserPreset(editingPresetId);
+      await onDeletePreset?.();
+      onOpenChange(false);
+      toast({ description: 'Preset deleted successfully!' });
+      resetForm();
+    } catch (error) {
+      console.error('Error deleting preset:', error);
+      toast({ description: 'Failed to delete preset', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetForm = () => {
     setPresetName('');
-    setSelectedTopics([]);
+    setSelectedTopicIds([]);
     setCustomQuestions([]);
     setNewQuestion('');
     setNameError(false);
@@ -111,9 +243,9 @@ export function CustomTopicsModal({ open, onOpenChange, editingPreset, tempCusto
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
-          <DialogTitle>{editingPreset ? 'Edit Topic Preset' : 'Create Custom Topic Preset'}</DialogTitle>
+          <DialogTitle>{editingPresetId ? 'Edit Topic Preset' : 'Create Custom Topic Preset'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -132,90 +264,98 @@ export function CustomTopicsModal({ open, onOpenChange, editingPreset, tempCusto
             {nameError && <p className="text-xs text-red-500">Please enter a preset name</p>}
           </div>
 
-          <div className="text-sm text-destructive text-right font-medium">
-            Select Minimum 1; Maximum 5
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-destructive font-medium">
+              Select Minimum 1; Maximum 5
+            </div>
+            {loadingTopics && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
           </div>
 
-          {/* Topics */}
+          {/* Topics from database */}
           <div className="flex flex-wrap gap-2">
-            {topicCategories.map((topic) => (
+            {availableTopics.map((topic) => (
               <Badge
-                key={topic}
-                variant={selectedTopics.includes(topic) ? 'default' : 'secondary'}
+                key={topic.id}
+                variant={selectedTopicIds.includes(topic.id) ? 'default' : 'secondary'}
                 className={`cursor-pointer px-5 py-2 text-sm ${
-                  topic === 'Custom' ? 'bg-warning hover:bg-warning/90 text-warning-foreground' : ''
-                } ${selectedTopics.includes(topic) ? 'shadow-glow' : 'shadow-apple-sm'}`}
-                onClick={() => toggleTopic(topic)}
+                  topic.type === 'user' ? 'border-2 border-purple-300' : 
+                  topic.type === 'circle' ? '' : ''
+                } ${selectedTopicIds.includes(topic.id) ? 'border-none' : ''}`}
+                onClick={() => toggleTopic(topic.id)}
               >
-                {topic}
+                {topic.name}
               </Badge>
             ))}
           </div>
 
-          {/* Custom Questions - Only show if Custom is selected */}
-          {selectedTopics.includes('Custom') && (
-            <div className="space-y-3 pt-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Type your own questions here..."
-                  value={newQuestion}
-                  onChange={(e) => setNewQuestion(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addCustomQuestion()}
-                  className="flex-1"
-                />
-                <Button size="icon" onClick={addCustomQuestion} className="shrink-0">
-                  <Plus className="h-5 w-5" />
-                </Button>
-              </div>
-
-              {customQuestions.length > 0 && (
-                <div className="space-y-2">
-                  {customQuestions.map((q, idx) => (
-                    <div key={idx} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 shrink-0 text-destructive"
-                        onClick={() => removeCustomQuestion(idx)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                      <span className="text-sm flex-1">{q}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+          {/* Custom Questions Section - EDITABLE */}
+          <div className="space-y-3 pt-4 border-t">
+            <Label className="text-sm font-semibold">Your Custom Questions</Label>
+            <p className="text-xs text-muted-foreground">
+              Add your own conversation starters. These stay editable and are saved with this preset.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Type your own questions here..."
+                value={newQuestion}
+                onChange={(e) => setNewQuestion(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addCustomQuestion()}
+                className="flex-1"
+              />
+              <Button size="icon" onClick={addCustomQuestion} className="shrink-0">
+                <Plus className="h-5 w-5" />
+              </Button>
             </div>
-          )}
+
+            {customQuestions.length > 0 && (
+              <div className="space-y-2">
+                {customQuestions.map((q, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 shrink-0 text-destructive"
+                      onClick={() => removeCustomQuestion(idx)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm flex-1">{q}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Actions */}
           <div className="flex gap-2 justify-between">
             <div className="flex gap-2">
-              <Button onClick={handleSavePreset} disabled={selectedTopics.length === 0 && customQuestions.length === 0}>
+              <Button 
+                onClick={handleSavePreset} 
+                disabled={saving || (selectedTopicIds.length === 0 && customQuestions.length === 0)}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Save Preset
               </Button>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                 Cancel
               </Button>
-              {!editingPreset && (
+              {!editingPresetId && (
                 <Button 
                   variant="secondary" 
                   onClick={handleUseOnce}
-                  disabled={selectedTopics.length === 0 && customQuestions.length === 0}
+                  disabled={saving || (selectedTopicIds.length === 0 && customQuestions.length === 0)}
                 >
                   Use Once
                 </Button>
               )}
             </div>
-            {editingPreset && onDeletePreset && (
+            {editingPresetId && onDeletePreset && (
               <Button 
                 variant="destructive" 
-                onClick={() => {
-                  onDeletePreset();
-                  onOpenChange(false);
-                  toast({ description: 'Preset deleted successfully!' });
-                }}
+                onClick={handleDeletePreset}
+                disabled={saving}
               >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                 Delete
               </Button>
             )}

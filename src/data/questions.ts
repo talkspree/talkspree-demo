@@ -1,3 +1,20 @@
+/**
+ * LEGACY QUESTIONS DATA
+ * 
+ * NOTE: This file maintains backward compatibility with existing code.
+ * The new topics/presets system is in src/lib/api/topics.ts and uses the database.
+ * 
+ * For new features, prefer using the database-driven API:
+ * - getVisiblePresets() - get all presets a user can see
+ * - getPresetQuestions() - get questions for a preset
+ * - createUserPreset() - create a user's custom preset
+ * 
+ * This file provides fallback presets for:
+ * 1. When database tables don't exist yet (migration not applied)
+ * 2. When preset ID matches legacy names (icebreak, friendship, career)
+ * 3. Custom presets built on-the-fly during calls
+ */
+
 export interface Question {
   text: string;
   topic: string;
@@ -15,6 +32,13 @@ export const QUESTION_INTERVAL_SECONDS = 180;
 
 const fallbackTopic = "Conversation";
 
+/**
+ * Legacy hardcoded presets - these are FALLBACKS only.
+ * The main presets are now stored in the database (topic_presets table).
+ * These will be used when:
+ * 1. Database tables don't exist yet
+ * 2. A call was started with legacy preset IDs
+ */
 export const topicPresets: TopicPreset[] = [
   {
     id: "icebreak",
@@ -57,9 +81,82 @@ export const topicPresets: TopicPreset[] = [
   },
 ];
 
+// Cache for database presets loaded asynchronously
+let dbPresetsCache: Map<string, TopicPreset> = new Map();
+
+/**
+ * Get a preset by ID - checks legacy presets first, then database cache
+ * For async loading from database, use loadPresetFromDatabase()
+ */
 export const getPresetById = (id?: string | null): TopicPreset => {
   if (!id) return topicPresets[0];
-  return topicPresets.find((preset) => preset.id === id) || topicPresets[0];
+  
+  // Check legacy presets first
+  const legacyPreset = topicPresets.find((preset) => preset.id === id);
+  if (legacyPreset) return legacyPreset;
+  
+  // Check database cache
+  const cachedPreset = dbPresetsCache.get(id);
+  if (cachedPreset) return cachedPreset;
+  
+  // Return default fallback
+  return topicPresets[0];
+};
+
+/**
+ * Load a preset from the database asynchronously and cache it
+ * This should be called when initializing a call with a database preset ID
+ */
+export const loadPresetFromDatabase = async (
+  presetId: string, 
+  presetType: 'default' | 'circle' | 'user' = 'default'
+): Promise<TopicPreset | null> => {
+  // Check cache first
+  if (dbPresetsCache.has(presetId)) {
+    return dbPresetsCache.get(presetId)!;
+  }
+  
+  // Check legacy presets
+  const legacyPreset = topicPresets.find(p => p.id === presetId);
+  if (legacyPreset) {
+    return legacyPreset;
+  }
+  
+  try {
+    // Dynamically import to avoid circular dependencies
+    const { getPresetQuestions } = await import('@/lib/api/topics');
+    const questions = await getPresetQuestions(presetId, presetType);
+    
+    if (questions && questions.length > 0) {
+      // Get unique topic names
+      const topicNames = [...new Set(questions.map(q => q.topic))];
+      
+      const converted: TopicPreset = {
+        id: presetId,
+        name: presetType === 'default' ? 'Default Preset' : 'Custom Preset',
+        topics: topicNames,
+        questions: questions.map(q => ({
+          text: q.text,
+          topic: q.topic
+        }))
+      };
+      
+      // Cache for future use
+      dbPresetsCache.set(presetId, converted);
+      return converted;
+    }
+  } catch (error) {
+    console.warn('Failed to load preset from database:', error);
+  }
+  
+  return null;
+};
+
+/**
+ * Clear the database presets cache (useful after preset updates)
+ */
+export const clearPresetsCache = () => {
+  dbPresetsCache.clear();
 };
 
 export const buildCustomPreset = (

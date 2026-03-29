@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Info } from 'lucide-react';
+import { Pencil, Info, Loader2 } from 'lucide-react';
 import { CustomTopicsModal } from './CustomTopicsModal';
 import {
   Tooltip,
@@ -18,26 +18,52 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useDevice } from '@/hooks/useDevice';
-import { useProfileData } from '@/hooks/useProfileData';
+import { useCircle } from '@/contexts/CircleContext';
 import { supabase } from '@/lib/supabase';
+import { 
+  getVisiblePresetsWithUserPresets,
+  UnifiedPreset,
+  UserPreset
+} from '@/lib/api/topics';
+import { getCircleRoles, CircleRole } from '@/lib/api/circles';
+import { cn } from '@/lib/utils';
 
-type Role = 'random' | 'alumni' | 'mentee' | 'mentor';
-type TopicPreset = 'none' | 'icebreak' | 'friendship' | 'career' | 'custom' | string;
-type Duration = 10 | 15 | 30 | 0;
+type TopicPresetSelection = 'none' | 'custom' | string;
+type Duration = 10 | 15 | 30;
 
 export function FiltersSection() {
   const navigate = useNavigate();
   const device = useDevice();
-  const [role, setRole] = useState<Role>('random');
+  const { circleId, isAdmin, allowMemberCustomTopics, loading: circleLoading } = useCircle();
+  const [role, setRole] = useState<string>('random');
   const [similarity, setSimilarity] = useState(50);
-  const [topic, setTopic] = useState<TopicPreset>('none');
+
+  // Elastic-snap slider internals
+  const [isDragging, setIsDragging] = useState(false);
+  const [rawValue, setRawValue] = useState(50);
+
+  // Dynamic circle roles
+  const [circleRoles, setCircleRoles] = useState<CircleRole[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+  const [selectedPreset, setSelectedPreset] = useState<TopicPresetSelection>('none');
   const [duration, setDuration] = useState<Duration>(10);
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const [customPresets, setCustomPresets] = useState<Array<{ name: string; topics: string[]; customQuestions?: string[] }>>([]);
-  const [editingPresetIndex, setEditingPresetIndex] = useState<number | null>(null);
+  
+  // Database presets (default + circle + user)
+  const [dbPresets, setDbPresets] = useState<UnifiedPreset[]>([]);
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [loadingPresets, setLoadingPresets] = useState(true);
+  
+  // For editing user presets
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  
+  // Temporary custom selection (use once without saving)
   const [tempCustomTopics, setTempCustomTopics] = useState<{ topics: string[]; customQuestions?: string[] } | null>(null);
-  const [matchCount, setMatchCount] = useState<number | null>(null);
+  
+  const [lookingForChatCount, setLookingForChatCount] = useState<number>(0);
+  const [chattingCount, setChattingCount] = useState<number>(0);
   const [checkingMatches, setCheckingMatches] = useState(false);
+  const [statsInitialized, setStatsInitialized] = useState(false);
 
   const getSimilarityLabel = () => {
     if (similarity <= 33) return 'Different';
@@ -45,88 +71,150 @@ export function FiltersSection() {
     return 'Similar';
   };
 
-  const { profileData } = useProfileData();
-  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
+  // Load presets from database (single call returns both unified + user presets)
+  const loadPresets = useCallback(async () => {
+    setLoadingPresets(true);
+    try {
+      const { presets, userPresets: myPresets } = await getVisiblePresetsWithUserPresets(circleId);
+      setDbPresets(presets);
+      setUserPresets(myPresets);
+    } catch (error) {
+      console.error('Error loading presets:', error);
+    } finally {
+      setLoadingPresets(false);
+    }
+  }, [circleId]);
 
-  // Get real online users count (excluding current user)
+  // Load circle roles dynamically
   useEffect(() => {
-    const fetchOnlineUsers = async () => {
+    if (circleLoading) {
+      setLoadingRoles(true);
+      return;
+    }
+    if (!circleId) {
+      setCircleRoles([]);
+      setLoadingRoles(false);
+      return;
+    }
+
+    setLoadingRoles(true);
+    let cancelled = false;
+    (async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        const { count } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('is_online', true)
-          .neq('id', user?.id || ''); // Exclude current user
-        
-        setOnlineUsersCount(count || 0);
+        const roles = await getCircleRoles(circleId);
+        if (!cancelled) setCircleRoles(roles);
       } catch (error) {
-        console.error('Error fetching online users:', error);
+        console.error('Error loading circle roles:', error);
+      } finally {
+        if (!cancelled) setLoadingRoles(false);
       }
-    };
+    })();
+    return () => { cancelled = true; };
+  }, [circleId, circleLoading]);
 
-    fetchOnlineUsers();
-    
-    // Refresh every 10 seconds
-    const interval = setInterval(fetchOnlineUsers, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  const roleOptions = [
+    { value: 'random', label: 'Random' },
+    ...circleRoles.map(r => ({ value: r.name, label: r.name })),
+  ];
 
-  // Live check for users that match the current filters
+  const snapSimilarity = (v: number) => (v <= 25 ? 0 : v <= 75 ? 50 : 100);
+
+  // Reload presets when circle changes or loads
+  useEffect(() => {
+    if (!circleLoading) {
+      loadPresets();
+    }
+  }, [loadPresets, circleLoading]);
+
+  // Live check for users that match the current filters (both looking for chat and currently chatting)
   useEffect(() => {
     let cancelled = false;
+    // Reset initialized flag when filters change so the button doesn't falsely
+    // disable itself while we wait for the first result with the new filters.
+    setStatsInitialized(false);
+
     const checkMatches = async () => {
       setCheckingMatches(true);
       try {
-        const { getMatchCount } = await import('@/lib/api/matchmaking');
-        const count = await getMatchCount({
-          circleId: undefined,
-          preferredRoles: role && role !== 'random' ? [role] : undefined,
-          preferredTopics: topic && topic !== 'none' && topic !== 'custom' ? [topic] : undefined,
-          filterSimilarInterests: similarity === 100,
-          filterSimilarBackground: false,
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const normalizedCircleId = circleId || null;
+
+        const { data, error } = await supabase.rpc('get_global_activity_stats', {
+          p_user_id: user.id,
+          p_circle_id: normalizedCircleId,
+          p_role: role && role !== 'random' ? role : null
         });
-        if (!cancelled) {
-          setMatchCount(count);
+
+        if (error || !data) return;
+
+        const stats = Array.isArray(data) ? data[0] : data;
+
+        if (!cancelled && stats) {
+          setLookingForChatCount(stats.looking_for_chat_count || 0);
+          setChattingCount(stats.currently_chatting_count || 0);
+          setStatsInitialized(true);
         }
-      } catch (error) {
-        console.error('Error checking match availability:', error);
-        if (!cancelled) setMatchCount(null);
+      } catch {
+        // Silently keep last known counts on network/auth errors
       } finally {
         if (!cancelled) setCheckingMatches(false);
       }
     };
 
+    // Initial check with debounce when filters change
     const timer = setTimeout(checkMatches, 300);
+    
+    // Poll every 5 seconds to detect new matching users (faster polling)
+    const interval = setInterval(checkMatches, 5000);
+    
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearInterval(interval);
     };
-  }, [role, similarity, topic, duration]);
+  }, [role, similarity, selectedPreset, duration, circleId]);
 
   const handleStartSession = () => {
-    console.log('Starting session with:', { role, similarity, topic, duration });
-    const customSelection =
-      topic === 'custom'
-        ? tempCustomTopics
-        : customPresets.find((preset) => preset.name === topic);
+    // Determine preset type for the waiting room
+    let presetType: 'default' | 'circle' | 'user' | null = null;
+    if (selectedPreset !== 'none' && selectedPreset !== 'custom') {
+      const preset = dbPresets.find(p => p.id === selectedPreset);
+      if (preset) {
+        presetType = preset.type;
+      } else {
+        // Check user presets
+        const userPreset = userPresets.find(p => p.id === selectedPreset);
+        if (userPreset) {
+          presetType = 'user';
+        }
+      }
+    }
     
-    // Navigate to waiting room - real matchmaking handles everything
+    // Navigate to waiting room with preset information
     navigate('/waiting', { 
       state: { 
         duration, 
-        topic, 
+        presetId: selectedPreset !== 'none' && selectedPreset !== 'custom' ? selectedPreset : null,
+        presetType,
+        circleId, // Pass circleId for "No Topic" mode to pull all available questions
+        // Legacy support: still pass topic for backward compatibility
+        topic: selectedPreset, 
         role: role !== 'random' ? role : undefined, 
         similarity,
-        customTopics: customSelection?.topics,
-        customQuestions: customSelection?.customQuestions,
+        // For custom topics (use once)
+        customTopics: selectedPreset === 'custom' ? tempCustomTopics?.topics : undefined,
+        customQuestions: selectedPreset === 'custom' ? tempCustomTopics?.customQuestions : undefined,
       } 
     });
   };
 
-  // Use real online users count (matchmaking will handle filtering)
-  const matchingCount = matchCount !== null ? matchCount : onlineUsersCount;
+  // Total matching users (looking for chat + currently chatting)
+  const totalMatchingUsers = lookingForChatCount + chattingCount;
+
+  const isRoleFilterActive = role !== 'random';
+  const startDisabled = isRoleFilterActive && totalMatchingUsers === 0 && statsInitialized;
 
   // Info icon component - hoverable on desktop, clickable on mobile/tablet
   const InfoIcon = ({ content }: { content: string }) => {
@@ -163,9 +251,9 @@ export function FiltersSection() {
 
   return (
     <TooltipProvider>
-      <div>
-        <Card className="shadow-apple-md border-2">
-          <CardContent className="p-8 space-y-6">
+      <div className="h-full">
+        <Card className="shadow-apple-md border-2 rounded-[1.5rem] max-h-full flex flex-col">
+          <CardContent className="py-6 pl-8 pr-5 mr-2 space-y-6 overflow-y-auto custom-scrollbar min-h-0 flex-1">
           <div>
             <h2 className="text-2xl font-semibold mb-6">
               Set your preferences to find the right match.
@@ -175,26 +263,44 @@ export function FiltersSection() {
             <div className="space-y-3">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Role:</label>
-                <InfoIcon content="Choose who you want to connect with: Random for anyone, Alumni for experienced members, Mentee for learners, or Mentor for guides." />
+                <InfoIcon content={`Choose who you want to connect with: Random matches you with anyone${circleRoles.length > 0 ? `, or pick a specific role (${circleRoles.map(r => r.name).join(', ')})` : ''}.`} />
+                {loadingRoles && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
               </div>
-              <div className="flex gap-2 flex-wrap">
-                {[
-                  { value: 'random', label: 'Random' },
-                  { value: 'alumni', label: 'Alumni' },
-                  { value: 'mentee', label: 'Mentee' },
-                  { value: 'mentor', label: 'Mentor' },
-                ].map((r) => (
-                  <Badge
-                    key={r.value}
-                    variant={role === r.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer px-6 py-2 md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                      role === r.value ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
-                    }`}
-                    onClick={() => setRole(r.value as Role)}
-                  >
-                    {r.label}
-                  </Badge>
-                ))}
+              <div className="flex gap-2 flex-wrap items-center">
+                {/* Random is always shown immediately */}
+                <Badge
+                  variant={role === 'random' ? 'default' : 'secondary'}
+                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                    role === 'random' ? 'border-none' : 'secondary'
+                  }`}
+                  onClick={() => setRole('random')}
+                >
+                  Random
+                </Badge>
+
+                {loadingRoles ? (
+                  /* Skeleton placeholder badges while roles load */
+                  [52, 64, 56].map((w, i) => (
+                    <div
+                      key={i}
+                      className="h-7 rounded-full bg-muted animate-pulse"
+                      style={{ width: `${w}px`, animationDelay: `${i * 120}ms` }}
+                    />
+                  ))
+                ) : (
+                  circleRoles.map((r) => (
+                    <Badge
+                      key={r.name}
+                      variant={role === r.name ? 'default' : 'secondary'}
+                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                        role === r.name ? 'border-none' : 'secondary'
+                      }`}
+                      onClick={() => setRole(r.name)}
+                    >
+                      {r.name}
+                    </Badge>
+                  ))
+                )}
               </div>
             </div>
 
@@ -202,20 +308,30 @@ export function FiltersSection() {
             <div className="space-y-3 pt-4">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Similarity Slider:</label>
-                <InfoIcon content="Different: Meet people with opposite interests. Balanced: Mix of similar and different. Similar: Connect with people who share your interests." />
+                <InfoIcon content="Different: Meet people with different backgrounds and interests (below 30% similarity). Balanced: A mix of similar and different (30-70%). Similar: Connect with people who share your profile (above 70%)." />
               </div>
               <div className="w-full max-w-md">
                 <Slider
-                  value={[similarity]}
+                  value={[isDragging ? rawValue : similarity]}
                   onValueChange={([v]) => {
-                    // Snap to closest value
-                    if (v <= 33) setSimilarity(0);
-                    else if (v <= 66) setSimilarity(50);
-                    else setSimilarity(100);
+                    setRawValue(v);
+                    if (!isDragging) setIsDragging(true);
                   }}
+                  onValueCommit={([v]) => {
+                    const snapped = snapSimilarity(v);
+                    setSimilarity(snapped);
+                    setRawValue(snapped);
+                    setIsDragging(false);
+                  }}
+                  min={0}
                   max={100}
-                  step={50}
-                  className="py-4"
+                  step={1}
+                  className={`py-2 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+                  thumbClassName={
+                    isDragging
+                      ? 'transition-none scale-110 cursor-grabbing'
+                      : 'slider-snap hover:scale-110 cursor-grab'
+                  }
                 />
               </div>
               <div className="flex justify-between md:text-sm text-xs w-full max-w-md">
@@ -235,63 +351,92 @@ export function FiltersSection() {
             <div className="space-y-3 pt-4">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Topics:</label>
-                <InfoIcon content="Select a conversation theme. Ice-Break for casual chat, Friendship Fast-Track for deeper connections, Career Swap for professional talk, or create your own Custom topic." />
+                <InfoIcon content="Select a conversation theme from the available presets, or create your own Custom topic." />
+                {loadingPresets && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
               </div>
               <div className="flex flex-wrap gap-2">
-                {[
-                  { value: 'none', label: 'No Topic' },
-                  { value: 'icebreak', label: 'Ice-Break' },
-                  { value: 'friendship', label: 'Friendship Fast-Track' },
-                  { value: 'career', label: 'Career Swap' },
-                ].map((t) => (
-                  <Badge
-                    key={t.value}
-                    variant={topic === t.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                      topic === t.value ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
-                    }`}
-                    onClick={() => setTopic(t.value as TopicPreset)}
-                  >
-                    {t.label}
-                  </Badge>
-                ))}
+                {/* No Topic option */}
+                <Badge
+                  variant={selectedPreset === 'none' ? 'default' : 'secondary'}
+                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                    selectedPreset === 'none' ? 'border-none' : 'secondary'
+                  }`}
+                  onClick={() => setSelectedPreset('none')}
+                >
+                  No Topic
+                </Badge>
                 
-                {/* Custom Presets */}
-                {customPresets.map((preset, idx) => (
+                {/* Default presets from database */}
+                {dbPresets
+                  .filter(p => p.type === 'default')
+                  .map((preset) => (
+                    <Badge
+                      key={preset.id}
+                      variant={selectedPreset === preset.id ? 'default' : 'secondary'}
+                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                        selectedPreset === preset.id ? 'border-none' : 'secondary'
+                      }`}
+                      onClick={() => setSelectedPreset(preset.id)}
+                    >
+                      {preset.name}
+                    </Badge>
+                  ))}
+                
+                {/* Circle presets (if any) */}
+                {dbPresets
+                  .filter(p => p.type === 'circle')
+                  .map((preset) => (
+                    <Badge
+                      key={preset.id}
+                      variant={selectedPreset === preset.id ? 'default' : 'secondary'}
+                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                        selectedPreset === preset.id ? 'border-none' : 'secondary'
+                      }`}
+                      onClick={() => setSelectedPreset(preset.id)}
+                    >
+                      {preset.name}
+                    </Badge>
+                  ))}
+                
+                {/* User's saved presets — hidden for members when custom topics are disabled */}
+                {(isAdmin || allowMemberCustomTopics) && userPresets.map((preset) => (
                   <Badge
-                    key={`preset-${idx}`}
-                    variant={topic === preset.name ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 transition-all hover:scale-105 ${
-                      topic === preset.name ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
+                    key={preset.id}
+                    variant={selectedPreset === preset.id ? 'default' : 'secondary'}
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 transition-all hover:scale-105 border-2 border-blue-300 ${
+                      selectedPreset === preset.id ? 'border-none' : 'secondary'
                     }`}
-                    onClick={() => setTopic(preset.name)}
+                    onClick={() => setSelectedPreset(preset.id)}
                   >
                     {preset.name}
                     <Pencil 
                       className="h-3 w-3" 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditingPresetIndex(idx);
+                        setEditingPresetId(preset.id);
                         setShowCustomModal(true);
                       }}
                     />
                   </Badge>
                 ))}
 
-                <Badge
-                  variant={topic === 'custom' ? 'default' : 'secondary'}
-                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 transition-all hover:scale-105 ${
-                    topic === 'custom' ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
-                  }`}
-                  onClick={() => {
-                    setTopic('custom');
-                    setEditingPresetIndex(null);
-                    setShowCustomModal(true);
-                  }}
-                >
-                  Custom
-                  {topic === 'custom' && <Pencil className="h-3 w-3" />}
-                </Badge>
+                {/* Custom / Create new preset button — hidden for members when disabled by admin */}
+                {(isAdmin || allowMemberCustomTopics) && (
+                  <Badge
+                    variant={selectedPreset === 'custom' ? 'default' : 'secondary'}
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 transition-all hover:scale-105 ${
+                      selectedPreset === 'custom' ? 'border-none' : 'border-none'
+                    }`}
+                    onClick={() => {
+                      setSelectedPreset('custom');
+                      setEditingPresetId(null);
+                      setShowCustomModal(true);
+                    }}
+                  >
+                    Custom
+                    {selectedPreset === 'custom' && <Pencil className="h-3 w-3" />}
+                  </Badge>
+                )}
               </div>
             </div>
 
@@ -299,20 +444,19 @@ export function FiltersSection() {
             <div className="space-y-3 pt-4">
               <div className="flex items-center gap-1.5">
                 <label className="text-sm font-semibold">Session:</label>
-                <InfoIcon content="Choose your conversation length: 10, 15, or 30 minutes for a timed session, or ∞ for unlimited time to chat." />
+                <InfoIcon content="Choose your conversation length: 10, 15, or 30 minutes." />
               </div>
               <div className="flex gap-2 flex-wrap">
                 {[
                   { value: 10, label: '10 min' },
                   { value: 15, label: '15 min' },
                   { value: 30, label: '30 min' },
-                  { value: 0, label: '∞' },
                 ].map((d) => (
                   <Badge
                     key={d.value}
                     variant={duration === d.value ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-6 px-4 md:py-2 py-1.5 whitespace-nowrap transition-all hover:scale-105 ${
-                      duration === d.value ? 'shadow-glow' : 'shadow-[0_4px_12px_rgba(0,0,0,0.15)]'
+                    className={`cursor-pointer md:text-sm text-xs md:px-4 px-4 md:py-2 py-1.5 whitespace-nowrap transition-all hover:scale-105 ${
+                      duration === d.value ? 'border-none' : 'secondary'
                     }`}
                     onClick={() => setDuration(d.value as Duration)}
                   >
@@ -324,24 +468,50 @@ export function FiltersSection() {
           </div>
 
           <div className="flex justify-start flex-col gap-2">
-            {matchCount !== null && matchCount === 0 && (
-              <div className="text-sm text-destructive">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-block">
+                  <Button
+                    size="lg"
+                    className={cn(
+                      "w-36 text-lg font-semibold py-6 rounded-full my-2",
+                      startDisabled && "opacity-50 cursor-not-allowed pointer-events-none"
+                    )}
+                    onClick={startDisabled ? undefined : handleStartSession}
+                  >
+                    START
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {startDisabled && (
+                <TooltipContent side="bottom">
+                  <p>No "{role}" members are currently online. Wait or select a different role.</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+            {totalMatchingUsers === 0 && statsInitialized && !isRoleFilterActive && (
+              <div className="text-xs text-destructive">
                 No one currently matches your filters. You can still start and wait.
               </div>
             )}
-            {checkingMatches && (
-              <div className="text-xs text-muted-foreground">Checking live availability…</div>
+            {totalMatchingUsers > 0 && (
+              <div className="text-xs text-muted-foreground">
+                {lookingForChatCount > 0 && chattingCount > 0 ? (
+                  <p>
+                    {lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat, {chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting
+                  </p>
+                ) : (
+                  <>
+                    {lookingForChatCount > 0 && (
+                      <p>{lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat</p>
+                    )}
+                    {chattingCount > 0 && (
+                      <p>{chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting</p>
+                    )}
+                  </>
+                )}
+              </div>
             )}
-            <Button
-              size="lg"
-              className="w-48 text-lg font-semibold py-6 shadow-glow"
-              onClick={handleStartSession}
-            >
-              START
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              {matchingCount} user{matchingCount !== 1 ? 's' : ''} match your filters
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -350,30 +520,23 @@ export function FiltersSection() {
         open={showCustomModal}
         onOpenChange={(open) => {
           setShowCustomModal(open);
-          if (!open) setEditingPresetIndex(null);
+          if (!open) setEditingPresetId(null);
         }}
-        editingPreset={editingPresetIndex !== null ? customPresets[editingPresetIndex] : undefined}
-        tempCustomData={editingPresetIndex === null && topic === 'custom' ? tempCustomTopics : undefined}
-        onSavePreset={(name, topics, customQuestions) => {
-          if (editingPresetIndex !== null) {
-            const updated = [...customPresets];
-            updated[editingPresetIndex] = { name, topics, customQuestions };
-            setCustomPresets(updated);
-            setEditingPresetIndex(null);
-          } else {
-            setCustomPresets([...customPresets, { name, topics, customQuestions }]);
-          }
+        editingPresetId={editingPresetId}
+        circleId={circleId}
+        tempCustomData={editingPresetId === null && selectedPreset === 'custom' ? tempCustomTopics : undefined}
+        onSavePreset={async () => {
+          // Reload presets after saving
+          await loadPresets();
         }}
         onUseOnce={(topics, customQuestions) => {
           setTempCustomTopics({ topics, customQuestions });
         }}
-        onDeletePreset={() => {
-          if (editingPresetIndex !== null) {
-            const updated = customPresets.filter((_, idx) => idx !== editingPresetIndex);
-            setCustomPresets(updated);
-            setTopic('none');
-            setEditingPresetIndex(null);
-          }
+        onDeletePreset={async () => {
+          // Reload presets after deleting
+          await loadPresets();
+          setSelectedPreset('none');
+          setEditingPresetId(null);
         }}
       />
       </div>

@@ -3,10 +3,11 @@ import { computeSimilarityScore, ProfileForSimilarity } from '@/lib/similarity';
 
 export interface MatchmakingFilters {
   circleId?: string;
-  preferredRoles?: ('mentor' | 'mentee' | 'alumni')[];
+  preferredRoles?: string[];
   preferredTopics?: string[];
   filterSimilarInterests?: boolean;
   filterSimilarBackground?: boolean;
+  similarityPreference?: number; // 0=Different, 50=Balanced, 100=Similar
 }
 
 export interface MatchmakingQueueEntry {
@@ -17,6 +18,7 @@ export interface MatchmakingQueueEntry {
   preferred_topics: string[] | null;
   filter_similar_interests: boolean;
   filter_similar_background: boolean;
+  similarity_preference: number | null;
   session_duration_minutes: number;
   status: 'waiting' | 'matched' | 'cancelled';
   joined_queue_at: string;
@@ -64,6 +66,7 @@ export async function joinMatchmakingQueue(filters: MatchmakingFilters, sessionD
       preferred_topics: filters.preferredTopics || null,
       filter_similar_interests: filters.filterSimilarInterests || false,
       filter_similar_background: filters.filterSimilarBackground || false,
+      similarity_preference: filters.similarityPreference ?? null,
       session_duration_minutes: sessionDuration,
       status: 'waiting',
     })
@@ -71,6 +74,19 @@ export async function joinMatchmakingQueue(filters: MatchmakingFilters, sessionD
     .single();
 
   if (error) {
+    // 23505 = unique constraint violation — entry already exists (e.g. React Strict Mode double-fire)
+    if (error.code === '23505') {
+      console.warn('[joinMatchmakingQueue] Entry already exists, recovering');
+      const { data: existing } = await supabase
+        .from('matchmaking_queue')
+        .select()
+        .eq('user_id', user.id)
+        .eq('status', 'waiting')
+        .order('joined_queue_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing) return existing;
+    }
     console.error('Error joining queue:', error);
     throw error;
   }
@@ -99,6 +115,12 @@ export async function leaveMatchmakingQueue() {
     .eq('status', 'waiting');
 
   if (error) throw error;
+
+  // Clear online/in_call flags so the user doesn't appear as a ghost
+  await supabase
+    .from('profiles')
+    .update({ is_online: false, in_call: false })
+    .eq('id', user.id);
 }
 
 /**
@@ -286,9 +308,11 @@ export async function attemptMatch(
   sessionDuration: number = 15,
   topicConfig?: {
     topicPreset?: string;
+    presetType?: 'default' | 'circle' | 'user';
     customTopics?: string[];
     customQuestions?: string[];
-  }
+  },
+  skipUserIds?: string[]
 ): Promise<MatchAttemptResult | null> {
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -300,6 +324,7 @@ export async function attemptMatch(
     caller_custom_topics: topicConfig?.customTopics || null,
     caller_custom_questions: topicConfig?.customQuestions || null,
     caller_session_duration: sessionDuration,
+    skip_user_ids: skipUserIds && skipUserIds.length > 0 ? skipUserIds : null,
   });
 
   if (error) {
@@ -309,12 +334,71 @@ export async function attemptMatch(
 
   const row = Array.isArray(data) ? data?.[0] : data;
 
-  if (!row) return null;
+  if (!row || !row.call_id) return null;
+
+  if (topicConfig?.presetType) {
+    await supabase
+      .from('call_history')
+      .update({ caller_preset_type: topicConfig.presetType })
+      .eq('id', row.call_id);
+  }
 
   return {
     callId: row.call_id as string,
     matchedUserId: row.matched_user_id as string,
   };
+}
+
+/**
+ * Send a "ready" signal for connection verification in the WaitingRoom.
+ * Both users must send this before proceeding to the countdown.
+ */
+export async function sendReadySignal(callId: string): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase
+    .from('call_signals')
+    .insert({
+      call_id: callId,
+      user_id: user.id,
+      signal_type: 'ready',
+    });
+
+  if (error) {
+    console.error('Failed to send ready signal:', error);
+    throw error;
+  }
+}
+
+/**
+ * Subscribe to ready signals for a specific call.
+ * Returns the Supabase realtime channel (call .unsubscribe() to clean up).
+ */
+export function subscribeToReadySignals(
+  callId: string,
+  onReady: (userId: string) => void
+) {
+  const channel = supabase
+    .channel(`ready_signals:${callId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'call_signals',
+        filter: `call_id=eq.${callId}`,
+      },
+      (payload) => {
+        const row = payload.new as any;
+        if (row.signal_type === 'ready') {
+          onReady(row.user_id);
+        }
+      }
+    )
+    .subscribe();
+
+  return channel;
 }
 
 /**
@@ -346,9 +430,11 @@ export async function createMatch(
   matchedUserId: string,
   topicConfig?: {
     topicPreset?: string;
+    presetType?: 'default' | 'circle' | 'user';
     customTopics?: string[];
     customQuestions?: string[];
-  }
+  },
+  callerDuration: number = 15
 ) {
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -356,31 +442,47 @@ export async function createMatch(
 
   const now = new Date().toISOString();
 
-  // Get circle_id from current user's queue entry
-  const { data: queueEntry, error: queueError } = await supabase
-    .from('matchmaking_queue')
-    .select('circle_id')
-    .eq('user_id', user.id)
-    .eq('status', 'waiting')
-    .maybeSingle();
+  // Get circle_id and peer's duration from queue entries
+  const [{ data: ownQueue }, { data: peerQueue }] = await Promise.all([
+    supabase
+      .from('matchmaking_queue')
+      .select('circle_id, session_duration_minutes')
+      .eq('user_id', user.id)
+      .eq('status', 'waiting')
+      .maybeSingle(),
+    supabase
+      .from('matchmaking_queue')
+      .select('session_duration_minutes')
+      .eq('user_id', matchedUserId)
+      .eq('status', 'waiting')
+      .maybeSingle(),
+  ]);
 
-  if (queueError && queueError.code !== 'PGRST116') {
-    throw queueError;
+  const peerDuration = peerQueue?.session_duration_minutes ?? 15;
+  let agreedDuration: number;
+  if (callerDuration === 0 && peerDuration === 0) {
+    agreedDuration = 0;
+  } else if (callerDuration === 0) {
+    agreedDuration = peerDuration;
+  } else if (peerDuration === 0) {
+    agreedDuration = callerDuration;
+  } else {
+    agreedDuration = Math.min(callerDuration, peerDuration);
   }
 
-  // Create a call history entry FIRST with caller's topic configuration
-  // Recipient will add theirs when they join
   const { data: call, error: callError } = await supabase
     .from('call_history')
     .insert({
       caller_id: user.id,
       recipient_id: matchedUserId,
-      circle_id: queueEntry?.circle_id || null,
+      circle_id: ownQueue?.circle_id || null,
       started_at: now,
       status: 'ongoing',
       caller_topic_preset: topicConfig?.topicPreset || null,
+      caller_preset_type: topicConfig?.presetType || null,
       caller_custom_topics: topicConfig?.customTopics || null,
       caller_custom_questions: topicConfig?.customQuestions || null,
+      agreed_duration_minutes: agreedDuration,
     })
     .select()
     .single();

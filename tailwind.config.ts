@@ -100,11 +100,20 @@ export default {
             opacity: "1",
           },
         },
+        "spin-slow": {
+          "0%": {
+            transform: "rotate(0deg)",
+          },
+          "100%": {
+            transform: "rotate(360deg)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "scale-in": "scale-in 0.8s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "spin-slow": "spin-slow 3s linear infinite",
       },
       transitionDuration: {
         "2000": "2000ms",

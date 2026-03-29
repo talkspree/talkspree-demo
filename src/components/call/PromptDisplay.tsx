@@ -3,8 +3,17 @@ import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useSharedPrompt } from '@/hooks/useSharedPrompt';
 
+const SMALL_TALK_DURATION = 60;
+
+function computeSmallTalkRemaining(callStartTime?: string | null): number {
+  if (!callStartTime) return SMALL_TALK_DURATION;
+  const elapsed = Math.floor((Date.now() - new Date(callStartTime).getTime()) / 1000);
+  return Math.max(0, SMALL_TALK_DURATION - elapsed);
+}
+
 interface PromptDisplayProps {
   callId?: string;
+  callStartTime?: string | null;
   topic?: string;
   customTopics?: string[];
   customQuestions?: string[];
@@ -14,14 +23,24 @@ interface PromptDisplayProps {
 
 export function PromptDisplay({
   callId,
+  callStartTime,
   topic,
   customTopics,
   customQuestions,
   onRequestTopicChange,
   className = '',
 }: PromptDisplayProps) {
-  const [smallTalkTimer, setSmallTalkTimer] = useState(60);
-  const [showSmallTalk, setShowSmallTalk] = useState(true);
+  const initialRemaining = computeSmallTalkRemaining(callStartTime);
+  const [smallTalkTimer, setSmallTalkTimer] = useState(initialRemaining);
+  const [showSmallTalk, setShowSmallTalk] = useState(initialRemaining > 0);
+
+  // Recalculate small talk timer if callStartTime arrives late (e.g. from recovery)
+  useEffect(() => {
+    if (!callStartTime) return;
+    const remaining = computeSmallTalkRemaining(callStartTime);
+    setSmallTalkTimer(remaining);
+    setShowSmallTalk(remaining > 0);
+  }, [callStartTime]);
 
   // Don't pass selection - hook will load from database (source of truth)
   // Only pass selection if there's no callId (local-only mode)
@@ -85,7 +104,7 @@ export function PromptDisplay({
           </div>
           
           <div className="mt-3 text-sm text-white/80">
-            <span>next question in {formatTime(nextQuestionIn)} ƒ?› </span>
+            <span>Next question in {formatTime(nextQuestionIn)} • </span>
             <span className="font-medium">*From {topicText}*</span>
           </div>
         </>

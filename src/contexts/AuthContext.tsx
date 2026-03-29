@@ -101,12 +101,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    // Set user offline before signing out
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
+      // Cancel any waiting queue entries
+      await supabase
+        .from('matchmaking_queue')
+        .update({ status: 'cancelled' })
+        .eq('user_id', user.id)
+        .eq('status', 'waiting');
+
+      // End any ongoing calls this user is part of
+      await supabase
+        .from('call_history')
+        .update({ status: 'completed', ended_at: new Date().toISOString() })
+        .or(`caller_id.eq.${user.id},recipient_id.eq.${user.id}`)
+        .eq('status', 'ongoing');
+
+      // Clear all session flags
       await supabase
         .from('profiles')
-        .update({ is_online: false })
+        .update({ is_online: false, in_call: false })
         .eq('id', user.id);
     }
     await supabase.auth.signOut();
