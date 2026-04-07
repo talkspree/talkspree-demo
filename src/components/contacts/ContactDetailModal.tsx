@@ -9,7 +9,7 @@ import { interests } from '@/data/interests';
 import { useProfileData } from '@/hooks/useProfileData';
 import { AboutMeSection } from '@/components/profile/AboutMeSection';
 import { useDevice } from '@/hooks/useDevice';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { deleteMutualContact } from '@/lib/api/contacts';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -49,6 +49,24 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      const scrollY = window.scrollY;
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      return () => {
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        document.body.style.width = '';
+        const top = document.body.style.top;
+        document.body.style.top = '';
+        window.scrollTo(0, -parseInt(top || '0'));
+      };
+    }
+  }, [open]);
 
   if (!contact) return null;
 

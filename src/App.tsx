@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, ProtectedRoute } from "./contexts/AuthContext";
 import { CircleProvider } from "./contexts/CircleContext";
@@ -21,11 +21,27 @@ import WaitingRoom from "./pages/WaitingRoom";
 import Countdown from "./pages/Countdown";
 import WrapUp from "./pages/WrapUp";
 import NotFound from "./pages/NotFound";
-// ⚠️ TEMPORARY - Remove before production
-import { DevNavigationMenu } from "./components/dev/DevNavigationMenu";
-import { DevViewportProvider, DevViewportWrapper } from "./components/dev/DevViewportContext";
 
-const queryClient = new QueryClient();
+const isDev = import.meta.env.DEV;
+
+const DevNavigationMenu = isDev
+  ? lazy(() => import("./components/dev/DevNavigationMenu").then(m => ({ default: m.DevNavigationMenu })))
+  : () => null;
+const DevViewportProvider = isDev
+  ? lazy(() => import("./components/dev/DevViewportContext").then(m => ({ default: m.DevViewportProvider })))
+  : ({ children }: { children: React.ReactNode }) => <>{children}</>;
+const DevViewportWrapper = isDev
+  ? lazy(() => import("./components/dev/DevViewportContext").then(m => ({ default: m.DevViewportWrapper })))
+  : ({ children }: { children: React.ReactNode }) => <>{children}</>;
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      retry: 1,
+    },
+  },
+});
 
 function App() {
   return (
@@ -34,9 +50,9 @@ function App() {
         <AuthProvider>
           <CircleProvider>
           <ChatProvider>
-            {/* ⚠️ TEMPORARY - Remove before production */}
+            <Suspense fallback={null}>
             <DevViewportProvider>
-            <DevNavigationMenu />
+            {isDev && <DevNavigationMenu />}
             
             <DevViewportWrapper>
             <Routes>
@@ -70,6 +86,7 @@ function App() {
             
             <Toaster />
             </DevViewportProvider>
+            </Suspense>
           </ChatProvider>
           </CircleProvider>
         </AuthProvider>

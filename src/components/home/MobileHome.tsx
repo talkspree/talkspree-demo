@@ -109,7 +109,7 @@ export function MobileHome() {
     members: totalMembers.toString(),
     online: onlineCount.toString(),
     bio: contextCircle?.description || 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
-    inviteLink: `http://talkspree.com/${contextCircle?.invite_code || 'mentortheyoung'}/invite`,
+    inviteLink: `https://talkspree.com/${contextCircle?.invite_code || 'mentortheyoung'}/invite`,
     logoUrl: contextCircle?.logo_url || '',
     socials: {
       website: contextCircle?.social_links?.website || 'https://example.com',
@@ -243,8 +243,13 @@ export function MobileHome() {
       {/* Content with top padding to account for fixed header */}
       <div className="pt-14">
         {/* Circle Cover */}
-        <div className="h-32 bg-gradient-primary relative">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')] opacity-30" />
+        <div
+          className="h-32 bg-gradient-primary relative"
+          style={contextCircle?.cover_image_url ? { backgroundImage: `url(${contextCircle.cover_image_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
+        >
+          {!contextCircle?.cover_image_url && (
+            <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIyIiBmaWxsPSIjZmZmIiBmaWxsLW9wYWNpdHk9IjAuMiIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')] opacity-30" />
+          )}
         </div>
 
         {/* Profile Section */}
@@ -252,9 +257,9 @@ export function MobileHome() {
           {/* Avatar */}
           <div className="flex justify-center mb-3">
             <Avatar className="h-28 w-28 border-4 border-background shadow-lg">
-              <AvatarImage src="" />
+              <AvatarImage src={circleData.logoUrl} />
               <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
-                M
+                {circleData.name?.[0] || 'C'}
               </AvatarFallback>
             </Avatar>
           </div>

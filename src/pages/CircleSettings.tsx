@@ -12,7 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
 import { useCircleRole } from '@/hooks/useCircleRole';
 import { 
-  getOrCreateDefaultCircle, 
+  getOrCreateDefaultCircle,
+  invalidateDefaultCircleCache,
   updateCircle, 
   getCircleRoles, 
   createCircleRole, 
@@ -199,6 +200,9 @@ export default function CircleSettings() {
         cover_image_url: coverImageUrl || null,
         social_links: socialLinks
       });
+
+      invalidateDefaultCircleCache();
+      setCircle(prev => prev ? { ...prev, name } : prev);
       
       toast({ title: 'Success', description: 'Circle settings saved successfully' });
     } catch (error) {

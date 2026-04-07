@@ -330,7 +330,7 @@ export async function getOrCreateDefaultCircle() {
       const { data: existingCircle } = await supabase
         .from('circles')
         .select('*')
-        .eq('name', 'Mentor the Young')
+        .eq('invite_code', 'MENTORYOUNG2024')
         .single();
 
       if (existingCircle) {

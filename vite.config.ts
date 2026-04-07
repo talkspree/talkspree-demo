@@ -8,12 +8,36 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
-    strictPort: true, // Don't try other ports if 8080 is in use
+    strictPort: true,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          supabase: ["@supabase/supabase-js"],
+          ui: [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-popover",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-toast",
+            "@radix-ui/react-tooltip",
+            "@radix-ui/react-select",
+            "@radix-ui/react-avatar",
+          ],
+          motion: ["framer-motion"],
+          query: ["@tanstack/react-query"],
+          agora: ["agora-rtc-sdk-ng"],
+        },
+      },
     },
   },
 }));
