@@ -35,6 +35,7 @@ export class AgoraService {
   private isJoined = false;
   private isCameraOn = true;
   private isMicOn = true;
+  private currentCameraIndex = 0;
 
   // Event callbacks
   private onUserJoinedCallback?: (user: IAgoraRTCRemoteUser) => void;
@@ -314,9 +315,15 @@ export class AgoraService {
     if (!this.localVideoTrack) return;
 
     try {
-      // @ts-ignore - switchDevice is available but not in types
-      await this.localVideoTrack.switchDevice();
-      console.log('Camera switched');
+      const cameras = await AgoraRTC.getCameras();
+      if (cameras.length < 2) {
+        console.warn('Only one camera available, cannot switch');
+        return;
+      }
+
+      this.currentCameraIndex = (this.currentCameraIndex + 1) % cameras.length;
+      await this.localVideoTrack.setDevice(cameras[this.currentCameraIndex].deviceId);
+      console.log('Camera switched to:', cameras[this.currentCameraIndex].label);
     } catch (error) {
       console.error('Failed to switch camera:', error);
       throw error;

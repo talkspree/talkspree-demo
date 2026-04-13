@@ -435,3 +435,14 @@ All colors MUST be HSL.
   }
 
 }
+
+/* Agora video containers — force child video elements to fill their parent */
+.agora-video-container > div {
+  width: 100% !important;
+  height: 100% !important;
+}
+.agora-video-container video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}

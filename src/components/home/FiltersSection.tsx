@@ -253,7 +253,7 @@ export function FiltersSection() {
     <TooltipProvider>
       <div className="h-full">
         <Card className="shadow-apple-md border-2 rounded-[1.5rem] max-h-full flex flex-col">
-          <CardContent className="py-6 pl-8 pr-5 mr-2 space-y-6 overflow-y-auto custom-scrollbar min-h-0 flex-1">
+          <CardContent className=" py-4 md:py-6 pl-6 md:pl-8 pr-4 md:pr-5 mr-2 space-y-6 overflow-y-auto custom-scrollbar min-h-0 flex-1">
           <div>
             <h2 className="text-2xl font-semibold mb-6">
               Set your preferences to find the right match.

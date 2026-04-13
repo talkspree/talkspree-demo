@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Video, VideoOff, Mic, MicOff, FlipHorizontal, MessageSquare, PhoneOff, RefreshCw, User } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, FlipHorizontal, RefreshCcw, MessageSquare, PhoneOff, RefreshCw, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -11,9 +11,11 @@ import { useCallExtension } from '@/hooks/useCallExtension';
 import { useSharedPrompt } from '@/hooks/useSharedPrompt';
 import { useSupabaseChat } from '@/hooks/useSupabaseChat';
 import { useProfileData } from '@/hooks/useProfileData';
-import { CorrespondentProfile } from './CorrespondentProfile';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { interests } from '@/data/interests';
+import { AboutMeSection } from '@/components/profile/AboutMeSection';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Send } from 'lucide-react';
 import { SampleUser } from '@/data/sampleUsers';
@@ -52,6 +54,8 @@ export function MobileCallAgora() {
     return (60 - Math.floor((Date.now() - new Date(callStartTime).getTime()) / 1000)) > 0;
   });
   const endingCallRef = useRef(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const seenOtherMessagesRef = useRef(0);
 
   useEffect(() => {
     if (!callStartTime) return;
@@ -221,6 +225,17 @@ export function MobileCallAgora() {
     return () => clearInterval(i);
   }, [showSmallTalk]);
 
+  // Track unread messages when chat sheet is closed
+  useEffect(() => {
+    const otherMessages = chatMessages.filter(m => !m.isMe);
+    if (showChat) {
+      seenOtherMessagesRef.current = otherMessages.length;
+      setUnreadCount(0);
+    } else {
+      setUnreadCount(Math.max(0, otherMessages.length - seenOtherMessagesRef.current));
+    }
+  }, [chatMessages, showChat]);
+
   const formatTime = (seconds: number): string => { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m}m${s.toString().padStart(2, '0')}s`; };
   const formatTimeShort = (seconds: number): string => { const m = Math.floor(seconds / 60); const s = seconds % 60; return `${m}:${s.toString().padStart(2, '0')}`; };
 
@@ -243,23 +258,43 @@ export function MobileCallAgora() {
     );
   }
 
+  const calculateAge = (dateOfBirth: string) => {
+    const today = new Date();
+    const birthDate = new Date(dateOfBirth);
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) age--;
+    return age;
+  };
+
+  const userInterests = matchedUser.interests
+    .map(id => interests.find(i => i.id === id))
+    .filter(Boolean);
+
+  const currentUserInterests = (profileData?.interests || [])
+    .map(id => interests.find(i => i.id === id))
+    .filter(Boolean);
+
   const hasRemoteUser = remoteUsers.length > 0;
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="fixed inset-0 bg-background overflow-hidden">
       {/* Mobile View */}
-      <div className="md:hidden h-screen flex flex-col">
-        <div ref={remoteVideoRef} className={`absolute inset-0 w-full h-full object-cover ${hasRemoteUser && remoteUsers[0].videoTrack ? '' : 'hidden'}`} />
-        <div className={`absolute inset-0 w-full h-full bg-gradient-to-br from-primary/20 to-primary-glow/20 flex items-center justify-center ${hasRemoteUser && remoteUsers[0].videoTrack ? 'hidden' : ''}`}>
-          <div className="text-center">
-            <div className="text-6xl mb-2">👤</div>
-            <p className="text-muted-foreground">{hasRemoteUser ? 'Camera Off' : 'Connecting...'}</p>
-          </div>
+      <div className="h-screen flex flex-col">
+        <div ref={remoteVideoRef} className={`absolute inset-0 w-full h-full agora-video-container ${hasRemoteUser && remoteUsers[0].videoTrack ? '' : 'hidden'}`} />
+        <div className={`absolute inset-0 w-full h-full bg-muted flex flex-col items-center justify-center ${hasRemoteUser && remoteUsers[0].videoTrack ? 'hidden' : ''}`}>
+          <Avatar className="h-24 w-24 mb-3">
+            <AvatarImage src={matchedUser.profilePicture || ''} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-3xl">
+              {matchedUser.firstName[0]}{matchedUser.lastName[0]}
+            </AvatarFallback>
+          </Avatar>
+          <p className="text-sm text-muted-foreground">{hasRemoteUser ? 'Camera Off' : 'Connecting...'}</p>
         </div>
 
         {/* Question / Small Talk */}
         <div className="absolute top-safe top-8 left-4 right-4 z-20">
-          <div className="bg-gradient-primary rounded-3xl px-5 py-4 shadow-apple-lg">
+          <div className="bg-gradient-primary rounded-3xl px-5 py-4 shadow-[2px_2px_10px_rgba(0,0,0,0.4)]">
             {showSmallTalk ? (
               <div className="text-center">
                 <p className="text-2xl font-bold text-white mb-1">{smallTalkTimer}s</p>
@@ -271,7 +306,7 @@ export function MobileCallAgora() {
                   <p className="text-base font-semibold text-white flex-1">
                     "{currentQuestion?.text || 'Loading prompt...'}"
                   </p>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 hover:bg-white/20 text-white" onClick={() => handleButtonClick(() => refreshPrompt().catch(console.error))}>
+                  <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-white" onClick={() => handleButtonClick(() => refreshPrompt().catch(console.error))}>
                     <RefreshCw className="h-4 w-4" />
                   </Button>
                 </div>
@@ -285,7 +320,7 @@ export function MobileCallAgora() {
         </div>
 
         {showExtendPrompt && !extended && (
-          <div className="absolute top-28 left-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-300">
+          <div className="absolute top-36 left-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-300">
             <ExtensionBanner show iRequested={iRequested} theyRequested={theyRequested} bothAgreed={bothAgreed} theyDeclined={theyDeclined} userName={matchedUser.firstName || 'User'} onRequest={requestExtension} onApprove={approveExtension} onDecline={declineExtension} />
           </div>
         )}
@@ -293,30 +328,42 @@ export function MobileCallAgora() {
         {/* Local video */}
         <div className="absolute bottom-44 left-6 z-10">
           <div className="w-28 h-40 rounded-[32px] overflow-hidden border-2 border-white/90 shadow-apple-lg relative">
-            <div ref={localVideoRef} className={`w-full h-full object-cover ${isCameraOn && localVideoTrack ? '' : 'hidden'}`} />
-            <div className={`w-full h-full bg-muted/50 backdrop-blur-sm flex items-center justify-center absolute inset-0 ${isCameraOn && localVideoTrack ? 'hidden' : ''}`}><VideoOff className="h-6 w-6 text-white" /></div>
+            <div ref={localVideoRef} className={`w-full h-full agora-video-container ${isCameraOn && localVideoTrack ? '' : 'hidden'}`} />
+            <div className={`w-full h-full bg-muted flex items-center justify-center absolute inset-0 ${isCameraOn && localVideoTrack ? 'hidden' : ''}`}>
+              <Avatar className="h-12 w-12">
+                <AvatarImage src={profileData?.profilePicture || ''} />
+                <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                  {profileData?.firstName?.[0] || 'Y'}{profileData?.lastName?.[0] || ''}
+                </AvatarFallback>
+              </Avatar>
+            </div>
           </div>
         </div>
 
         {/* Nav bar */}
         <div className="absolute bottom-safe bottom-20 left-0 right-0 z-20 px-6">
           <div className="bg-card/95 backdrop-blur-xl rounded-full px-6 py-4 shadow-apple-lg border border-border/50 flex items-center justify-around">
-            <Button size="icon" variant={isCameraOn ? 'ghost' : 'destructive'} className="h-12 w-12 rounded-full hover:bg-accent" onClick={() => handleButtonClick(toggleCamera, 'medium')}>
+            <Button size="icon" variant={isCameraOn ? 'ghost' : 'destructive'} className="h-12 w-12 rounded-full" onClick={() => handleButtonClick(toggleCamera, 'medium')}>
               {isCameraOn ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
             </Button>
-            <Button size="icon" variant={isMicOn ? 'ghost' : 'destructive'} className="h-12 w-12 rounded-full hover:bg-accent" onClick={() => handleButtonClick(toggleMic, 'medium')}>
+            <Button size="icon" variant={isMicOn ? 'ghost' : 'destructive'} className="h-12 w-12 rounded-full" onClick={() => handleButtonClick(toggleMic, 'medium')}>
               {isMicOn ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
             </Button>
-            <Button size="icon" variant="ghost" className="h-12 w-12 rounded-full hover:bg-accent" onClick={() => handleButtonClick(switchCamera)}>
-              <FlipHorizontal className="h-5 w-5" />
+            <Button size="icon" variant="ghost" className="h-12 w-12 rounded-full" onClick={() => handleButtonClick(switchCamera)}>
+              <RefreshCcw className="h-5 w-5" />
             </Button>
             <Sheet open={showChat} onOpenChange={setShowChat}>
               <SheetTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-12 w-12 rounded-full hover:bg-accent" onClick={() => triggerHaptic()}>
+                <Button size="icon" variant="ghost" className="h-12 w-12 rounded-full relative" onClick={() => triggerHaptic()}>
                   <MessageSquare className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-bold animate-in zoom-in-50 px-1">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="h-[70vh] rounded-t-[28px]">
+              <SheetContent side="bottom" className="h-[70vh] rounded-t-[28px]" onOpenAutoFocus={(e) => e.preventDefault()}>
                 <div className="flex flex-col h-full">
                   <h3 className="font-semibold text-lg mb-4">Chat</h3>
                   <ScrollArea className="flex-1 mb-4">
@@ -345,7 +392,7 @@ export function MobileCallAgora() {
                 </div>
               </SheetContent>
             </Sheet>
-            <Button size="icon" className="h-12 w-12 rounded-full bg-destructive hover:bg-destructive/90" onClick={() => handleButtonClick(() => setShowEndCallModal(true), 'heavy')}>
+            <Button size="icon" className="h-12 w-12 rounded-full bg-destructive" onClick={() => handleButtonClick(() => setShowEndCallModal(true), 'heavy')}>
               <PhoneOff className="h-5 w-5" />
             </Button>
           </div>
@@ -361,7 +408,7 @@ export function MobileCallAgora() {
         </div>
 
         {/* Profile button */}
-        <Button size="icon" className="absolute bottom-44 right-6 z-20 h-14 w-14 rounded-full bg-gradient-primary hover:opacity-90 shadow-apple-lg backdrop-blur-sm border border-white/20 text-white" onClick={() => handleButtonClick(() => setShowProfile(true), 'light')}>
+        <Button size="icon" className="absolute bottom-44 right-6 z-20 h-14 w-14 rounded-full bg-gradient-primary shadow-[0_2px_10px_rgba(0,0,0,0.4)] backdrop-blur-sm border border-white/20 text-white" onClick={() => handleButtonClick(() => setShowProfile(true), 'light')}>
           <User className="h-6 w-6" />
         </Button>
 
@@ -369,100 +416,82 @@ export function MobileCallAgora() {
         {error && (<div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 bg-red-500/90 text-white px-4 py-2 rounded-full text-sm">Connection Error</div>)}
       </div>
 
-      {/* Vertical Tablet View (md, portrait) */}
-      <div className="hidden md:block lg:hidden h-screen flex flex-col p-4 gap-4">
-        <div className="w-full bg-card/95 backdrop-blur-md rounded-3xl p-4 border border-border shadow-apple-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center"><span className="text-white font-bold text-sm">TS</span></div>
-              <span className="font-semibold text-lg">TalkSpree</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="bg-background/50 backdrop-blur-sm rounded-full px-3 py-1"><span className="text-sm font-medium">{formatTimeShort(parseInt(formattedTime.split(':')[0]) * 60 + parseInt(formattedTime.split(':')[1]))}</span></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-4">
-          <div className="flex-1 bg-muted rounded-3xl overflow-hidden relative shadow-apple-md border border-border aspect-[4/3]">
-            <div ref={remoteVideoRef} className={`w-full h-full object-cover ${hasRemoteUser && remoteUsers[0].videoTrack ? '' : 'hidden'}`} />
-            <div className={`w-full h-full flex items-center justify-center absolute inset-0 ${hasRemoteUser && remoteUsers[0].videoTrack ? 'hidden' : ''}`}><VideoOff className="h-12 w-12 text-muted-foreground" /></div>
-            <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
-              <div className="bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full"><span className="text-sm font-medium">{matchedUser.firstName} {matchedUser.lastName}</span></div>
-              {matchedUser.role && (
-                <div className="bg-background/80 backdrop-blur-sm px-2.5 py-1 rounded-full">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {matchedUser.role.charAt(0).toUpperCase() + matchedUser.role.slice(1)}
-                  </span>
+      {/* Profile Modal (mobile) — ContactDetailModal style */}
+      {showProfile && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-background/60 backdrop-blur-md transition-opacity animate-in fade-in-0"
+            onClick={() => setShowProfile(false)}
+          />
+          <div className="relative w-full max-w-3xl bg-card rounded-[1.5rem] shadow-[5px_5px_30px_rgba(0,0,0,0.4)] overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95 fade-in-0 duration-300">
+            <button
+              onClick={() => setShowProfile(false)}
+              className="absolute top-4 right-4 p-2 z-50 rounded-full bg-muted backdrop-blur text-muted-foreground transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <div className="overflow-y-auto custom-scrollbar-contact pl-6 pr-2 mr-2">
+              <div className="flex flex-col gap-6 items-center text-center mb-8 pt-6">
+                <div className="w-32 h-32 shrink-0 rounded-full ring-4 ring-primary/20 shadow-apple-lg overflow-hidden bg-muted">
+                  <Avatar className="w-full h-full">
+                    <AvatarImage src={matchedUser.profilePicture || ''} />
+                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl">
+                      {matchedUser.firstName[0]}{matchedUser.lastName[0]}
+                    </AvatarFallback>
+                  </Avatar>
                 </div>
-              )}
-            </div>
-          </div>
-          <div className="flex-1 bg-muted rounded-3xl overflow-hidden relative shadow-apple-md border border-border aspect-[4/3]">
-            <div ref={localVideoRef} className={`w-full h-full object-cover ${isCameraOn && localVideoTrack ? '' : 'hidden'}`} />
-            <div className={`w-full h-full flex items-center justify-center absolute inset-0 ${isCameraOn && localVideoTrack ? 'hidden' : ''}`}><VideoOff className="h-12 w-12 text-muted-foreground" /></div>
-            <div className="absolute bottom-3 left-3 bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full"><span className="text-sm font-medium">You</span></div>
-            <div className="absolute top-3 right-3 flex gap-2">
-              <Button size="icon" variant={isCameraOn ? 'secondary' : 'destructive'} className="h-9 w-9 rounded-full" onClick={() => handleButtonClick(toggleCamera, 'medium')}>{isCameraOn ? <Video className="h-4 w-4" /> : <VideoOff className="h-4 w-4" />}</Button>
-              <Button size="icon" variant={isMicOn ? 'secondary' : 'destructive'} className="h-9 w-9 rounded-full" onClick={() => handleButtonClick(toggleMic, 'medium')}>{isMicOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}</Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex gap-4 flex-1 min-h-0">
-          <div className="flex-1 flex flex-col gap-4 min-h-0">
-            <div className="bg-gradient-primary rounded-3xl px-5 py-4 shadow-apple-lg">
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-base font-semibold text-white flex-1">"{currentQuestion?.text || 'Loading prompt...'}"</p>
-                <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 hover:bg-white/20 text-white" onClick={() => refreshPrompt().catch(console.error)}><RefreshCw className="h-4 w-4" /></Button>
+                <div className="space-y-4 pt-2">
+                  <h2 className="text-3xl font-extrabold tracking-tight">{matchedUser.firstName} {matchedUser.lastName}</h2>
+                  <AboutMeSection
+                    role={matchedUser.role}
+                    occupation={matchedUser.occupation}
+                    industry={matchedUser.industry}
+                    studyField={matchedUser.studyField}
+                    university={matchedUser.university}
+                    age={calculateAge(matchedUser.dateOfBirth)}
+                    gender={matchedUser.gender}
+                    location={matchedUser.location}
+                    className="text-muted-foreground"
+                  />
+                </div>
               </div>
-              <div className="mt-2 text-xs text-white/80">
-                <span>Next in {formatTime(nextQuestionIn)} • </span>
-                <span className="font-medium">*{currentQuestion?.topic || preset.name}*</span>
-              </div>
-            </div>
-            <div className="flex-1 bg-card rounded-3xl border border-border shadow-apple-md overflow-hidden min-h-0">
-              <div className="flex flex-col h-full p-4">
-                <h3 className="font-semibold text-lg mb-3">Chat</h3>
-                <ScrollArea className="flex-1 mb-3">
-                  <div className="space-y-3">
-                    <div className="flex justify-center"><div className="bg-muted px-4 py-2 rounded-full text-sm">You matched with {matchedUser.firstName} {matchedUser.lastName}!</div></div>
-                    {chatMessages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'} gap-2 items-end`}>
-                        {!msg.isMe && (<Avatar className="h-8 w-8 mb-5 flex-shrink-0"><AvatarImage src={matchedUser.profilePicture} /><AvatarFallback className="bg-primary text-primary-foreground text-xs">{matchedUser.firstName?.charAt(0) || 'U'}</AvatarFallback></Avatar>)}
-                        <div className="flex flex-col gap-1 max-w-[70%]">
-                          <div className={`relative px-4 py-2 ${msg.isMe ? 'bg-primary text-primary-foreground rounded-2xl rounded-br-sm' : 'bg-muted text-foreground rounded-2xl rounded-bl-sm'}`}>
-                            <p className="text-sm break-words">{msg.text}</p>
-                          </div>
-                          <span className={`text-xs text-muted-foreground ${msg.isMe ? 'text-right' : 'text-left'}`}>
-                            {msg.timestamp.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                          </span>
-                        </div>
-                        {msg.isMe && (<Avatar className="h-8 w-8 mb-5 flex-shrink-0"><AvatarImage src={profileData?.profilePicture} /><AvatarFallback className="bg-secondary text-secondary-foreground text-xs">You</AvatarFallback></Avatar>)}
-                      </div>
-                    ))}
+              <div className="space-y-6 pb-6">
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Bio</h3>
+                  <p className="text-muted-foreground leading-relaxed text-base">{matchedUser.bio}</p>
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Contacts</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {matchedUser.instagram && <Badge variant="secondary" className="bg-[#E1306C]/10 border-[#E1306C]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#E1306C]">● Instagram</span></Badge>}
+                    {matchedUser.facebook && <Badge variant="secondary" className="bg-[#1877F2]/10 border-[#1877F2]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#1877F2]">● Facebook</span></Badge>}
+                    {matchedUser.linkedin && <Badge variant="secondary" className="bg-[#0A66C2]/10 border-[#0A66C2]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#0A66C2]">● LinkedIn</span></Badge>}
+                    {matchedUser.youtube && <Badge variant="secondary" className="bg-[#FF0000]/10 border-[#FF0000]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#FF0000]">● YouTube</span></Badge>}
+                    {matchedUser.tiktok && <Badge variant="secondary" className="bg-[#000000]/10 border-[#000000]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#000000] dark:text-[#FFFFFF]">● TikTok</span></Badge>}
                   </div>
-                </ScrollArea>
-                <div className="flex gap-2">
-                  <Button size="icon" className="h-10 w-10 rounded-full bg-destructive hover:bg-destructive/90 shrink-0" onClick={() => setShowEndCallModal(true)}><PhoneOff className="h-4 w-4" /></Button>
-                  <Input placeholder="Type a message..." value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} className="rounded-full" />
-                  <Button size="icon" onClick={handleSend} className="rounded-full bg-gradient-primary hover:opacity-90 shrink-0"><Send className="h-4 w-4" /></Button>
+                  <p className="text-xs text-muted-foreground italic mt-2">Connect after the call to view contact details</p>
+                </div>
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Interests</h3>
+                  <div className="flex flex-wrap gap-2.5">
+                    {userInterests.map((interest) => {
+                      const isCommon = currentUserInterests.some(ui => ui?.id === interest!.id);
+                      return (
+                        <Badge
+                          key={interest!.id}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${isCommon ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20 scale-105' : 'bg-muted text-muted-foreground border-border'}`}
+                        >
+                          {interest!.emoji} {interest!.name}
+                        </Badge>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex-1 bg-card rounded-3xl border border-border shadow-apple-md overflow-hidden min-h-0">
-            <ScrollArea className="h-full"><CorrespondentProfile matchedUser={matchedUser} isConnected={isConnected} /></ScrollArea>
-          </div>
         </div>
-      </div>
-
-      {/* Profile Modal (mobile) */}
-      <Dialog open={showProfile} onOpenChange={setShowProfile}>
-        <DialogContent className="max-w-[92%] max-h-[85vh] rounded-3xl p-0 overflow-hidden">
-          <ScrollArea className="h-[85vh] p-6"><CorrespondentProfile matchedUser={matchedUser} isConnected={isConnected} /></ScrollArea>
-        </DialogContent>
-      </Dialog>
+      )}
 
       {/* End Call inline confirm (old dialog) */}
       <Dialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>

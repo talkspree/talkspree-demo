@@ -1005,7 +1005,7 @@ export default function WaitingRoom() {
 
           {/* Stats (visible in searching + connecting) */}
           {phase !== "connectionFailed" && (
-            <div className="grid grid-cols-3 mx-16 gap-2 md:gap-6 flex-shrink-0">
+            <div className="grid grid-cols-3 mx-2 md:mx-20 mb-4 md:mb-0 gap-2 md:gap-6 flex-shrink-0">
               <div className="bg-card/80 rounded-2xl p-2 md:p-4 text-center shadow-apple-md border-2 border-border">
                 <Users className="h-4 w-4 md:h-6 md:w-6 mx-auto mb-1 md:mb-2 text-primary" />
                 <div className="text-lg md:text-2xl font-bold">{stats.matchingUsers}</div>
