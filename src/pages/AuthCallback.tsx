@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { hasCompletedOnboarding } from '@/lib/api/profiles';
+import { markFeedbackTooltipForNextLogin } from '@/components/feedback/feedbackTooltipFlag';
 
 /**
  * Handles OAuth callbacks (Google, etc.)
@@ -38,6 +39,10 @@ export default function AuthCallback() {
 
         // Wait a bit longer for the trigger to create the profile
         await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // OAuth callback always represents a fresh sign-in event, so flag the
+        // bug-report tooltip to auto-reveal once on the next page (desktop).
+        markFeedbackTooltipForNextLogin();
 
         // Check if user has completed onboarding
         try {

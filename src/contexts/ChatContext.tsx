@@ -38,6 +38,29 @@ interface ChatContextType {
   removeBubble: (contactUserId: string) => void;
   /** Mark messages from a contact as read and clear unread count */
   markChatRead: (contactUserId: string) => void;
+
+  // ============ Mobile-only messenger ============
+  /** Whether the full-screen mobile messenger overlay is open */
+  isMobileMessengerOpen: boolean;
+  /** Currently active chat in the mobile messenger (null = inbox view) */
+  mobileActiveChatId: string | null;
+  /** Active chat metadata for the mobile messenger header/avatar */
+  mobileActiveChat: ChatBubbleData | null;
+  /**
+   * True when the messenger was opened *directly* to a conversation from
+   * outside the messenger (e.g. ContactCard, notification). False when opened
+   * via the messenger button (inbox first). Controls whether the inbox→chat
+   * transition animation should play.
+   */
+  mobileOpenedDirect: boolean;
+  /** Open the mobile messenger overlay (inbox view) */
+  openMobileMessenger: () => void;
+  /** Close the mobile messenger overlay */
+  closeMobileMessenger: () => void;
+  /** Open a specific conversation in the mobile messenger (also opens overlay) */
+  openMobileChat: (contact: ChatBubbleData) => void;
+  /** Close the active mobile chat (returns to inbox) */
+  closeMobileChat: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -55,6 +78,23 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [openChats, setOpenChats] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const subscriptionRef = useRef<{ unsubscribe: () => void } | null>(null);
+
+  // Mobile messenger state
+  const [isMobileMessengerOpen, setIsMobileMessengerOpen] = useState(false);
+  const [mobileActiveChat, setMobileActiveChat] = useState<ChatBubbleData | null>(null);
+  const [mobileOpenedDirect, setMobileOpenedDirect] = useState(false);
+  // Ref mirror so realtime subscription always sees the latest active chat without
+  // re-subscribing when it changes.
+  const mobileActiveChatRef = useRef<ChatBubbleData | null>(null);
+  useEffect(() => {
+    mobileActiveChatRef.current = mobileActiveChat;
+  }, [mobileActiveChat]);
+
+  // Same idea for openChats so realtime can suppress unread for an open desktop chat
+  const openChatsRef = useRef<string[]>([]);
+  useEffect(() => {
+    openChatsRef.current = openChats;
+  }, [openChats]);
 
   // Total unread count
   const totalUnread = Object.values(unreadCounts).reduce((sum, c) => sum + c, 0);
@@ -117,9 +157,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       const senderId = dm.sender_id;
 
-      // If the chat is open for this sender, mark as read immediately
-      // (the chat window component will also do this, but this handles it at context level)
-      const isOpen = openChats.includes(senderId);
+      // If the chat is open for this sender (desktop window or active mobile chat),
+      // skip incrementing the unread count - the open chat will mark it read.
+      const isOpenDesktop = openChatsRef.current.includes(senderId);
+      const isOpenMobile = mobileActiveChatRef.current?.contactUserId === senderId;
+      const isOpen = isOpenDesktop || isOpenMobile;
 
       if (!isOpen) {
         // Increment unread count
@@ -250,6 +292,41 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // ============ Mobile messenger actions ============
+  const openMobileMessenger = useCallback(() => {
+    setMobileOpenedDirect(false);
+    setIsMobileMessengerOpen(true);
+  }, []);
+
+  const closeMobileMessenger = useCallback(() => {
+    setIsMobileMessengerOpen(false);
+    setMobileActiveChat(null);
+    setMobileOpenedDirect(false);
+  }, []);
+
+  const openMobileChat = useCallback(
+    (contact: ChatBubbleData) => {
+      setMobileOpenedDirect(true);
+      setIsMobileMessengerOpen(true);
+      setMobileActiveChat(contact);
+      // Clear local unread count immediately - the chat view will also call
+      // markMessagesRead on the server side.
+      setUnreadCounts((prev) => {
+        if (!prev[contact.contactUserId]) return prev;
+        const next = { ...prev };
+        delete next[contact.contactUserId];
+        return next;
+      });
+    },
+    []
+  );
+
+  const closeMobileChat = useCallback(() => {
+    setMobileActiveChat(null);
+    // When returning to inbox from a directly-opened chat, mark as no longer direct
+    setMobileOpenedDirect(false);
+  }, []);
+
   const value: ChatContextType = {
     activeBubbles,
     openChats,
@@ -260,6 +337,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     closeChat,
     removeBubble,
     markChatRead,
+    isMobileMessengerOpen,
+    mobileActiveChatId: mobileActiveChat?.contactUserId ?? null,
+    mobileActiveChat,
+    mobileOpenedDirect,
+    openMobileMessenger,
+    closeMobileMessenger,
+    openMobileChat,
+    closeMobileChat,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

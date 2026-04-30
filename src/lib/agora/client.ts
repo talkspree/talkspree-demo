@@ -36,6 +36,10 @@ export class AgoraService {
   private isCameraOn = true;
   private isMicOn = true;
   private currentCameraIndex = 0;
+  // Guards against concurrent setDevice calls — the OS/browser sometimes
+  // hasn't released the previous camera when a second switch is requested,
+  // which surfaces as `NotReadableError: Could not start video source`.
+  private isSwitchingCamera = false;
 
   // Event callbacks
   private onUserJoinedCallback?: (user: IAgoraRTCRemoteUser) => void;
@@ -309,10 +313,24 @@ export class AgoraService {
   }
 
   /**
-   * Switch camera (front/back on mobile)
+   * Switch camera (front/back on mobile).
+   *
+   * Implementation notes:
+   * - Re-entry guard prevents double-taps while `setDevice` is mid-flight,
+   *   which otherwise produces `NotReadableError: Could not start video
+   *   source` because the previous device hasn't released yet.
+   * - On `NOT_READABLE` we wait briefly and retry once before falling back
+   *   to the original camera so the user is never left without a feed.
    */
   async switchCamera(): Promise<void> {
     if (!this.localVideoTrack) return;
+    if (this.isSwitchingCamera) {
+      console.warn('Camera switch already in progress, ignoring duplicate request');
+      return;
+    }
+
+    this.isSwitchingCamera = true;
+    const previousIndex = this.currentCameraIndex;
 
     try {
       const cameras = await AgoraRTC.getCameras();
@@ -321,12 +339,46 @@ export class AgoraService {
         return;
       }
 
-      this.currentCameraIndex = (this.currentCameraIndex + 1) % cameras.length;
-      await this.localVideoTrack.setDevice(cameras[this.currentCameraIndex].deviceId);
-      console.log('Camera switched to:', cameras[this.currentCameraIndex].label);
+      const nextIndex = (this.currentCameraIndex + 1) % cameras.length;
+      const nextDeviceId = cameras[nextIndex].deviceId;
+
+      const trySetDevice = async () => {
+        await this.localVideoTrack!.setDevice(nextDeviceId);
+        this.currentCameraIndex = nextIndex;
+        console.log('Camera switched to:', cameras[nextIndex].label);
+      };
+
+      try {
+        await trySetDevice();
+      } catch (error: any) {
+        const isNotReadable =
+          error?.code === 'NOT_READABLE' ||
+          error?.name === 'NotReadableError' ||
+          /NotReadable|NOT_READABLE|Could not start video source/i.test(String(error?.message ?? ''));
+
+        if (!isNotReadable) throw error;
+
+        console.warn('Camera switch hit NOT_READABLE, retrying after 400ms…');
+        await new Promise((r) => setTimeout(r, 400));
+        try {
+          await trySetDevice();
+        } catch (retryError) {
+          // Best-effort: snap back to the previous camera so the call keeps a feed.
+          console.error('Camera switch retry failed, restoring previous camera:', retryError);
+          try {
+            await this.localVideoTrack.setDevice(cameras[previousIndex].deviceId);
+            this.currentCameraIndex = previousIndex;
+          } catch (restoreError) {
+            console.error('Failed to restore previous camera:', restoreError);
+          }
+          throw retryError;
+        }
+      }
     } catch (error) {
       console.error('Failed to switch camera:', error);
       throw error;
+    } finally {
+      this.isSwitchingCamera = false;
     }
   }
 

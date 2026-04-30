@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Upload, User } from 'lucide-react';
 import { OnboardingData } from '@/pages/Onboarding';
+import { ImageCropModal } from '@/components/ui/ImageCropModal';
 
 interface ProfileStepProps {
   data: OnboardingData;
@@ -21,6 +22,8 @@ export function ProfileStep({ data, updateData, onNext, onPrev, field, grouped =
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profilePicturePreview, setProfilePicturePreview] = useState<string>('');
   const [uploadError, setUploadError] = useState<string>('');
+  const [cropSource, setCropSource] = useState<File | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
   const [localData, setLocalData] = useState({
     bio: data.bio,
     socialMedia: data.socialMedia,
@@ -45,12 +48,13 @@ export function ProfileStep({ data, updateData, onNext, onPrev, field, grouped =
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setUploadError('');
-    
+
     if (file) {
       // Validate file type
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
       if (!validTypes.includes(file.type)) {
         setUploadError('Please upload a JPG, PNG, HEIC, or WebP image');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
@@ -58,19 +62,23 @@ export function ProfileStep({ data, updateData, onNext, onPrev, field, grouped =
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
         setUploadError('Image must be less than 10MB');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      // Store the file
-      updateData({ profilePicture: file });
-      
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicturePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Open the crop modal instead of saving the raw file directly.
+      setCropSource(file);
+      setShowCropModal(true);
+
+      // Reset input so re-selecting the same file still triggers onChange
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleCropComplete = (croppedFile: File, dataUrl: string) => {
+    updateData({ profilePicture: croppedFile });
+    setProfilePicturePreview(dataUrl);
+    setCropSource(null);
   };
 
   const handleNext = () => {
@@ -262,17 +270,29 @@ export function ProfileStep({ data, updateData, onNext, onPrev, field, grouped =
     };
 
     return (
-      <Card className="border-0 shadow-none bg-transparent">
-        <CardHeader className="text-center pb-8">
-          <CardTitle className="text-2xl font-medium">{getTitle()}</CardTitle>
-          {field === 'bio' && (
-            <p className="text-muted-foreground">What do you want others to know about you?</p>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {renderField()}
-        </CardContent>
-      </Card>
+      <>
+        <Card className="border-0 shadow-none bg-transparent">
+          <CardHeader className="text-center pb-8">
+            <CardTitle className="text-2xl font-medium">{getTitle()}</CardTitle>
+            {field === 'bio' && (
+              <p className="text-muted-foreground">What do you want others to know about you?</p>
+            )}
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {renderField()}
+          </CardContent>
+        </Card>
+        <ImageCropModal
+          open={showCropModal}
+          onOpenChange={setShowCropModal}
+          source={cropSource}
+          aspect={1}
+          shape="round"
+          outputFileName={`profile-${Date.now()}.jpg`}
+          title="Adjust your profile picture"
+          onCropComplete={handleCropComplete}
+        />
+      </>
     );
   }
 
@@ -280,6 +300,7 @@ export function ProfileStep({ data, updateData, onNext, onPrev, field, grouped =
   const isValid = localData.bio.trim();
 
   return (
+    <>
     <Card className="glass shadow-apple-lg">
       <CardHeader>
         <CardTitle className="text-2xl font-medium">Complete Your Profile</CardTitle>
@@ -348,5 +369,16 @@ export function ProfileStep({ data, updateData, onNext, onPrev, field, grouped =
         </div>
       </CardContent>
     </Card>
+    <ImageCropModal
+      open={showCropModal}
+      onOpenChange={setShowCropModal}
+      source={cropSource}
+      aspect={1}
+      shape="round"
+      outputFileName={`profile-${Date.now()}.jpg`}
+      title="Adjust your profile picture"
+      onCropComplete={handleCropComplete}
+    />
+    </>
   );
 }

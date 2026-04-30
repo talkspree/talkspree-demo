@@ -157,16 +157,22 @@ export default function Onboarding() {
     }
   };
 
-  const handleComplete = async () => {
+  const handleComplete = async (selectedRole?: string) => {
     setSaving(true);
     try {
       // Import the completeOnboarding function
       const { completeOnboarding } = await import('@/lib/api/profiles');
-      
-      console.log('Starting onboarding save...', data);
-      
+
+      // Merge in the freshly-selected role so we don't depend on React's
+      // async state batching to have flushed before save.
+      const finalData = selectedRole
+        ? { ...data, role: selectedRole }
+        : data;
+
+      console.log('Starting onboarding save...', finalData);
+
       // Save user data to Supabase
-      await completeOnboarding(data);
+      await completeOnboarding(finalData);
       
       console.log('✅ Onboarding data saved successfully!');
       

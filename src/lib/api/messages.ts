@@ -216,3 +216,63 @@ export async function updateDirectMessage(
     throw error;
   }
 }
+
+/**
+ * Inbox preview row: latest message between current user and another user.
+ * Used by the mobile messenger inbox to render conversation previews.
+ */
+export interface InboxConversation {
+  otherUserId: string;
+  lastMessage: string;
+  lastMessageAt: string;
+  lastMessageFromMe: boolean;
+  isFromCall: boolean;
+}
+
+/**
+ * Fetch all conversations involving the current user, returning the latest
+ * message per other-user. Newest conversation first.
+ *
+ * Implemented client-side by selecting the user's recent messages and
+ * deduplicating by the "other" participant. We pull a generous limit so we
+ * include older but still relevant threads.
+ */
+export async function getInboxConversations(
+  limit: number = 500
+): Promise<InboxConversation[]> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('direct_messages')
+    .select('id, sender_id, recipient_id, message, created_at, is_from_call')
+    .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error('Error fetching inbox conversations:', error);
+    throw error;
+  }
+
+  if (!data) return [];
+
+  const seen = new Set<string>();
+  const result: InboxConversation[] = [];
+  for (const dm of data as DirectMessage[]) {
+    const otherUserId =
+      dm.sender_id === user.id ? dm.recipient_id : dm.sender_id;
+    if (seen.has(otherUserId)) continue;
+    seen.add(otherUserId);
+    result.push({
+      otherUserId,
+      lastMessage: dm.message,
+      lastMessageAt: dm.created_at,
+      lastMessageFromMe: dm.sender_id === user.id,
+      isFromCall: dm.is_from_call,
+    });
+  }
+  return result;
+}

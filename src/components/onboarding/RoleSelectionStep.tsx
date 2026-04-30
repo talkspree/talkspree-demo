@@ -6,7 +6,13 @@ import { OnboardingData } from '@/pages/Onboarding';
 interface RoleSelectionStepProps {
   data: OnboardingData;
   updateData: (updates: Partial<OnboardingData>) => void;
-  onComplete: () => void;
+  /**
+   * Called when the user picks a role. The selected role id is passed
+   * directly to avoid relying on the parent's `data` state, which may
+   * not yet contain the freshly-selected role due to React's async
+   * state updates.
+   */
+  onComplete: (roleId: string) => void;
   onPrev?: () => void;
 }
 
@@ -32,13 +38,14 @@ export function RoleSelectionStep({ data, updateData, onComplete, onPrev }: Role
   const handleRoleSelect = (roleId: string) => {
     setSelectedRole(roleId);
     updateData({ role: roleId });
-    
+
     // Show congratulations message
     setShowCongrats(true);
-    
-    // Auto-complete after showing congrats
+
+    // Pass the chosen role straight through so the parent doesn't have to
+    // wait for its own `data` state update to flush.
     setTimeout(() => {
-      onComplete();
+      onComplete(roleId);
     }, 2000);
   };
 

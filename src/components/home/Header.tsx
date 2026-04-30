@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ProfileCard } from './ProfileCard';
 import { RoleChangeModal } from './RoleChangeModal';
 import { connectionsManager } from '@/utils/connections';
+import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 
 export function Header() {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export function Header() {
   const [showProfile, setShowProfile] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [connectionNotifications, setConnectionNotifications] = useState<any[]>([]);
+  const [isBellWobbling, setIsBellWobbling] = useState(false);
   
   // Check if we're on the contacts page
   const isContactsPage = location.pathname === '/contacts';
@@ -96,6 +98,9 @@ export function Header() {
         
 
           <div className="flex items-center gap-3 relative z-10">
+            {/* Report a bug / feedback — sits left of the role pill */}
+            <FeedbackButton />
+
               {/* Role Badge Button */}
           {!roleLoading && circleRole && shouldShowRoleBadge && (
             <button
@@ -118,10 +123,20 @@ export function Header() {
               {isAdmin && <Shield className="h-3.5 w-3.5" />}
             </button>
           )}
+
             {/* Notifications */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onMouseEnter={() => {
+                    setIsBellWobbling(false);
+                    requestAnimationFrame(() => setIsBellWobbling(true));
+                  }}
+                  onAnimationEnd={() => setIsBellWobbling(false)}
+                  className={`relative w-10 h-10 rounded-full neu-concave hover:neu-concave-pressed transition-shadow focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none${isBellWobbling ? ' bug-wobble' : ''}`}
+                >
                   <Bell className="h-5 w-5" />
                   {unseenContactCount > 0 && (
                     <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">

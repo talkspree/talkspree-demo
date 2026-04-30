@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { X, Minus, Send, Loader2, User } from 'lucide-react';
+import { X, Minus, Send, Loader2, User, Link2 } from 'lucide-react';
 import { ChatMessageBubble } from './ChatMessageBubble';
+import type { ChatMessage } from '@/hooks/useDirectMessages';
 import { TypingIndicator } from './TypingIndicator';
 import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
 import { useDirectMessages } from '@/hooks/useDirectMessages';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChat, type ChatBubbleData } from '@/contexts/ChatContext';
+import { useCircle } from '@/contexts/CircleContext';
 import { getContacts } from '@/lib/api/contacts';
 import type { Connection } from '@/utils/connections';
 
@@ -17,7 +19,9 @@ interface ChatWindowProps {
 export function ChatWindow({ contact }: ChatWindowProps) {
   const { user } = useAuth();
   const { minimizeChat, closeChat, markChatRead } = useChat();
+  const { circle } = useCircle();
   const [inputValue, setInputValue] = useState('');
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [fullContactData, setFullContactData] = useState<Connection | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -107,21 +111,48 @@ export function ChatWindow({ contact }: ChatWindowProps) {
     return () => clearTimeout(timeout);
   }, []);
 
+  const handleEditStart = useCallback((msg: ChatMessage) => {
+    setEditingMessage(msg);
+    setInputValue(msg.text);
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.style.height = 'auto';
+        inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
+      }
+    }, 50);
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setInputValue('');
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+  }, []);
+
   const handleSend = async () => {
     if (!inputValue.trim()) return;
-    const text = inputValue;
+    const text = inputValue.trim();
     setInputValue('');
     sendTypingIndicator(false);
-    
-    // Reset textarea height
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
+
+    if (inputRef.current) inputRef.current.style.height = 'auto';
+
+    if (editingMessage) {
+      const msg = editingMessage;
+      setEditingMessage(null);
+      try {
+        await editMessage(msg.id, text);
+      } catch (err) {
+        console.error('Failed to edit message:', err);
+        setInputValue(text);
+        setEditingMessage(msg);
+      }
+      return;
     }
 
     try {
       await sendMessage(text);
     } catch {
-      // Message was not sent, restore input
       setInputValue(text);
     }
   };
@@ -211,7 +242,15 @@ export function ChatWindow({ contact }: ChatWindowProps) {
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar-chat pl-3 pr-2 mr-0 space-y-0.5 bg-gradient-subtle">
+      <div className="flex-1 overflow-y-auto custom-scrollbar-chat pl-3 pr-2 mr-0 space-y-0.5 bg-gradient-subtle pt-3">
+        {/* Connection context banner */}
+        <div className="flex items-center justify-center mb-2">
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/60 rounded-full px-2.5 py-1 border border-border/50">
+            <Link2 size={9} className="shrink-0 opacity-70" />
+            Connected through&nbsp;<span className="font-medium">{circle?.name ?? 'Talkspree'}</span>
+          </span>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -230,7 +269,7 @@ export function ChatWindow({ contact }: ChatWindowProps) {
               key={msg.id}
               message={msg}
               onDelete={deleteMessage}
-              onEdit={editMessage}
+              onEditStart={handleEditStart}
             />
           ))
         )}
@@ -244,12 +283,28 @@ export function ChatWindow({ contact }: ChatWindowProps) {
 
       {/* Input Area */}
       <div className="p-2.5 bg-background border-t border-border shrink-0">
+        {/* Editing banner */}
+        {editingMessage && (
+          <div className="flex items-center justify-between rounded-lg bg-muted/70 px-3 py-1 mb-1.5 border border-border/50">
+            <span className="truncate text-xs font-medium text-muted-foreground">
+              Editing:{' '}
+              <span className="font-normal">{editingMessage.text}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="ml-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <div className="flex items-center bg-muted border border-border rounded-full px-3 py-1.5 focus-within:ring-2 focus-within:ring-primary/40 transition-all">
           <textarea
             ref={inputRef}
             rows={1}
             className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 text-sm text-foreground placeholder-muted-foreground resize-none max-h-[120px] overflow-y-auto"
-            placeholder="Type a message..."
+            placeholder={editingMessage ? 'Edit message…' : 'Type a message...'}
             value={inputValue}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

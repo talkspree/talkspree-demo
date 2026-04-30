@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 
 export default function Contacts() {
   const navigate = useNavigate();
@@ -88,9 +89,9 @@ export default function Contacts() {
     // Map to contact format
     return filtered.map((conn) => {
       const age = new Date().getFullYear() - new Date(conn.user.dateOfBirth).getFullYear();
-      // isNew is based only on localStorage - tracks if user has clicked to view this contact's details
-      // This controls the card animation, not the notification badge
-      const isNew = !seenContactIds.includes(conn.userId);
+      // isNew = connection was unseen in the DB at the time the page loaded.
+      // isSeen comes directly from the DB record so it's only false for genuinely new connections.
+      const isNew = conn.isSeen === false;
       return {
         id: conn.userId,
         dbId: conn.id,
@@ -149,16 +150,20 @@ export default function Contacts() {
       {device !== 'mobile' && <Header />}
       
       <div className={`max-w-[1920px] mx-auto pb-10 ${device === 'mobile' ? 'pt-6' : 'pt-6'}`}>
-        {/* Back Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate('/')}
-          className="mb-4 mt-2 text-md"
-        >
-          <ArrowLeft className="h-20 w-20 mr-2" />
-          Back to Home
-        </Button>
+        {/* Back Button + (mobile-only) Feedback button */}
+        <div className="flex items-center justify-between mb-4 mt-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/')}
+            className="text-md"
+          >
+            <ArrowLeft className="h-20 w-20 mr-2" />
+            Back to Home
+          </Button>
+
+          {device === 'mobile' && <FeedbackButton />}
+        </div>
 
         {/* Search Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
@@ -181,6 +186,8 @@ export default function Contacts() {
               key={circle.id}
               circle={circle}
               searchQuery={searchQuery}
+              sortBy={sortBy}
+              onSortChange={setSortBy}
               onContactClick={handleContactClick}
             />
           ))}

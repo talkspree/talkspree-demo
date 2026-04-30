@@ -20,6 +20,7 @@ interface Contact {
   country: string;
   gender: string;
   avatarUrl: string;
+  isOnline?: boolean;
   isSample?: boolean;
 }
 
@@ -35,12 +36,13 @@ interface Circle {
 interface ContactCircleSectionProps {
   circle: Circle;
   searchQuery: string;
+  sortBy: 'recent' | 'similarity' | 'job';
+  onSortChange: (sort: 'recent' | 'similarity' | 'job') => void;
   onContactClick?: (contact: Contact) => void;
 }
 
-export function ContactCircleSection({ circle, searchQuery, onContactClick }: ContactCircleSectionProps) {
+export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange, onContactClick }: ContactCircleSectionProps) {
   const navigate = useNavigate();
-  const [sortBy, setSortBy] = useState<'recent' | 'similarity' | 'job'>('recent');
   const [circleLogoUrl, setCircleLogoUrl] = useState<string>('');
   const [circleCoverUrl, setCircleCoverUrl] = useState<string>('');
   
@@ -113,7 +115,7 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
                     <span className="text-muted-foreground">{circle.contacts.length} connections</span>
                     <div className="flex items-center gap-1.5">
                       <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-                      <span className="font-medium">{circle.contacts.filter(c => c.isSample).length} online</span>
+                      <span className="font-medium">{circle.contacts.filter(c => c.isOnline).length} online</span>
                     </div>
                   </div>
 
@@ -145,19 +147,19 @@ export function ContactCircleSection({ circle, searchQuery, onContactClick }: Co
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card z-50">
                 <DropdownMenuItem 
-                  onClick={() => setSortBy('recent')}
+                  onClick={() => onSortChange('recent')}
                   className="cursor-pointer"
                 >
                   Recently Added
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={() => setSortBy('similarity')}
+                  onClick={() => onSortChange('similarity')}
                   className="cursor-pointer"
                 >
                   Similarity
                 </DropdownMenuItem>
                 <DropdownMenuItem 
-                  onClick={() => setSortBy('job')}
+                  onClick={() => onSortChange('job')}
                   className="cursor-pointer"
                 >
                   Job

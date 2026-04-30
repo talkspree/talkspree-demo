@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { OccupationAutocomplete } from '@/components/ui/OccupationAutocomplete';
 import { UniversityAutocomplete } from '@/components/ui/UniversityAutocomplete';
 import { OnboardingData } from '@/pages/Onboarding';
+import { INDUSTRY_OPTIONS, WORKPLACE_OPTIONS } from '@/data/occupationOptions';
 
 interface OccupationStepProps {
   data: OnboardingData;
@@ -86,17 +87,9 @@ export function OccupationStep({ data, updateData, onNext, onPrev }: OccupationS
                   <SelectValue placeholder="Select workplace type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="solopreneur">Solopreneur / Freelancer</SelectItem>
-                  <SelectItem value="startup">Startup</SelectItem>
-                  <SelectItem value="own-business">Own/Family Business</SelectItem>
-                  <SelectItem value="sme">SME</SelectItem>
-                  <SelectItem value="corporation">Corporation</SelectItem>
-                  <SelectItem value="intl-corporation">International Corporation</SelectItem>
-                  <SelectItem value="government">Government / Public administration</SelectItem>
-                  <SelectItem value="education">School / University</SelectItem>
-                  <SelectItem value="ngo">NGO / Think tank</SelectItem>
-                  <SelectItem value="cultural">Cultural / Religious Institution</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {WORKPLACE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -108,27 +101,9 @@ export function OccupationStep({ data, updateData, onNext, onPrev }: OccupationS
                   <SelectValue placeholder="Select industry" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="agriculture">Agriculture, Forestry & Fishing</SelectItem>
-                  <SelectItem value="utilities">Utilities, Oil & Gas</SelectItem>
-                  <SelectItem value="manufacturing">Manufacturing (automobiles, electronics, textiles, products)</SelectItem>
-                  <SelectItem value="chemistry">Chemistry & Pharmaceuticals</SelectItem>
-                  <SelectItem value="metallurgy">Metallurgy & Machinery</SelectItem>
-                  <SelectItem value="food">Food processing</SelectItem>
-                  <SelectItem value="retail">Retail and wholesale trade</SelectItem>
-                  <SelectItem value="transportation">Transportation, aviation and logistics</SelectItem>
-                  <SelectItem value="finance">Finance, banking, and insurance</SelectItem>
-                  <SelectItem value="healthcare">Healthcare</SelectItem>
-                  <SelectItem value="education">Education</SelectItem>
-                  <SelectItem value="tourism">Tourism and hospitality</SelectItem>
-                  <SelectItem value="real-estate">Real Estate & construction</SelectItem>
-                  <SelectItem value="professional">Professional services (legal, consulting, marketing)</SelectItem>
-                  <SelectItem value="security">Security and defense</SelectItem>
-                  <SelectItem value="it">Information technology (IT)</SelectItem>
-                  <SelectItem value="rnd">Research and development (R&D)</SelectItem>
-                  <SelectItem value="data">Data analytics</SelectItem>
-                  <SelectItem value="research">Scientific research</SelectItem>
-                  <SelectItem value="media">Media and communications</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
+                  {INDUSTRY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

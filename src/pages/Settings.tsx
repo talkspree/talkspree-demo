@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Mail, Lock, Globe, Moon, Sun, Settings2, Shield } from "lucide-react";
+import { ArrowLeft, User, Mail, Moon, Sun, Settings2, Shield, Loader2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,21 +16,44 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDevice } from "@/hooks/useDevice";
 import { useProfileData } from "@/hooks/useProfileData";
 import { useCircleRole } from "@/hooks/useCircleRole";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 export default function Settings() {
   const navigate = useNavigate();
   const device = useDevice();
-  const { profileData, updateProfile } = useProfileData();
-  const { isAdmin, adminType, loading: roleLoading } = useCircleRole();
+  const { profileData } = useProfileData();
+  const { isAdmin, adminType } = useCircleRole();
+  const { user, updatePassword, resetPassword } = useAuth();
   const [activeSection, setActiveSection] = useState("profile");
   const [theme, setTheme] = useState("light");
-  
+
   const [email, setEmail] = useState(profileData.email || "");
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [sendingReset, setSendingReset] = useState(false);
   const [timezone, setTimezone] = useState("GMT+02:00");
   const [language, setLanguage] = useState("en");
+
+  /**
+   * Detect whether the user signed up with email/password vs an OAuth
+   * provider (e.g. Google). Only email/password accounts can manage a
+   * password directly inside the app.
+   */
+  const isEmailUser = useMemo(() => {
+    if (!user) return false;
+    const identities = user.identities ?? [];
+    // If any identity is `email`, treat the account as managing its own password
+    if (identities.some((i: any) => i.provider === 'email')) return true;
+    // app_metadata.provider is the primary provider, providers is the full list
+    const meta: any = user.app_metadata || {};
+    if (meta.provider === 'email') return true;
+    if (Array.isArray(meta.providers) && meta.providers.includes('email')) return true;
+    return false;
+  }, [user]);
 
   // Build sections dynamically based on admin status
   const sections = [
@@ -39,6 +62,80 @@ export default function Settings() {
     { id: "theme", label: "Theme", icon: Moon },
     ...(isAdmin ? [{ id: "circle", label: "Circle Settings", icon: Settings2 }] : []),
   ];
+
+  const handleChangePassword = async () => {
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      toast({ description: 'Please fill in all password fields', variant: 'destructive' });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ description: "New passwords don't match", variant: 'destructive' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({ description: 'Password must be at least 6 characters', variant: 'destructive' });
+      return;
+    }
+    if (!user?.email) {
+      toast({ description: 'Could not determine your email', variant: 'destructive' });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      // Re-authenticate with the old password before allowing the update.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: oldPassword,
+      });
+      if (signInError) {
+        toast({
+          description: 'Current password is incorrect',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const { error } = await updatePassword(newPassword);
+      if (error) {
+        toast({ description: error.message, variant: 'destructive' });
+        return;
+      }
+
+      toast({ description: 'Password updated successfully' });
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast({
+        description: err?.message || 'Failed to update password',
+        variant: 'destructive',
+      });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
+  const handleSendResetEmail = async () => {
+    if (!user?.email) {
+      toast({ description: 'No email on file', variant: 'destructive' });
+      return;
+    }
+    setSendingReset(true);
+    try {
+      const { error } = await resetPassword(user.email);
+      if (error) {
+        toast({ description: error.message, variant: 'destructive' });
+        return;
+      }
+      toast({
+        title: 'Reset email sent',
+        description: `Check ${user.email} for instructions.`,
+      });
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   const renderProfileSection = () => (
     <div className="space-y-6">
@@ -74,52 +171,94 @@ export default function Settings() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your.email@example.com"
+              disabled
             />
           </div>
-          <Button variant="outline" className="w-full">
-            Change Email
-          </Button>
+          <p className="text-xs text-muted-foreground">
+            Contact support to change the email associated with your account.
+          </p>
         </div>
       </Card>
 
       {/* Password */}
-      <Card className="p-6">
-        <h3 className="text-xl font-semibold mb-4">Change Password</h3>
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="oldPassword">Old Password</Label>
-            <Input
-              id="oldPassword"
-              type="password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-            />
+      {isEmailUser ? (
+        <Card className="p-6">
+          <h3 className="text-xl font-semibold mb-4">Change Password</h3>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="oldPassword">Current Password</Label>
+              <Input
+                id="oldPassword"
+                type="password"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                autoComplete="new-password"
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat new password"
+                autoComplete="new-password"
+              />
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={handleChangePassword}
+              disabled={changingPassword}
+            >
+              {changingPassword && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {changingPassword ? 'Updating...' : 'Change Password'}
+            </Button>
+
+            <div className="pt-2 border-t">
+              <p className="text-sm text-muted-foreground mb-2">
+                Forgot your current password?
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSendResetEmail}
+                disabled={sendingReset}
+              >
+                {sendingReset && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Send password reset email
+              </Button>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="newPassword">New Password</Label>
-            <Input
-              id="newPassword"
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="New password"
-            />
+        </Card>
+      ) : (
+        <Card className="p-6">
+          <h3 className="text-xl font-semibold mb-2">Password</h3>
+          <div className="flex items-start gap-3 p-4 bg-muted/50 rounded-lg">
+            <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium">Managed by your sign-in provider</p>
+              <p className="text-muted-foreground mt-1">
+                You signed up with a single sign-on provider (e.g. Google), so
+                your password is managed there. Update it from your provider's
+                account settings.
+              </p>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="confirmPassword">Confirm New Password</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm new password"
-            />
-          </div>
-          <Button variant="outline" className="w-full">
-            Change Password
-          </Button>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* Timezone & Language */}
       <Card className="p-6">
@@ -180,9 +319,6 @@ export default function Settings() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="outline" className="w-full">
-            Update Account
-          </Button>
         </div>
       </Card>
     </div>

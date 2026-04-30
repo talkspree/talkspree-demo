@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from "react";
+import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider, ProtectedRoute } from "./contexts/AuthContext";
 import { CircleProvider } from "./contexts/CircleContext";
@@ -10,6 +10,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import ClearSession from "./pages/ClearSession";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
 import ProfileEdit from "./pages/ProfileEdit";
@@ -21,18 +23,6 @@ import WaitingRoom from "./pages/WaitingRoom";
 import Countdown from "./pages/Countdown";
 import WrapUp from "./pages/WrapUp";
 import NotFound from "./pages/NotFound";
-
-const isDev = import.meta.env.DEV;
-
-const DevNavigationMenu = isDev
-  ? lazy(() => import("./components/dev/DevNavigationMenu").then(m => ({ default: m.DevNavigationMenu })))
-  : () => null;
-const DevViewportProvider = isDev
-  ? lazy(() => import("./components/dev/DevViewportContext").then(m => ({ default: m.DevViewportProvider })))
-  : ({ children }: { children: React.ReactNode }) => <>{children}</>;
-const DevViewportWrapper = isDev
-  ? lazy(() => import("./components/dev/DevViewportContext").then(m => ({ default: m.DevViewportWrapper })))
-  : ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,11 +40,6 @@ function App() {
         <AuthProvider>
           <CircleProvider>
           <ChatProvider>
-            <Suspense fallback={null}>
-            <DevViewportProvider>
-            {isDev && <DevNavigationMenu />}
-            
-            <DevViewportWrapper>
             <Routes>
               {/* Landing page - redirects based on auth status */}
               <Route path="/" element={<Index />} />
@@ -62,6 +47,8 @@ function App() {
               {/* Public routes */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/clear-session" element={<ClearSession />} />
               
               {/* Protected routes */}
@@ -79,14 +66,11 @@ function App() {
               {/* 404 - Keep this last */}
               <Route path="*" element={<NotFound />} />
             </Routes>
-            </DevViewportWrapper>
             
             {/* Global floating chat system (bubbles + chat windows) */}
             <ChatManager />
             
             <Toaster />
-            </DevViewportProvider>
-            </Suspense>
           </ChatProvider>
           </CircleProvider>
         </AuthProvider>

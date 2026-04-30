@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, Info, User, Bell, Shield } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, MessageCircle, Info, User, Bell, Shield, Users } from 'lucide-react';
+import { useChat } from '@/contexts/ChatContext';
 import { FiltersSection } from './FiltersSection';
 import { toast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.svg';
@@ -21,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 
 export function MobileHome() {
   const [activeTab, setActiveTab] = useState<'chat' | 'about'>('chat');
@@ -28,7 +30,9 @@ export function MobileHome() {
   const { signOut } = useAuth();
   const { profileData } = useProfileData();
   const { circle: contextCircle, role: circleRole, isAdmin, memberCounts, loading: roleLoading, reloadRole, unseenContactCount } = useCircle();
+  const { totalUnread, openMobileMessenger } = useChat();
   const [showProfile, setShowProfile] = useState(false);
+  const [isBellWobbling, setIsBellWobbling] = useState(false);
 
   // Safety net: clean up stale matchmaking state on home page mount
   useEffect(() => {
@@ -109,7 +113,7 @@ export function MobileHome() {
     members: totalMembers.toString(),
     online: onlineCount.toString(),
     bio: contextCircle?.description || 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
-    inviteLink: `https://talkspree.com/${contextCircle?.invite_code || 'mentortheyoung'}/invite`,
+    inviteLink: `https://talkspree.com/${contextCircle?.abbreviation || contextCircle?.invite_code || 'MTY'}/invite`,
     logoUrl: contextCircle?.logo_url || '',
     socials: {
       website: contextCircle?.social_links?.website || 'https://example.com',
@@ -136,10 +140,22 @@ export function MobileHome() {
           </button>
 
           <div className="flex items-center gap-2 relative z-10">
+          {/* Report a bug / feedback */}
+          <FeedbackButton />
+
           {/* Notifications */}
           <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-10 w-10 rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
+              <Button
+                variant="ghost"
+                size="icon"
+                onMouseEnter={() => {
+                  setIsBellWobbling(false);
+                  requestAnimationFrame(() => setIsBellWobbling(true));
+                }}
+                onAnimationEnd={() => setIsBellWobbling(false)}
+                className={`relative h-10 w-10 rounded-full neu-concave hover:neu-concave-pressed transition-shadow focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none${isBellWobbling ? ' bug-wobble' : ''}`}
+              >
                 <Bell className="h-5 w-5" />
                 {unseenContactCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
@@ -375,22 +391,43 @@ export function MobileHome() {
         </div>
       </div>
 
-      {/* Floating Contacts Button */}
-      <Button
-        size="lg"
-        className="fixed bottom-6 right-6 h-16 w-16 rounded-full shadow-glow bg-gradient-primary hover:opacity-90 z-40 p-0 flex items-center justify-center"
-        onClick={() => {
-          // Navigate to contacts - notifications will be cleared when the page loads
-          navigate('/contacts');
-        }}
+      {/* Messenger FAB — bottom-left */}
+      <button
+        type="button"
+        onClick={openMobileMessenger}
+        aria-label="Open messenger"
+        style={{ position: 'fixed', bottom: '1.5rem', left: '1.5rem' }}
+        className="h-16 w-16 rounded-full bg-gradient-primary shadow-glow hover:opacity-90 active:scale-95 transition-all z-40 flex items-center justify-center"
       >
-        <img src={profileViewIcon} alt="Contacts" className="h-7 w-7" />
+        <MessageCircle size={30} strokeWidth={2} className="text-white" />
+        {totalUnread > 0 && (
+          <span
+            style={{ position: 'absolute', top: '-4px', right: '-4px' }}
+            className="min-w-[20px] h-5 px-1 rounded-full bg-destructive text-destructive-foreground text-[11px] flex items-center justify-center font-semibold border-2 border-background"
+          >
+            {totalUnread > 99 ? '99+' : totalUnread}
+          </span>
+        )}
+      </button>
+
+      {/* Contacts FAB — bottom-right */}
+      <button
+        type="button"
+        onClick={() => navigate('/contacts')}
+        aria-label="View contacts"
+        style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem' }}
+        className="h-16 w-16 rounded-full bg-gradient-primary shadow-glow hover:opacity-90 active:scale-95 transition-all z-40 flex items-center justify-center"
+      >
+        <Users size={28} strokeWidth={2} className="text-white" />
         {unseenContactCount > 0 && (
-          <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold">
+          <span
+            style={{ position: 'absolute', top: '-4px', right: '-4px' }}
+            className="h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center font-semibold"
+          >
             {unseenContactCount}
           </span>
         )}
-      </Button>
+      </button>
 
       <ProfileCard open={showProfile} onOpenChange={setShowProfile} />
       

@@ -7,6 +7,12 @@ export interface Circle {
   logo_url: string | null;
   cover_image_url: string | null;
   invite_code: string;
+  /**
+   * Short, unique, uppercase alphanumeric identifier (2-10 chars). Auto-assigned at
+   * creation, editable by circle admins. Used in invite link generation and as a
+   * human-friendly identifier in admin tooling.
+   */
+  abbreviation: string;
   allow_member_invites: boolean;
   require_approval: boolean;
   disabled_default_preset_ids: string[];
@@ -801,16 +807,36 @@ export async function createTopicPreset(circleId: string, preset: {
 /**
  * Update circle details (for admins)
  */
-export async function updateCircle(circleId: string, updates: Partial<Pick<Circle, 'name' | 'description' | 'logo_url' | 'cover_image_url' | 'social_links' | 'disabled_default_preset_ids' | 'allow_member_custom_topics'>>) {
+export async function updateCircle(
+  circleId: string,
+  updates: Partial<Pick<
+    Circle,
+    | 'name'
+    | 'description'
+    | 'logo_url'
+    | 'cover_image_url'
+    | 'social_links'
+    | 'disabled_default_preset_ids'
+    | 'allow_member_custom_topics'
+    | 'abbreviation'
+  >>
+) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
   const isAdmin = await checkIsCircleAdmin(circleId);
   if (!isAdmin) throw new Error('Only admins can update circle details');
 
+  // The DB has a trigger that uppercases this for us, but doing it client-side
+  // gives a nicer error-up-front experience and keeps callers honest.
+  const sanitised: typeof updates = { ...updates };
+  if (sanitised.abbreviation !== undefined && sanitised.abbreviation !== null) {
+    sanitised.abbreviation = sanitised.abbreviation.trim().toUpperCase();
+  }
+
   const { data, error } = await supabase
     .from('circles')
-    .update(updates)
+    .update(sanitised)
     .eq('id', circleId)
     .select()
     .single();

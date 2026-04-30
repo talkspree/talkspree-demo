@@ -141,7 +141,7 @@ export function CircleCard() {
     members: totalMembers.toString(),
     online: onlineCount.toString(),
     bio: circle?.description || "Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering...",
-    inviteLink: `https://talkspree.com/${circle?.invite_code || 'mentortheyoung'}/invite`,
+    inviteLink: `https://talkspree.com/${circle?.abbreviation || circle?.invite_code || 'MTY'}/invite`,
     logoUrl: circle?.logo_url || "",
     coverImageUrl: circle?.cover_image_url || "",
     socials: {

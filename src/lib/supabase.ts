@@ -77,11 +77,12 @@ export interface Database {
           name: string;
           description: string;
           invite_code: string;
+          abbreviation: string;
           created_by: string;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['circles']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['circles']['Row'], 'id' | 'created_at' | 'updated_at' | 'abbreviation'> & { abbreviation?: string };
         Update: Partial<Database['public']['Tables']['circles']['Insert']>;
       };
       circle_members: {

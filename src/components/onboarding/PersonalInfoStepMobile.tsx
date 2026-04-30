@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { PlacesAutocomplete } from '@/components/ui/PlacesAutocomplete';
 import { OnboardingData } from '@/pages/Onboarding';
+import { GENDER_OPTIONS, normalizeGender } from '@/data/occupationOptions';
 
 interface PersonalInfoStepMobileProps {
   data: OnboardingData;
@@ -19,7 +20,7 @@ export function PersonalInfoStepMobile({ data, updateData, onNext, onPrev, field
   const [firstName, setFirstName] = useState(data.firstName || '');
   const [lastName, setLastName] = useState(data.lastName || '');
   const [dateOfBirth, setDateOfBirth] = useState(data.dateOfBirth || '');
-  const [gender, setGender] = useState(data.gender || '');
+  const [gender, setGender] = useState(normalizeGender(data.gender));
   const [location, setLocation] = useState(data.location || '');
 
   const handleNext = () => {
@@ -80,22 +81,17 @@ export function PersonalInfoStepMobile({ data, updateData, onNext, onPrev, field
         {field === 'gender' ? (
           <RadioGroup value={gender} onValueChange={setGender}>
             <div className="space-y-3">
-              <div className="flex items-center space-x-2 p-4 rounded-xl border-2 border-border hover:border-primary/30 transition-all cursor-pointer">
-                <RadioGroupItem value="Man" id="man" />
-                <Label htmlFor="man" className="flex-1 cursor-pointer">Man</Label>
-              </div>
-              <div className="flex items-center space-x-2 p-4 rounded-xl border-2 border-border hover:border-primary/30 transition-all cursor-pointer">
-                <RadioGroupItem value="Woman" id="woman" />
-                <Label htmlFor="woman" className="flex-1 cursor-pointer">Woman</Label>
-              </div>
-              <div className="flex items-center space-x-2 p-4 rounded-xl border-2 border-border hover:border-primary/30 transition-all cursor-pointer">
-                <RadioGroupItem value="Non-binary" id="non-binary" />
-                <Label htmlFor="non-binary" className="flex-1 cursor-pointer">Non-binary</Label>
-              </div>
-              <div className="flex items-center space-x-2 p-4 rounded-xl border-2 border-border hover:border-primary/30 transition-all cursor-pointer">
-                <RadioGroupItem value="Prefer not to say" id="prefer-not" />
-                <Label htmlFor="prefer-not" className="flex-1 cursor-pointer">I prefer not to say</Label>
-              </div>
+              {GENDER_OPTIONS.map((opt) => (
+                <div
+                  key={opt.id}
+                  className="flex items-center space-x-2 p-4 rounded-xl border-2 border-border hover:border-primary/30 transition-all cursor-pointer"
+                >
+                  <RadioGroupItem value={opt.id} id={`gender-${opt.id}`} />
+                  <Label htmlFor={`gender-${opt.id}`} className="flex-1 cursor-pointer">
+                    {opt.label}
+                  </Label>
+                </div>
+              ))}
             </div>
           </RadioGroup>
         ) : field === 'firstName' ? (

@@ -1,4 +1,5 @@
 import { Briefcase, MapPin, User, GraduationCap, Building2 } from 'lucide-react';
+import { getIndustryLabel } from '@/data/occupationOptions';
 
 interface AboutMeSectionProps {
   role?: string;
@@ -40,7 +41,7 @@ export function AboutMeSection({
       return `${studyField} · ${university}`;
     }
     if (industry) {
-      return `${occupation} · ${industry}`;
+      return `${occupation} · ${getIndustryLabel(industry)}`;
     }
     return occupation;
   };

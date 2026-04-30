@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PlacesAutocomplete } from '@/components/ui/PlacesAutocomplete';
 import { OnboardingData } from '@/pages/Onboarding';
+import { GENDER_OPTIONS, normalizeGender } from '@/data/occupationOptions';
 
 interface PersonalInfoStepProps {
   data: OnboardingData;
@@ -21,7 +22,7 @@ export function PersonalInfoStep({ data, updateData, onNext, onPrev, field, grou
     firstName: data.firstName,
     lastName: data.lastName,
     dateOfBirth: data.dateOfBirth,
-    gender: data.gender,
+    gender: normalizeGender(data.gender),
     location: data.location,
   });
 
@@ -84,14 +85,14 @@ export function PersonalInfoStep({ data, updateData, onNext, onPrev, field, grou
         case 'gender':
           return (
             <div className="space-y-3">
-              {['Man', 'Woman', 'Non-binary', 'I prefer not to say'].map((option) => (
+              {GENDER_OPTIONS.map((option) => (
                 <Button
-                  key={option}
-                  variant={getValue() === option ? 'default' : 'outline'}
+                  key={option.id}
+                  variant={getValue() === option.id ? 'default' : 'outline'}
                   className="w-full justify-start text-left transition-spring"
-                  onClick={() => handleSingleFieldNext(option, field)}
+                  onClick={() => handleSingleFieldNext(option.id, field)}
                 >
-                  {option}
+                  {option.label}
                 </Button>
               ))}
             </div>
@@ -174,10 +175,9 @@ export function PersonalInfoStep({ data, updateData, onNext, onPrev, field, grou
               <SelectValue placeholder="Select your gender" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Man">Man</SelectItem>
-              <SelectItem value="Woman">Woman</SelectItem>
-              <SelectItem value="Non-binary">Non-binary</SelectItem>
-              <SelectItem value="I prefer not to say">I prefer not to say</SelectItem>
+              {GENDER_OPTIONS.map((option) => (
+                <SelectItem key={option.id} value={option.id}>{option.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

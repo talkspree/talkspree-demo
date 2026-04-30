@@ -17,6 +17,13 @@ import { CircleRoleCard } from '@/components/profile/CircleRoleCard';
 import { updateProfile as updateProfileAPI, uploadProfilePicture } from '@/lib/api/profiles';
 import { getMyCircles, updateMyCircleRole } from '@/lib/api/circles';
 import { supabase } from '@/lib/supabase';
+import { ImageCropModal } from '@/components/ui/ImageCropModal';
+import {
+  GENDER_OPTIONS,
+  INDUSTRY_OPTIONS,
+  WORKPLACE_OPTIONS,
+  normalizeGender,
+} from '@/data/occupationOptions';
 
 export default function ProfileEdit() {
   const navigate = useNavigate();
@@ -28,7 +35,7 @@ export default function ProfileEdit() {
     firstName: profileData.firstName,
     lastName: profileData.lastName,
     dateOfBirth: profileData.dateOfBirth,
-    gender: profileData.gender,
+    gender: normalizeGender(profileData.gender),
     location: profileData.location,
     occupation: profileData.occupation,
     bio: profileData.bio,
@@ -53,7 +60,7 @@ export default function ProfileEdit() {
       firstName: profileData.firstName,
       lastName: profileData.lastName,
       dateOfBirth: profileData.dateOfBirth,
-      gender: profileData.gender,
+      gender: normalizeGender(profileData.gender),
       location: profileData.location,
       occupation: profileData.occupation,
       bio: profileData.bio,
@@ -112,6 +119,8 @@ export default function ProfileEdit() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
+  const [cropSource, setCropSource] = useState<File | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
   
   // Circle roles
   const [userCircles, setUserCircles] = useState<any[]>([]);
@@ -120,12 +129,13 @@ export default function ProfileEdit() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setUploadError('');
-    
+
     if (file) {
       // Validate file type
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/heic', 'image/heif', 'image/webp'];
       if (!validTypes.includes(file.type)) {
         setUploadError('Please upload a JPG, PNG, HEIC, or WebP image');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
@@ -133,16 +143,21 @@ export default function ProfileEdit() {
       const maxSize = 10 * 1024 * 1024; // 10MB in bytes
       if (file.size > maxSize) {
         setUploadError('Image must be less than 10MB');
+        if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      setUploadedFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, profilePicture: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      // Open the crop modal so the user can adjust the framing first.
+      setCropSource(file);
+      setShowCropModal(true);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleCropComplete = (croppedFile: File, dataUrl: string) => {
+    setUploadedFile(croppedFile);
+    setFormData((prev) => ({ ...prev, profilePicture: dataUrl }));
+    setCropSource(null);
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -404,10 +419,9 @@ export default function ProfileEdit() {
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Male">Male</SelectItem>
-                        <SelectItem value="Female">Female</SelectItem>
-                        <SelectItem value="Non-binary">Non-binary</SelectItem>
-                        <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                        {GENDER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -427,19 +441,35 @@ export default function ProfileEdit() {
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Industry</label>
-                    <Input
+                    <Select
                       value={formData.industry}
-                      onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                      placeholder="e.g., Technology, Finance"
-                    />
+                      onValueChange={(value) => setFormData({ ...formData, industry: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select industry" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INDUSTRY_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Place of Work</label>
-                    <Input
+                    <Select
                       value={formData.workPlace}
-                      onChange={(e) => setFormData({ ...formData, workPlace: e.target.value })}
-                      placeholder="Company or organization name"
-                    />
+                      onValueChange={(value) => setFormData({ ...formData, workPlace: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select workplace type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WORKPLACE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <label className="text-sm font-medium">University</label>
@@ -610,6 +640,16 @@ export default function ProfileEdit() {
           </form>
         </div>
       </div>
+      <ImageCropModal
+        open={showCropModal}
+        onOpenChange={setShowCropModal}
+        source={cropSource}
+        aspect={1}
+        shape="round"
+        outputFileName={`profile-${Date.now()}.jpg`}
+        title="Adjust your profile picture"
+        onCropComplete={handleCropComplete}
+      />
     </AdaptiveLayout>
   );
 }

@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbars but keep scroll functional (used by mobile messenger) */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Custom Scrollbar Styles — pill-shaped track with gradient thumb */
 .custom-scrollbar::-webkit-scrollbar {
   width: 18px;
@@ -101,6 +110,47 @@
 @keyframes dino-hint-bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
+}
+
+/* Feedback / bug report tooltip animations */
+@keyframes feedback-tooltip-float {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(-3px); }
+}
+
+@keyframes feedback-tooltip-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.feedback-tooltip-float {
+  animation: feedback-tooltip-float 3s ease-in-out infinite;
+}
+
+.feedback-tooltip-shimmer {
+  background-image: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: feedback-tooltip-shimmer 2.4s ease-in-out infinite;
+}
+
+/* Bug button wobble — toggled via JS class, reset on animationend */
+@keyframes bug-wobble {
+  0%   { transform: rotate(0deg)   scale(1);    }
+  15%  { transform: rotate(-15deg) scale(1.06); }
+  35%  { transform: rotate(12deg)  scale(1.06); }
+  50%  { transform: rotate(-9deg)  scale(1.06); }
+  65%  { transform: rotate(6deg)   scale(1.03); }
+  80%  { transform: rotate(-3deg)  scale(1);    }
+  100% { transform: rotate(0deg)   scale(1);    }
+}
+
+.bug-wobble {
+  animation: bug-wobble 0.6s ease-in-out;
 }
 
 /* TalkSpree Design System - Apple-inspired minimalistic design

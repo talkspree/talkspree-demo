@@ -9,6 +9,7 @@ import { useDevice } from '@/hooks/useDevice';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import WelcomeAnimation from '@/components/auth/welcome/WelcomeAnimation';
+import { markFeedbackTooltipForNextLogin } from '@/components/feedback/feedbackTooltipFlag';
 
 type AuthMode = 'login' | 'signup' | 'invite';
 
@@ -53,7 +54,12 @@ export default function Auth() {
         variant: "destructive"
       });
     } else {
-      // Check if user has completed onboarding
+      // Set the tooltip flag BEFORE any further awaits. The auth-state change
+      // listener can trigger navigation to /home while hasCompletedOnboarding()
+      // is still pending, so if we wait until after that await the FeedbackButton
+      // will already have mounted and consumed nothing.
+      markFeedbackTooltipForNextLogin();
+
       const { hasCompletedOnboarding } = await import('@/lib/api/profiles');
       const onboardingComplete = await hasCompletedOnboarding();
       
@@ -61,7 +67,7 @@ export default function Auth() {
         title: "Welcome back!",
         description: "You've successfully logged in."
       });
-      
+
       if (onboardingComplete) {
         navigate('/home');
       } else {
@@ -122,7 +128,10 @@ export default function Auth() {
     
     // Clear stored password after successful sign in
     setSignupPassword('');
-    
+
+    // Auto-reveal the bug-report tooltip once when they reach the home page.
+    markFeedbackTooltipForNextLogin();
+
     // Navigate to onboarding (useEffect in Auth will handle this after sign in)
     // But we'll navigate anyway to be explicit
     navigate('/onboarding', { replace: true });

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, Save, Plus, X, Pencil, Trash2, Globe, Instagram, Facebook, Linkedin, Mail, Youtube, Lock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Upload, Save, Plus, X, Pencil, Trash2, Globe, Instagram, Facebook, Linkedin, Mail, Youtube, Lock, Loader2, ChevronDown, ChevronUp, Monitor, Smartphone, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,8 +9,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { toast } from '@/hooks/use-toast';
 import { useCircleRole } from '@/hooks/useCircleRole';
+import { CircleCardPreview } from '@/components/circle/CircleCardPreview';
 import { 
   getOrCreateDefaultCircle,
   invalidateDefaultCircleCache,
@@ -41,6 +43,7 @@ import {
   CirclePreset
 } from '@/lib/api/topics';
 import { supabase } from '@/lib/supabase';
+import { ImageCropModal } from '@/components/ui/ImageCropModal';
 
 export default function CircleSettings() {
   const navigate = useNavigate();
@@ -54,6 +57,7 @@ export default function CircleSettings() {
   const [description, setDescription] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
+  const [abbreviation, setAbbreviation] = useState('');
   const [socialLinks, setSocialLinks] = useState({
     website: '',
     instagram: '',
@@ -62,6 +66,9 @@ export default function CircleSettings() {
     email: '',
     youtube: ''
   });
+
+  // Preview viewport toggle (desktop / mobile) – preview pane is desktop-only.
+  const [previewViewport, setPreviewViewport] = useState<'desktop' | 'mobile'>('desktop');
   
   // Roles
   const [roles, setRoles] = useState<CircleRole[]>([]);
@@ -104,6 +111,11 @@ export default function CircleSettings() {
   const logoInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
+  // Crop modal state
+  const [cropSource, setCropSource] = useState<File | null>(null);
+  const [cropTarget, setCropTarget] = useState<'logo' | 'cover' | null>(null);
+  const [showCropModal, setShowCropModal] = useState(false);
+
   // Load topics and presets for circle
   const loadTopicsAndPresets = useCallback(async (circleId: string) => {
     setLoadingTopics(true);
@@ -140,6 +152,7 @@ export default function CircleSettings() {
         setDescription(circleData.description || '');
         setLogoUrl(circleData.logo_url || '');
         setCoverImageUrl(circleData.cover_image_url || '');
+        setAbbreviation(circleData.abbreviation || '');
         
         // Load disabled default preset IDs
         setDisabledDefaultPresetIds(circleData.disabled_default_preset_ids || []);
@@ -188,30 +201,70 @@ export default function CircleSettings() {
     }
   }, [roleLoading, isAdmin, navigate]);
 
+  // Abbreviation must be 2-10 chars, A-Z / 0-9 only. Mirrors the DB constraint
+  // in migration 078 so we fail fast in the UI before round-tripping.
+  const ABBREVIATION_REGEX = /^[A-Z0-9]{2,10}$/;
+  const normalisedAbbreviation = abbreviation.trim().toUpperCase();
+  const abbreviationError = (() => {
+    if (!normalisedAbbreviation) return 'Abbreviation is required';
+    if (!ABBREVIATION_REGEX.test(normalisedAbbreviation)) {
+      return '2–10 characters, letters and numbers only';
+    }
+    return null;
+  })();
+
   const handleSave = async () => {
     if (!circle) return;
-    
+
+    if (abbreviationError) {
+      toast({ title: 'Invalid abbreviation', description: abbreviationError, variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
     try {
-      await updateCircle(circle.id, {
+      const saved = await updateCircle(circle.id, {
         name,
         description,
         logo_url: logoUrl || null,
         cover_image_url: coverImageUrl || null,
-        social_links: socialLinks
+        social_links: socialLinks,
+        abbreviation: normalisedAbbreviation,
       });
 
       invalidateDefaultCircleCache();
-      setCircle(prev => prev ? { ...prev, name } : prev);
-      
+      setCircle(prev => prev ? { ...prev, name, abbreviation: saved?.abbreviation ?? normalisedAbbreviation } : prev);
+      // Reflect any server-side normalisation (uppercasing) in the input.
+      if (saved?.abbreviation) setAbbreviation(saved.abbreviation);
+
       toast({ title: 'Success', description: 'Circle settings saved successfully' });
     } catch (error) {
       console.error('Error saving circle:', error);
-      toast({ title: 'Error', description: 'Failed to save circle settings', variant: 'destructive' });
+      // Postgres unique-violation surfaces here when the abbreviation is taken.
+      const err = error as { code?: string; message?: string } | null;
+      const isAbbrevConflict = err?.code === '23505' && (err?.message || '').toLowerCase().includes('abbreviation');
+      toast({
+        title: 'Error',
+        description: isAbbrevConflict
+          ? 'That abbreviation is already taken. Please pick another.'
+          : 'Failed to save circle settings',
+        variant: 'destructive',
+      });
     } finally {
       setSaving(false);
     }
   };
+
+  // Preview data – kept in sync with the form fields so the preview pane
+  // updates live as admins edit.
+  const previewData = useMemo(() => ({
+    name,
+    description,
+    logoUrl,
+    coverImageUrl,
+    abbreviation: normalisedAbbreviation,
+    socialLinks,
+  }), [name, description, logoUrl, coverImageUrl, normalisedAbbreviation, socialLinks]);
 
   // Extract file path from Supabase storage URL
   const extractStoragePath = (url: string): string | null => {
@@ -241,50 +294,67 @@ export default function CircleSettings() {
     }
   };
 
-  const handleImageUpload = async (file: File, type: 'logo' | 'cover') => {
+  /**
+   * Selecting a file no longer uploads directly. Instead, it opens the
+   * crop modal so the admin can frame the image.
+   */
+  const handleImagePick = (file: File, type: 'logo' | 'cover') => {
+    setCropSource(file);
+    setCropTarget(type);
+    setShowCropModal(true);
+    // Allow the same file to be re-picked later
+    if (type === 'logo' && logoInputRef.current) logoInputRef.current.value = '';
+    if (type === 'cover' && coverInputRef.current) coverInputRef.current.value = '';
+  };
+
+  const uploadImageToStorage = async (file: File, type: 'logo' | 'cover') => {
     if (!circle) return;
-    
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${circle.id}/${type}_${Date.now()}.${fileExt}`;
-    
-    // Get the old URL to delete after successful upload
+
+    const fileName = `${circle.id}/${type}_${Date.now()}.jpg`;
     const oldUrl = type === 'logo' ? logoUrl : coverImageUrl;
-    
+
     try {
       const { error: uploadError } = await supabase.storage
         .from('circle-assets')
         .upload(fileName, file, {
           cacheControl: '3600',
-          upsert: false
+          upsert: false,
+          contentType: 'image/jpeg',
         });
-      
+
       if (uploadError) {
         console.error('Upload error:', uploadError);
         throw uploadError;
       }
-      
+
       const { data: { publicUrl } } = supabase.storage
         .from('circle-assets')
         .getPublicUrl(fileName);
-      
-      // Delete old image after successful upload
+
       await deleteOldImage(oldUrl);
-      
+
       if (type === 'logo') {
         setLogoUrl(publicUrl);
       } else {
         setCoverImageUrl(publicUrl);
       }
-      
+
       toast({ title: 'Success', description: `${type === 'logo' ? 'Profile picture' : 'Cover image'} uploaded` });
     } catch (error: any) {
       console.error('Error uploading image:', error);
-      toast({ 
-        title: 'Error', 
-        description: error?.message || 'Failed to upload image. Please try again.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to upload image. Please try again.',
+        variant: 'destructive',
       });
     }
+  };
+
+  const handleCropComplete = async (croppedFile: File) => {
+    if (!cropTarget) return;
+    await uploadImageToStorage(croppedFile, cropTarget);
+    setCropSource(null);
+    setCropTarget(null);
   };
 
   const handleAddRole = async () => {
@@ -594,7 +664,7 @@ export default function CircleSettings() {
               </p>
             </div>
           </div>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving || !!abbreviationError}>
             <Save className="h-4 w-4 mr-2" />
             {saving ? 'Saving...' : 'Save Changes'}
           </Button>
@@ -602,88 +672,209 @@ export default function CircleSettings() {
       </div>
 
       {/* Content */}
-      <div className="container mx-auto px-6 py-8 max-w-4xl space-y-8">
-        {/* Basic Info */}
+      <div className="container mx-auto px-6 py-8 max-w-6xl space-y-8">
+        {/* Circle Details — split into preview (desktop only) + form */}
         <Card>
           <CardHeader>
             <CardTitle>Circle Details</CardTitle>
-            <CardDescription>Update your circle's basic information</CardDescription>
+            <CardDescription>Update your circle's basic information. Changes appear live in the preview.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Profile Picture */}
-            <div className="flex items-center gap-6">
-              <div className="relative group">
-                <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
-                  <AvatarImage src={logoUrl} />
-                  <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
-                    {name?.[0] || 'C'}
-                  </AvatarFallback>
-                </Avatar>
-                <button
-                  onClick={() => logoInputRef.current?.click()}
-                  className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                >
-                  <Upload className="h-6 w-6 text-white" />
-                </button>
-                <input
-                  ref={logoInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'logo')}
-                />
-              </div>
-              <div>
-                <h3 className="font-medium">Profile Picture</h3>
-                <p className="text-sm text-muted-foreground">Click on the image to change</p>
-              </div>
-            </div>
+          <CardContent>
+            {/* Column layout: preview gets a fixed narrower column so the form has more breathing room */}
+            <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-8">
+              {/* LEFT: Preview pane (desktop only) */}
+              <div className="hidden lg:flex flex-col gap-3 lg:sticky lg:top-24 lg:self-start">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-medium text-sm">Live preview</h3>
+                    <p className="text-xs text-muted-foreground">How your card will look on the homepage.</p>
+                  </div>
+                  <ToggleGroup
+                    type="single"
+                    value={previewViewport}
+                    onValueChange={(value) => {
+                      if (value === 'desktop' || value === 'mobile') setPreviewViewport(value);
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <ToggleGroupItem value="desktop" aria-label="Desktop preview" className="gap-1.5">
+                      <Monitor className="h-3.5 w-3.5" />
+                      <span className="hidden xl:inline text-xs">Desktop</span>
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="mobile" aria-label="Mobile preview" className="gap-1.5">
+                      <Smartphone className="h-3.5 w-3.5" />
+                      <span className="hidden xl:inline text-xs">Mobile</span>
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                </div>
 
-            {/* Cover Image */}
-            <div>
-              <Label>Cover Image</Label>
-              <div className="relative group mt-2">
-                <div 
-                  className="h-32 rounded-lg bg-gradient-primary overflow-hidden"
-                  style={coverImageUrl ? { backgroundImage: `url(${coverImageUrl})`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}}
-                >
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="secondary" onClick={() => coverInputRef.current?.click()}>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Cover
-                    </Button>
+                <div className="rounded-2xl border-2 border-dashed border-border bg-muted/30 p-4">
+                  {previewViewport === 'desktop' ? (
+                    /*
+                     * `zoom` scales layout AND visual size together, so no phantom
+                     * whitespace. The card renders at its true 400 px width internally
+                     * and the browser presents it at 70 % — preserving exact proportions.
+                     */
+                    <div style={{ zoom: 0.7 }}>
+                      <CircleCardPreview data={previewData} viewport="desktop" />
+                    </div>
+                  ) : (
+                    <CircleCardPreview data={previewData} viewport="mobile" />
+                  )}
+                </div>
+              </div>
+
+              {/* RIGHT: Form */}
+              <div className="space-y-6">
+                {/* Circle Name (top) */}
+                <div>
+                  <Label htmlFor="name">Circle Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Enter circle name"
+                    maxLength={80}
+                  />
+                </div>
+
+                {/* Profile Picture */}
+                <div className="space-y-2">
+                  <Label>Profile Picture</Label>
+                  <div className="flex items-start gap-4">
+                    <div className="relative group flex-shrink-0">
+                      <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
+                        <AvatarImage src={logoUrl} />
+                        <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
+                          {name?.[0] || 'C'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <Upload className="h-6 w-6 text-white" />
+                      </button>
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && handleImagePick(e.target.files[0], 'logo')}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />
+                        Upload new
+                      </Button>
+                      <ul className="mt-3 text-xs text-muted-foreground space-y-1 leading-relaxed">
+                        <li><span className="font-medium text-foreground">Aspect:</span> 1:1 (square — displayed as a circle)</li>
+                        <li><span className="font-medium text-foreground">Recommended:</span> 512×512 px or larger</li>
+                        <li><span className="font-medium text-foreground">Formats:</span> JPG, PNG, WebP</li>
+                        <li><span className="font-medium text-foreground">Max size:</span> 5 MB</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
-                <input
-                  ref={coverInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'cover')}
-                />
-              </div>
-            </div>
 
-            {/* Name & Description */}
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Circle Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter circle name"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe your circle..."
-                  rows={4}
-                />
+                {/* Cover Image */}
+                <div className="space-y-2">
+                  <Label>Cover Image</Label>
+                  <div className="flex items-start gap-4">
+                    {/* Thumbnail preview — shows the full image at 16:9, no crop */}
+                    <div className="relative group flex-shrink-0">
+                      <div
+                        className="w-36 rounded-lg overflow-hidden border border-border shadow-sm bg-gradient-primary"
+                        style={{ aspectRatio: '16/9' }}
+                      >
+                        {coverImageUrl ? (
+                          <img
+                            src={coverImageUrl}
+                            alt="Cover"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-primary opacity-80" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => coverInputRef.current?.click()}
+                          className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                        >
+                          <Upload className="h-5 w-5 text-white" />
+                        </button>
+                      </div>
+                      <input
+                        ref={coverInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && handleImagePick(e.target.files[0], 'cover')}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <Button type="button" variant="outline" size="sm" onClick={() => coverInputRef.current?.click()}>
+                        <Upload className="h-3.5 w-3.5 mr-1.5" />
+                        Upload new
+                      </Button>
+                      <ul className="mt-3 text-xs text-muted-foreground space-y-1 leading-relaxed">
+                        <li><span className="font-medium text-foreground">Usage:</span> Backgrounds the entire circle card — image is centered and cropped to fit</li>
+                        <li><span className="font-medium text-foreground">Key visible area:</span> Top strip ≈ 400×128 px (3.1:1) on desktop; full-width × 128 px on mobile</li>
+                        <li><span className="font-medium text-foreground">Recommended:</span> 800×256 px minimum — keep the main subject centred near the top</li>
+                        <li><span className="font-medium text-foreground">Formats:</span> JPG, PNG, WebP</li>
+                        <li><span className="font-medium text-foreground">Max size:</span> 5 MB</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe your circle..."
+                    rows={4}
+                  />
+                </div>
+
+                {/* Abbreviation (new) */}
+                <div className="space-y-2">
+                  <Label htmlFor="abbreviation" className="flex items-center gap-1.5">
+                    Abbreviation
+                    <span className="text-xs font-normal text-muted-foreground">(invite link & admin identifier)</span>
+                  </Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id="abbreviation"
+                      value={abbreviation}
+                      onChange={(e) => setAbbreviation(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))}
+                      placeholder="e.g. MTY"
+                      maxLength={10}
+                      className={`font-mono uppercase tracking-wider w-40 ${abbreviationError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                    />
+                    <span className="text-xs text-muted-foreground tabular-nums">{normalisedAbbreviation.length}/10</span>
+                  </div>
+                  {abbreviationError ? (
+                    <p className="text-xs text-destructive flex items-center gap-1">
+                      <Info className="h-3 w-3" />
+                      {abbreviationError}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground flex items-start gap-1.5">
+                      <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                      <span>
+                        2–10 uppercase letters / numbers. Must be unique across TalkSpree. Used in the invite link
+                        <span className="font-mono"> talkspree.com/{normalisedAbbreviation || 'XXXX'}/invite</span>.
+                      </span>
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>
@@ -1238,6 +1429,25 @@ export default function CircleSettings() {
             )}
           </CardContent>
         </Card>
+
+        {/* Image Crop Modal (used for both logo and cover) */}
+        <ImageCropModal
+          open={showCropModal}
+          onOpenChange={(open) => {
+            setShowCropModal(open);
+            if (!open) {
+              setCropSource(null);
+              setCropTarget(null);
+            }
+          }}
+          source={cropSource}
+          aspect={cropTarget === 'cover' ? 16 / 9 : 1}
+          shape={cropTarget === 'cover' ? 'rect' : 'round'}
+          outputSize={cropTarget === 'cover' ? 1280 : 512}
+          outputFileName={`${cropTarget ?? 'image'}-${Date.now()}.jpg`}
+          title={cropTarget === 'cover' ? 'Adjust cover image' : 'Adjust profile picture'}
+          onCropComplete={handleCropComplete}
+        />
 
         {/* Danger Zone (only for Creator and Super Admin) */}
         {(adminType === 'creator' || adminType === 'super_admin') && (
