@@ -43,27 +43,31 @@ export async function getInviterBySlug(slug: string): Promise<InviterInfo | null
 }
 
 /**
- * Look up a circle by its abbreviation (case-insensitive). Returns minimal
- * info needed to record affiliate context.
+ * Look up a circle by its abbreviation (case-insensitive). Uses the
+ * `get_circle_by_abbreviation` security-definer RPC so anonymous invitees
+ * can resolve `MTY` without `circles` SELECT RLS (authenticated-only in 018).
  */
 export async function getCircleByAbbreviation(abbreviation: string): Promise<CircleAbbrInfo | null> {
   const normalised = abbreviation.trim().toUpperCase();
   if (!/^[A-Z0-9]{2,10}$/.test(normalised)) return null;
 
-  const { data, error } = await supabase
-    .from('circles')
-    .select('id, name, abbreviation')
-    .eq('abbreviation', normalised)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('get_circle_by_abbreviation', {
+    p_abbrev: normalised,
+  });
 
   if (error) {
     console.error('getCircleByAbbreviation error:', error);
     return null;
   }
 
-  return data
-    ? { id: data.id, name: data.name, abbreviation: data.abbreviation }
-    : null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    name: row.name ?? '',
+    abbreviation: row.abbreviation ?? normalised,
+  };
 }
 
 /**
