@@ -271,7 +271,7 @@ export function FiltersSection() {
                 <Badge
                   variant={role === 'random' ? 'default' : 'secondary'}
                   className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                    role === 'random' ? 'border-none' : 'secondary'
+                    role === 'random' ? 'border-none' : 'neu-concave secondary'
                   }`}
                   onClick={() => setRole('random')}
                 >
@@ -283,7 +283,7 @@ export function FiltersSection() {
                   [52, 64, 56].map((w, i) => (
                     <div
                       key={i}
-                      className="h-7 rounded-full bg-muted animate-pulse"
+                      className="h-7 rounded-full neu-concave bg-muted animate-pulse"
                       style={{ width: `${w}px`, animationDelay: `${i * 120}ms` }}
                     />
                   ))
@@ -293,7 +293,7 @@ export function FiltersSection() {
                       key={r.name}
                       variant={role === r.name ? 'default' : 'secondary'}
                       className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                        role === r.name ? 'border-none' : 'secondary'
+                        role === r.name ? 'border-none' : 'neu-concave secondary'
                       }`}
                       onClick={() => setRole(r.name)}
                     >
@@ -359,7 +359,7 @@ export function FiltersSection() {
                 <Badge
                   variant={selectedPreset === 'none' ? 'default' : 'secondary'}
                   className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                    selectedPreset === 'none' ? 'border-none' : 'secondary'
+                    selectedPreset === 'none' ? 'border-none' : 'neu-concave secondary'
                   }`}
                   onClick={() => setSelectedPreset('none')}
                 >
@@ -374,7 +374,7 @@ export function FiltersSection() {
                       key={preset.id}
                       variant={selectedPreset === preset.id ? 'default' : 'secondary'}
                       className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                        selectedPreset === preset.id ? 'border-none' : 'secondary'
+                        selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
                       }`}
                       onClick={() => setSelectedPreset(preset.id)}
                     >
@@ -390,7 +390,7 @@ export function FiltersSection() {
                       key={preset.id}
                       variant={selectedPreset === preset.id ? 'default' : 'secondary'}
                       className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                        selectedPreset === preset.id ? 'border-none' : 'secondary'
+                        selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
                       }`}
                       onClick={() => setSelectedPreset(preset.id)}
                     >
@@ -404,7 +404,7 @@ export function FiltersSection() {
                     key={preset.id}
                     variant={selectedPreset === preset.id ? 'default' : 'secondary'}
                     className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 transition-all hover:scale-105 border-2 border-blue-300 ${
-                      selectedPreset === preset.id ? 'border-none' : 'secondary'
+                      selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
                     }`}
                     onClick={() => setSelectedPreset(preset.id)}
                   >
@@ -424,7 +424,7 @@ export function FiltersSection() {
                 {(isAdmin || allowMemberCustomTopics) && (
                   <Badge
                     variant={selectedPreset === 'custom' ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-warning-foreground flex items-center gap-2 transition-all hover:scale-105 ${
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-white drop-shadow-lg flex items-center gap-2 transition-all hover:scale-105 ${
                       selectedPreset === 'custom' ? 'border-none' : 'border-none'
                     }`}
                     onClick={() => {
@@ -456,7 +456,7 @@ export function FiltersSection() {
                     key={d.value}
                     variant={duration === d.value ? 'default' : 'secondary'}
                     className={`cursor-pointer md:text-sm text-xs md:px-4 px-4 md:py-2 py-1.5 whitespace-nowrap transition-all hover:scale-105 ${
-                      duration === d.value ? 'border-none' : 'secondary'
+                      duration === d.value ? 'border-none' : 'neu-concave secondary'
                     }`}
                     onClick={() => setDuration(d.value as Duration)}
                   >
@@ -474,7 +474,7 @@ export function FiltersSection() {
                   <Button
                     size="lg"
                     className={cn(
-                      "w-36 text-lg font-semibold py-6 rounded-full my-2",
+                      "w-36 text-lg font-bold py-6 rounded-full my-2",
                       startDisabled && "opacity-50 cursor-not-allowed pointer-events-none"
                     )}
                     onClick={startDisabled ? undefined : handleStartSession}

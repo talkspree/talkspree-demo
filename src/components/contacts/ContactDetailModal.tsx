@@ -157,7 +157,7 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
             </button>
 
             {/* Scrollable Area */}
-            <div className="overflow-y-auto custom-scrollbar-contact pl-6 pr-2 sm:p-8 sm:pl-10 sm:pr-4  mr-2 sm:mr-4">
+            <div className="overflow-y-auto custom-scrollbar-contact pl-6 pr-2 p-6 sm:p-8 sm:pl-10 sm:pr-4  mr-2 sm:mr-4">
               
               {/* Header Section */}
               <div className="flex flex-col sm:flex-row gap-6 sm:gap-10 items-center sm:items-start text-center sm:text-left mb-8">
@@ -172,12 +172,11 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
                 </div>
 
                 {/* Basic Info */}
-                <div className="flex-1 space-y-4 pt-2">
-                  <h2 className="text-3xl font-extrabold tracking-tight">{contact.user.firstName} {contact.user.lastName}</h2>
+                <div className="flex-1 space-y-4 pt-0 md:pt-2">
+                  <h2 className="text-3xl font-bold tracking-tight">{contact.user.firstName} {contact.user.lastName}</h2>
                   
                   {/* About Me Section */}
                   <AboutMeSection
-                    role={contact.user.role}
                     occupation={contact.user.occupation}
                     industry={contact.user.industry}
                     studyField={contact.user.studyField}

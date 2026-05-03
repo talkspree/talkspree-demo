@@ -44,10 +44,13 @@ export interface Database {
           is_online: boolean;
           in_call: boolean;
           session_duration: number;
+          slug: string;
+          invited_by: string | null;
+          invited_via_circle_id: string | null;
           created_at: string;
           updated_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'id' | 'created_at' | 'updated_at'>;
+        Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'id' | 'created_at' | 'updated_at' | 'slug'> & { slug?: string };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
       };
       user_interests: {

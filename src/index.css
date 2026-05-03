@@ -450,14 +450,14 @@ All colors MUST be HSL.
   /* Neumorphic Button Styles */
   .neu-concave {
     box-shadow: 
-      inset 4px 4px 8px rgba(0, 0, 0, 0.1),
+      inset 4px 4px 8px rgba(0, 0, 0, 0.15),
       inset -4px -4px 8px rgba(255, 255, 255, 0.9);
     border: 1px solid rgba(0, 0, 0, 0.05);
   }
 
   .neu-concave-pressed {
     box-shadow: 
-      inset 6px 6px 12px rgba(0, 0, 0, 0.15),
+      inset 6px 6px 12px rgba(0, 0, 0, 0.1),
       inset -6px -6px 12px rgba(255, 255, 255, 0.95);
     border: 1px solid rgba(0, 0, 0, 0.08);
     transform: translateY(1px);

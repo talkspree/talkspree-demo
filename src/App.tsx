@@ -9,6 +9,7 @@ import { ChatManager } from "./components/chat/ChatManager";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
+import AffiliateInvite from "./pages/AffiliateInvite";
 import ClearSession from "./pages/ClearSession";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -62,7 +63,10 @@ function App() {
               <Route path="/waiting" element={<ProtectedRoute><WaitingRoom /></ProtectedRoute>} />
               <Route path="/countdown" element={<ProtectedRoute><Countdown /></ProtectedRoute>} />
               <Route path="/wrap-up" element={<ProtectedRoute><WrapUp /></ProtectedRoute>} />
-              
+
+              {/* Personal affiliate invite link: /<CIRCLE_ABBR>/<USER_SLUG> */}
+              <Route path="/:circleAbbrev/:userSlug" element={<AffiliateInvite />} />
+
               {/* 404 - Keep this last */}
               <Route path="*" element={<NotFound />} />
             </Routes>

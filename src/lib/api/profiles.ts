@@ -21,6 +21,12 @@ export interface Profile {
   is_online: boolean;
   in_call: boolean;
   session_duration: number;
+  /** 6-char [a-z0-9] identifier used in personal invite links. Auto-assigned at profile creation. */
+  slug: string;
+  /** Profile id of the user whose affiliate invite link brought this user to the platform. Set once at signup. */
+  invited_by: string | null;
+  /** Circle whose invite link was used at signup. Analytics only. */
+  invited_via_circle_id: string | null;
   created_at: string;
   updated_at: string;
 }

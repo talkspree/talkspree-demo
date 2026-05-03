@@ -5,11 +5,17 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useDevice } from '@/hooks/useDevice';
 import logo from '@/assets/logo.svg';
+import { getInviterBySlug, getCircleByAbbreviation } from '@/lib/api/affiliates';
+import { setPendingAffiliate, clearPendingAffiliate } from '@/lib/affiliate';
 
 interface InviteCodeFormProps {
   onValidCode: () => void;
   onBack: () => void;
 }
+
+// Personal invite link format: talkspree.com/<CIRCLE_ABBR>/<6-CHAR_SLUG>
+// e.g. https://talkspree.com/MTY/xa7k2p
+const PERSONAL_LINK_REGEX = /^https?:\/\/[^/]+\/([A-Za-z0-9]{2,10})\/([a-z0-9]{6})\/?$/;
 
 export function InviteCodeForm({ onValidCode, onBack }: InviteCodeFormProps) {
   const [code, setCode] = useState('');
@@ -24,26 +30,65 @@ export function InviteCodeForm({ onValidCode, onBack }: InviteCodeFormProps) {
     setLoading(true);
 
     try {
-      // Check if it's a direct code or extract from invite link
-      let codeToValidate = code;
-      
-      if (inviteLink) {
-        // Extract code from invite link (assuming format: .../invite?code=1111)
-        const urlMatch = inviteLink.match(/code=([^&]+)/);
-        if (urlMatch) {
-          codeToValidate = urlMatch[1];
-        } else {
-          throw new Error('Invalid invite link format');
+      const trimmedLink = inviteLink.trim();
+
+      // 1. Pasted personal affiliate link -> resolve, stash, advance
+      if (trimmedLink) {
+        const personalMatch = trimmedLink.match(PERSONAL_LINK_REGEX);
+        if (personalMatch) {
+          const circleAbbrev = personalMatch[1].toUpperCase();
+          const userSlug = personalMatch[2].toLowerCase();
+
+          const [inviter, circle] = await Promise.all([
+            getInviterBySlug(userSlug),
+            getCircleByAbbreviation(circleAbbrev),
+          ]);
+
+          if (!inviter || !circle) {
+            setError('Invalid invite link. Please check and try again.');
+            return;
+          }
+
+          setPendingAffiliate({
+            inviterId: inviter.id,
+            inviterFirstName: inviter.firstName,
+            inviterLastName: inviter.lastName,
+            inviterPicture: inviter.profilePicture,
+            inviterSlug: inviter.slug,
+            circleId: circle.id,
+            circleAbbrev: circle.abbreviation,
+          });
+
+          onValidCode();
+          return;
         }
+
+        // 2. Legacy `?code=XXXX` link -> no affiliation
+        const legacyMatch = trimmedLink.match(/code=([^&]+)/);
+        if (legacyMatch) {
+          if (legacyMatch[1] === '1111') {
+            clearPendingAffiliate();
+            onValidCode();
+            return;
+          }
+          setError('Invalid invite code. Please check and try again.');
+          return;
+        }
+
+        setError('Invalid invite link format.');
+        return;
       }
 
-      // Validate code (hardcoded as 1111 for now)
-      if (codeToValidate === '1111') {
+      // 3. Raw demo code typed in the code field -> no affiliation
+      if (code.trim() === '1111') {
+        clearPendingAffiliate();
         onValidCode();
-      } else {
-        setError('Invalid invite code. Please check and try again.');
+        return;
       }
+
+      setError('Invalid invite code. Please check and try again.');
     } catch (err) {
+      console.error('InviteCodeForm error:', err);
       setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);

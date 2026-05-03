@@ -3,16 +3,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useDevice } from '@/hooks/useDevice';
 import logo from '@/assets/logo.svg';
+
+export interface SignupInvitedBy {
+  firstName: string;
+  lastName: string;
+  profilePicture: string | null;
+}
 
 interface SignupFormProps {
   onSwitchToLogin: () => void;
   onGoogleSignUp: () => void;
   onSignUp: (email: string, password: string, confirmPassword: string) => void;
+  invitedBy?: SignupInvitedBy | null;
 }
 
-export function SignupForm({ onSwitchToLogin, onGoogleSignUp, onSignUp }: SignupFormProps) {
+export function SignupForm({ onSwitchToLogin, onGoogleSignUp, onSignUp, invitedBy }: SignupFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -43,6 +51,20 @@ export function SignupForm({ onSwitchToLogin, onGoogleSignUp, onSignUp }: Signup
       <CardHeader className="space-y-4 text-center">
         <img src={logo} alt="TalkSpree" className="h-6 mx-auto" />
         <CardTitle className="text-2xl font-medium">Create an account</CardTitle>
+        {invitedBy && (
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <span>Invited by</span>
+            <Avatar className="h-5 w-5">
+              <AvatarImage src={invitedBy.profilePicture ?? undefined} />
+              <AvatarFallback className="text-[10px]">
+                {(invitedBy.firstName?.[0] ?? '') + (invitedBy.lastName?.[0] ?? '') || '?'}
+              </AvatarFallback>
+            </Avatar>
+            <span className="font-medium text-foreground">
+              {[invitedBy.firstName, invitedBy.lastName].filter(Boolean).join(' ') || 'a TalkSpree member'}
+            </span>
+          </div>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <Button 

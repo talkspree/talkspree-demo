@@ -39,7 +39,10 @@ const PATTERN_BG =
 export function CircleCardPreview({ data, viewport }: Props) {
   const { name, description, logoUrl, coverImageUrl, abbreviation, socialLinks } = data;
   const fallbackInitial = name?.trim()?.[0]?.toUpperCase() || "C";
-  const inviteLink = `https://talkspree.com/${abbreviation || "MTY"}/invite`;
+  // Preview only — `your-slug` is a static placeholder for the viewer's
+  // 6-char personal slug. The real card on the homepage substitutes the
+  // current user's actual slug from `useProfileData()`.
+  const inviteLink = `https://talkspree.com/${abbreviation || "MTY"}/your-slug`;
 
   if (viewport === "mobile") {
     return (

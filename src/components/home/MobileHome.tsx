@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, MessageSquare, MessageCircle, Info, User, Bell, Shield, Users } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, Check, MessageSquare, MessageCircle, Info, User, Bell, Shield, Users } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { FiltersSection } from './FiltersSection';
 import { toast } from '@/hooks/use-toast';
@@ -23,6 +23,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
+import { copyTextToClipboard } from '@/lib/copyToClipboard';
+import { cn } from '@/lib/utils';
 
 export function MobileHome() {
   const [activeTab, setActiveTab] = useState<'chat' | 'about'>('chat');
@@ -32,6 +34,14 @@ export function MobileHome() {
   const { circle: contextCircle, role: circleRole, isAdmin, memberCounts, loading: roleLoading, reloadRole, unseenContactCount } = useCircle();
   const { totalUnread, openMobileMessenger } = useChat();
   const [showProfile, setShowProfile] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
+  const inviteCopyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (inviteCopyResetRef.current) clearTimeout(inviteCopyResetRef.current);
+    };
+  }, []);
   const [isBellWobbling, setIsBellWobbling] = useState(false);
 
   // Safety net: clean up stale matchmaking state on home page mount
@@ -108,12 +118,16 @@ export function MobileHome() {
 
   const notifications = connectionNotifications;
 
+  // Personal affiliate invite link: every viewer sees a link with THEIR own
+  // slug so any signups attributed to it record `invited_by = me`.
+  const circleAbbr = contextCircle?.abbreviation || contextCircle?.invite_code || 'MTY';
+  const personalSlug = profileData.slug || 'invite';
   const circleData = {
     name: contextCircle?.name || 'Mentor the Young',
     members: totalMembers.toString(),
     online: onlineCount.toString(),
     bio: contextCircle?.description || 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
-    inviteLink: `https://talkspree.com/${contextCircle?.abbreviation || contextCircle?.invite_code || 'MTY'}/invite`,
+    inviteLink: `https://talkspree.com/${circleAbbr}/${personalSlug}`,
     logoUrl: contextCircle?.logo_url || '',
     socials: {
       website: contextCircle?.social_links?.website || 'https://example.com',
@@ -124,9 +138,22 @@ export function MobileHome() {
     }
   };
 
-  const copyInviteLink = () => {
-    navigator.clipboard.writeText(circleData.inviteLink);
-    toast({ description: 'Invite link copied!' });
+  const copyInviteLink = async () => {
+    const ok = await copyTextToClipboard(circleData.inviteLink);
+    if (ok) {
+      setInviteCopied(true);
+      if (inviteCopyResetRef.current) clearTimeout(inviteCopyResetRef.current);
+      inviteCopyResetRef.current = setTimeout(() => {
+        setInviteCopied(false);
+        inviteCopyResetRef.current = null;
+      }, 2000);
+    } else {
+      toast({
+        title: 'Could not copy',
+        description: 'Select the link and copy it manually.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -134,7 +161,10 @@ export function MobileHome() {
       {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 z-50 h-14">
         <div className="h-full bg-card/95 backdrop-blur-md border-b border-border flex items-center justify-between px-4 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-40 md:rounded-2xl" style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+          <div
+            className="pointer-events-none absolute inset-0 z-0 opacity-40 md:rounded-2xl"
+            style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+          />
           <button onClick={() => navigate('/')} className="focus:outline-none relative z-10">
             <img src={logo} alt="TalkSpree" className="h-5" />
           </button>
@@ -154,7 +184,7 @@ export function MobileHome() {
                   requestAnimationFrame(() => setIsBellWobbling(true));
                 }}
                 onAnimationEnd={() => setIsBellWobbling(false)}
-                className={`relative h-10 w-10 rounded-full neu-concave hover:neu-concave-pressed transition-shadow focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none${isBellWobbling ? ' bug-wobble' : ''}`}
+                className={`relative h-10 w-10 rounded-full bg-background neu-concave hover:neu-concave-pressed transition-shadow focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none${isBellWobbling ? ' bug-wobble' : ''}`}
               >
                 <Bell className="h-5 w-5" />
                 {unseenContactCount > 0 && (
@@ -378,11 +408,22 @@ export function MobileHome() {
               <div className="bg-card rounded-lg p-4 border border-border">
                 <h3 className="font-semibold mb-2">Invite members</h3>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 px-3 py-2 bg-muted/50 rounded-lg text-xs truncate">
+                  <div className="flex-1 px-3 py-2 bg-muted/50 rounded-lg text-sm truncate">
                     {circleData.inviteLink}
                   </div>
-                  <Button size="icon" variant="outline" onClick={copyInviteLink}>
-                    <Copy className="h-4 w-4" />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className={cn(
+                      'rounded-full shrink-0',
+                      inviteCopied &&
+                        'border-success bg-success text-success-foreground hover:bg-success/90 hover:border-success hover:text-success-foreground'
+                    )}
+                    onClick={() => void copyInviteLink()}
+                    aria-label={inviteCopied ? 'Copied' : 'Copy invite link'}
+                  >
+                    {inviteCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>

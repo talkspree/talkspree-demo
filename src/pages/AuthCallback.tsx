@@ -4,6 +4,8 @@ import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { hasCompletedOnboarding } from '@/lib/api/profiles';
 import { markFeedbackTooltipForNextLogin } from '@/components/feedback/feedbackTooltipFlag';
+import { getPendingAffiliate, clearPendingAffiliate } from '@/lib/affiliate';
+import { claimAffiliate } from '@/lib/api/affiliates';
 
 /**
  * Handles OAuth callbacks (Google, etc.)
@@ -43,6 +45,22 @@ export default function AuthCallback() {
         // OAuth callback always represents a fresh sign-in event, so flag the
         // bug-report tooltip to auto-reveal once on the next page (desktop).
         markFeedbackTooltipForNextLogin();
+
+        // OAuth signup cannot inject `raw_user_meta_data`, so the
+        // `handle_new_user` trigger never sees the affiliate context. Apply
+        // it here from localStorage. The DB RPC is first-writer-wins and
+        // rejects self-invite, so calling this on every callback is safe
+        // (existing accounts logging in via Google won't be re-affiliated).
+        const pendingAffiliate = getPendingAffiliate();
+        if (pendingAffiliate) {
+          try {
+            await claimAffiliate(pendingAffiliate.inviterId, pendingAffiliate.circleId ?? null);
+          } catch (affErr) {
+            console.warn('claimAffiliate failed in AuthCallback:', affErr);
+          } finally {
+            clearPendingAffiliate();
+          }
+        }
 
         // Check if user has completed onboarding
         try {

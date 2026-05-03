@@ -137,7 +137,7 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
         <div className="lg:pl-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-muted-foreground">Contacts</h2>
-            <DropdownMenu>
+            {/*<DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="rounded-full">
                   <ArrowUpDown className="h-4 w-4 mr-2" />
@@ -165,7 +165,7 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
                   Job
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+            </DropdownMenu> */}
           </div>
 
           {/* Contacts Grid */}

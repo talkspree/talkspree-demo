@@ -24,6 +24,8 @@ export interface ProfileData {
   studyField: string;
   workPlace: string;
   industry: string;
+  /** 6-char [a-z0-9] identifier used in this user's personal invite links. */
+  slug: string;
 }
 
 const DEFAULT_PROFILE: ProfileData = {
@@ -48,7 +50,8 @@ const DEFAULT_PROFILE: ProfileData = {
   university: '',
   studyField: '',
   workPlace: '',
-  industry: ''
+  industry: '',
+  slug: ''
 };
 
 export function useProfileData() {
@@ -98,7 +101,8 @@ export function useProfileData() {
           university: profile.university || '',
           studyField: profile.study_field || '',
           workPlace: profile.work_place || '',
-          industry: profile.industry || ''
+          industry: profile.industry || '',
+          slug: profile.slug || ''
         });
       }
     } catch (error) {

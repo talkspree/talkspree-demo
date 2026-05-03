@@ -89,15 +89,17 @@ export function Header() {
   return (
     <>
       <header className="h-16 sticky top-4 z-50">
-        <div className="h-full max-w-[1920px] mx-auto bg-card/95 backdrop-blur-md rounded-full border border-border shadow-apple-md flex items-center justify-between px-6 relative overflow-hidden">
-          <div className="absolute inset-0 opacity-40" style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
-          <button onClick={() => navigate('/')} className="focus:outline-none relative z-10">
+        <div className="h-full max-w-[1920px] mx-auto bg-card/95 backdrop-blur-md rounded-full border border-border shadow-apple-md relative overflow-hidden px-6">
+          <div
+            className="pointer-events-none absolute inset-0 z-0 rounded-[inherit] opacity-40"
+            style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+          />
+          <div className="relative z-10 flex h-full w-full min-w-0 items-center justify-between gap-4">
+          <button type="button" onClick={() => navigate('/')} className="focus:outline-none shrink-0">
             <img src={logo} alt="TalkSpree" className={device === 'mobile' ? 'h-5' : 'h-6'} />
           </button>
 
-        
-
-          <div className="flex items-center gap-3 relative z-10">
+          <div className="flex min-w-0 items-center gap-3 shrink-0">
             {/* Report a bug / feedback — sits left of the role pill */}
             <FeedbackButton />
 
@@ -106,7 +108,7 @@ export function Header() {
             <button
               onClick={() => !isAdminRole && setShowRoleModal(true)}
               disabled={isAdminRole}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full relative z-10 transition-all ${
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all ${
                 getRoleBadgeStyle(circleRole).className
               } ${!isAdminRole ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
               title={!isAdminRole ? 'Click to change your role' : ''}
@@ -135,7 +137,7 @@ export function Header() {
                     requestAnimationFrame(() => setIsBellWobbling(true));
                   }}
                   onAnimationEnd={() => setIsBellWobbling(false)}
-                  className={`relative w-10 h-10 rounded-full neu-concave hover:neu-concave-pressed transition-shadow focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none${isBellWobbling ? ' bug-wobble' : ''}`}
+                  className={`relative w-10 h-10 rounded-full bg-background neu-concave hover:neu-concave-pressed transition-shadow focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none${isBellWobbling ? ' bug-wobble' : ''}`}
                 >
                   <Bell className="h-5 w-5" />
                   {unseenContactCount > 0 && (
@@ -236,6 +238,7 @@ export function Header() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          </div>
           </div>
         </div>
       </header>

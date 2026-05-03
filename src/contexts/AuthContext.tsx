@@ -4,11 +4,20 @@ import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 
+export interface AffiliateSignupContext {
+  invitedBy: string;
+  invitedViaCircleId: string | null;
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<{ data: { user: User | null; session: Session | null } | null; error: AuthError | null; verificationCode?: string }>;
+  signUp: (
+    email: string,
+    password: string,
+    affiliate?: AffiliateSignupContext | null,
+  ) => Promise<{ data: { user: User | null; session: Session | null } | null; error: AuthError | null; verificationCode?: string }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signInWithGoogle: () => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -50,26 +59,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    affiliate?: AffiliateSignupContext | null,
+  ) => {
     // Import the verification functions
     const { generateVerificationCode, storeVerificationCode } = await import('@/lib/api/profiles');
-    
+
     // Generate a 4-digit verification code
     const verificationCode = generateVerificationCode();
-    
+
+    // Affiliate metadata is read by the `handle_new_user` DB trigger out of
+    // raw_user_meta_data. We only attach it when present and well-formed.
+    const metadata: Record<string, string> = {
+      verification_code: verificationCode,
+    };
+    if (affiliate?.invitedBy) {
+      metadata.invited_by = affiliate.invitedBy;
+    }
+    if (affiliate?.invitedViaCircleId) {
+      metadata.invited_via_circle_id = affiliate.invitedViaCircleId;
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         // Disable email confirmation link - we'll use our 4-digit code instead
         emailRedirectTo: `${window.location.origin}/onboarding`,
-        data: {
-          verification_code: verificationCode, // Pass code in metadata for email template
-        },
+        data: metadata,
       },
     });
-    
-    // If signup successful, store the verification code in the database
+
     if (data?.user?.id && !error) {
       try {
         // Pass the email so it gets stored in the profile
@@ -78,8 +100,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Error storing verification code:', storeError);
       }
     }
-    
-    return { data, error, verificationCode }; // Return code for display purposes if needed
+
+    return { data, error, verificationCode };
   };
 
   const signIn = async (email: string, password: string) => {
