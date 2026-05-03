@@ -48,8 +48,8 @@ export function SignupForm({ onSwitchToLogin, onGoogleSignUp, onSignUp, invitedB
   return (
     <div className={device === 'mobile' ? 'w-full' : 'w-full max-w-sm'}>
     {invitedBy && (
-      <div className="mb-2 flex justify-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/50 neu-concave bg-white py-1 pl-1.5 pr-3 backdrop-blur-sm transition-colors">
+      <div className="mb-3 flex justify-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-white py-1 pl-3 pr-3 backdrop-blur-sm transition-colors shadow-apple-sm">
           <span className="text-[11px] text-muted-foreground">Invited by</span>
           <Avatar className="h-6 w-6 shrink-0 ring-2 ring-background">
             <AvatarImage src={invitedBy.profilePicture ?? undefined} />
