@@ -48,17 +48,19 @@ export function SignupForm({ onSwitchToLogin, onGoogleSignUp, onSignUp, invitedB
   return (
     <div className={device === 'mobile' ? 'w-full' : 'w-full max-w-sm'}>
     {invitedBy && (
-      <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-center text-[11px] text-muted-foreground/70 leading-relaxed px-1">
-        <span>Invited by</span>
-        <Avatar className="h-5 w-5 shrink-0">
-          <AvatarImage src={invitedBy.profilePicture ?? undefined} />
-          <AvatarFallback className="text-[10px]">
-            {(invitedBy.firstName?.[0] ?? '') + (invitedBy.lastName?.[0] ?? '') || '?'}
-          </AvatarFallback>
-        </Avatar>
-        <span className="font-medium text-foreground/90">
-          {[invitedBy.firstName, invitedBy.lastName].filter(Boolean).join(' ') || 'a TalkSpree member'}
-        </span>
+      <div className="mb-5 flex justify-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border/50 bg-muted/30 py-1 pl-1.5 pr-3 backdrop-blur-sm transition-colors hover:bg-muted/50">
+          <Avatar className="h-6 w-6 shrink-0 ring-2 ring-background">
+            <AvatarImage src={invitedBy.profilePicture ?? undefined} />
+            <AvatarFallback className="text-[10px] font-medium">
+              {(invitedBy.firstName?.[0] ?? '') + (invitedBy.lastName?.[0] ?? '') || '?'}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-[11px] text-muted-foreground">Invited by</span>
+          <span className="text-[11px] font-semibold text-foreground">
+            {[invitedBy.firstName, invitedBy.lastName].filter(Boolean).join(' ') || 'a TalkSpree member'}
+          </span>
+        </div>
       </div>
     )}
     <Card className={cardClasses}>
