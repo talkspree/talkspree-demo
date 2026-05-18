@@ -10,7 +10,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { toast } from '@/hooks/use-toast';
 import { useCircleRole } from '@/hooks/useCircleRole';
 import { CircleCardPreview } from '@/components/circle/CircleCardPreview';
 import { 
@@ -50,6 +49,12 @@ export default function CircleSettings() {
   const { isAdmin, adminType, loading: roleLoading } = useCircleRole();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pageStatus, setPageStatus] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  const setStatus = (msg: string, ok: boolean) => {
+    setPageStatus({ msg, ok });
+    setTimeout(() => setPageStatus(null), 2500);
+  };
   
   // Circle data
   const [circle, setCircle] = useState<Circle | null>(null);
@@ -184,7 +189,7 @@ export default function CircleSettings() {
         await loadTopicsAndPresets(circleData.id);
       } catch (error) {
         console.error('Error loading circle data:', error);
-        toast({ title: 'Error', description: 'Failed to load circle settings', variant: 'destructive' });
+        setStatus('Failed to load circle settings', false);
       } finally {
         setLoading(false);
       }
@@ -196,7 +201,6 @@ export default function CircleSettings() {
   // Redirect if not admin
   useEffect(() => {
     if (!roleLoading && !isAdmin) {
-      toast({ title: 'Access Denied', description: 'You must be an admin to access this page', variant: 'destructive' });
       navigate('/');
     }
   }, [roleLoading, isAdmin, navigate]);
@@ -217,7 +221,7 @@ export default function CircleSettings() {
     if (!circle) return;
 
     if (abbreviationError) {
-      toast({ title: 'Invalid abbreviation', description: abbreviationError, variant: 'destructive' });
+      setStatus(abbreviationError, false);
       return;
     }
 
@@ -237,19 +241,15 @@ export default function CircleSettings() {
       // Reflect any server-side normalisation (uppercasing) in the input.
       if (saved?.abbreviation) setAbbreviation(saved.abbreviation);
 
-      toast({ title: 'Success', description: 'Circle settings saved successfully' });
+      setStatus('Circle settings saved', true);
     } catch (error) {
       console.error('Error saving circle:', error);
-      // Postgres unique-violation surfaces here when the abbreviation is taken.
       const err = error as { code?: string; message?: string } | null;
       const isAbbrevConflict = err?.code === '23505' && (err?.message || '').toLowerCase().includes('abbreviation');
-      toast({
-        title: 'Error',
-        description: isAbbrevConflict
-          ? 'That abbreviation is already taken. Please pick another.'
-          : 'Failed to save circle settings',
-        variant: 'destructive',
-      });
+      setStatus(
+        isAbbrevConflict ? 'That abbreviation is already taken' : 'Failed to save circle settings',
+        false,
+      );
     } finally {
       setSaving(false);
     }
@@ -339,14 +339,10 @@ export default function CircleSettings() {
         setCoverImageUrl(publicUrl);
       }
 
-      toast({ title: 'Success', description: `${type === 'logo' ? 'Profile picture' : 'Cover image'} uploaded` });
+      setStatus(`${type === 'logo' ? 'Profile picture' : 'Cover image'} uploaded`, true);
     } catch (error: any) {
       console.error('Error uploading image:', error);
-      toast({
-        title: 'Error',
-        description: error?.message || 'Failed to upload image. Please try again.',
-        variant: 'destructive',
-      });
+      setStatus(error?.message || 'Failed to upload image', false);
     }
   };
 
@@ -365,10 +361,10 @@ export default function CircleSettings() {
       setRoles([...roles, newRole]);
       setNewRoleName('');
       setIsAddingRole(false);
-      toast({ title: 'Success', description: 'Role created successfully' });
+      setStatus('Role created', true);
     } catch (error) {
       console.error('Error creating role:', error);
-      toast({ title: 'Error', description: 'Failed to create role', variant: 'destructive' });
+      setStatus('Failed to create role', false);
     }
   };
 
@@ -380,10 +376,10 @@ export default function CircleSettings() {
       setRoles(roles.map(r => r.id === roleId ? updated : r));
       setEditingRoleId(null);
       setEditingRoleName('');
-      toast({ title: 'Success', description: 'Role updated successfully' });
+      setStatus('Role updated', true);
     } catch (error) {
       console.error('Error updating role:', error);
-      toast({ title: 'Error', description: 'Failed to update role', variant: 'destructive' });
+      setStatus('Failed to update role', false);
     }
   };
 
@@ -391,10 +387,10 @@ export default function CircleSettings() {
     try {
       await deleteCircleRole(roleId);
       setRoles(roles.filter(r => r.id !== roleId));
-      toast({ title: 'Success', description: 'Role deleted successfully' });
+      setStatus('Role deleted', true);
     } catch (error) {
       console.error('Error deleting role:', error);
-      toast({ title: 'Error', description: 'Failed to delete role', variant: 'destructive' });
+      setStatus('Failed to delete role', false);
     }
   };
 
@@ -412,10 +408,10 @@ export default function CircleSettings() {
       setNewTopicQuestions([]);
       setNewTopicQuestion('');
       setIsAddingTopic(false);
-      toast({ title: 'Success', description: 'Topic created successfully' });
+      setStatus('Topic created', true);
     } catch (error) {
       console.error('Error creating topic:', error);
-      toast({ title: 'Error', description: 'Failed to create topic', variant: 'destructive' });
+      setStatus('Failed to create topic', false);
     }
   };
 
@@ -424,10 +420,10 @@ export default function CircleSettings() {
     try {
       await deleteCircleTopic(topicId);
       setCircleTopics(circleTopics.filter(t => t.id !== topicId));
-      toast({ title: 'Success', description: 'Topic deleted successfully' });
+      setStatus('Topic deleted', true);
     } catch (error) {
       console.error('Error deleting topic:', error);
-      toast({ title: 'Error', description: 'Failed to delete topic', variant: 'destructive' });
+      setStatus('Failed to delete topic', false);
     }
   };
 
@@ -451,10 +447,10 @@ export default function CircleSettings() {
       });
       setCircleTopics(circleTopics.map(t => t.id === editingTopicId ? updated : t));
       setEditingTopicId(null);
-      toast({ title: 'Success', description: 'Topic updated successfully' });
+      setStatus('Topic updated', true);
     } catch (error) {
       console.error('Error updating topic:', error);
-      toast({ title: 'Error', description: 'Failed to update topic', variant: 'destructive' });
+      setStatus('Failed to update topic', false);
     }
   };
 
@@ -470,7 +466,7 @@ export default function CircleSettings() {
   const handleAddCirclePreset = async () => {
     if (!circle || !newPresetName.trim()) return;
     if (newPresetTopicIds.length === 0) {
-      toast({ title: 'Error', description: 'Please select at least one topic', variant: 'destructive' });
+      setStatus('Please select at least one topic', false);
       return;
     }
     
@@ -498,10 +494,10 @@ export default function CircleSettings() {
       setNewPresetName('');
       setNewPresetTopicIds([]);
       setIsAddingPreset(false);
-      toast({ title: 'Success', description: 'Preset created successfully' });
+      setStatus('Preset created', true);
     } catch (error) {
       console.error('Error creating preset:', error);
-      toast({ title: 'Error', description: 'Failed to create preset', variant: 'destructive' });
+      setStatus('Failed to create preset', false);
     } finally {
       setSavingPreset(false);
     }
@@ -512,10 +508,10 @@ export default function CircleSettings() {
     try {
       await deleteCirclePreset(presetId);
       setCirclePresets(circlePresets.filter(p => p.id !== presetId));
-      toast({ title: 'Success', description: 'Preset deleted successfully' });
+      setStatus('Preset deleted', true);
     } catch (error) {
       console.error('Error deleting preset:', error);
-      toast({ title: 'Error', description: 'Failed to delete preset', variant: 'destructive' });
+      setStatus('Failed to delete preset', false);
     }
   };
 
@@ -550,10 +546,10 @@ export default function CircleSettings() {
       });
       setCirclePresets(circlePresets.map(p => p.id === editingPresetId ? updated : p));
       setEditingPresetId(null);
-      toast({ title: 'Success', description: 'Preset updated successfully' });
+      setStatus('Preset updated', true);
     } catch (error) {
       console.error('Error updating preset:', error);
-      toast({ title: 'Error', description: 'Failed to update preset', variant: 'destructive' });
+      setStatus('Failed to update preset', false);
     }
   };
 
@@ -565,7 +561,7 @@ export default function CircleSettings() {
       if (editingPresetTopicIds.length < 5) {
         setEditingPresetTopicIds([...editingPresetTopicIds, topicId]);
       } else {
-        toast({ description: 'Maximum 5 topics per preset', variant: 'destructive' });
+        setStatus('Maximum 5 topics per preset', false);
       }
     }
   };
@@ -584,17 +580,10 @@ export default function CircleSettings() {
         setDisabledDefaultPresetIds([...disabledDefaultPresetIds, presetId]);
       }
       
-      toast({ 
-        title: 'Success', 
-        description: `Preset ${enabled ? 'enabled' : 'disabled'} successfully` 
-      });
+      setStatus(`Preset ${enabled ? 'enabled' : 'disabled'}`, true);
     } catch (error) {
       console.error('Error toggling preset:', error);
-      toast({ 
-        title: 'Error', 
-        description: 'Failed to toggle preset', 
-        variant: 'destructive' 
-      });
+      setStatus('Failed to toggle preset', false);
     }
   };
 
@@ -605,13 +594,10 @@ export default function CircleSettings() {
     try {
       await toggleMemberCustomTopics(circle.id, enabled);
       setAllowMemberCustomTopics(enabled);
-      toast({ 
-        title: 'Success', 
-        description: `Custom topics for members ${enabled ? 'enabled' : 'disabled'}` 
-      });
+      setStatus(`Member custom topics ${enabled ? 'enabled' : 'disabled'}`, true);
     } catch (error) {
       console.error('Error toggling member custom topics:', error);
-      toast({ title: 'Error', description: 'Failed to update setting', variant: 'destructive' });
+      setStatus('Failed to update setting', false);
     }
   };
 
@@ -623,7 +609,7 @@ export default function CircleSettings() {
       if (newPresetTopicIds.length < 5) {
         setNewPresetTopicIds([...newPresetTopicIds, topicId]);
       } else {
-        toast({ description: 'Maximum 5 topics per preset', variant: 'destructive' });
+        setStatus('Maximum 5 topics per preset', false);
       }
     }
   };
@@ -664,10 +650,21 @@ export default function CircleSettings() {
               </p>
             </div>
           </div>
-          <Button onClick={handleSave} disabled={saving || !!abbreviationError}>
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </Button>
+          <div className="flex items-center gap-3">
+            {pageStatus && (
+              <span className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-opacity ${
+                pageStatus.ok
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-destructive/15 text-destructive'
+              }`}>
+                {pageStatus.msg}
+              </span>
+            )}
+            <Button onClick={handleSave} disabled={saving || !!abbreviationError}>
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </div>
 

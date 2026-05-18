@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/card';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import logo from '@/assets/logo.svg';
@@ -28,8 +27,8 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [hasRecoverySession, setHasRecoverySession] = useState<boolean | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { updatePassword, signOut } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -67,22 +66,20 @@ export default function ResetPassword() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
     if (newPassword.length < 6) {
-      toast({
-        description: 'Password must be at least 6 characters',
-        variant: 'destructive',
-      });
+      setErrorMsg('Password must be at least 6 characters');
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ description: "Passwords don't match", variant: 'destructive' });
+      setErrorMsg("Passwords don't match");
       return;
     }
     setLoading(true);
     try {
       const { error } = await updatePassword(newPassword);
       if (error) {
-        toast({ description: error.message, variant: 'destructive' });
+        setErrorMsg(error.message);
         return;
       }
       setDone(true);
@@ -171,6 +168,9 @@ export default function ResetPassword() {
                     {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Update password
                   </Button>
+                  {errorMsg && (
+                    <p className="text-sm text-destructive text-center">{errorMsg}</p>
+                  )}
                 </form>
               )}
             </CardContent>

@@ -7,10 +7,10 @@ import { EmailConfirmationModal } from '@/components/auth/EmailConfirmationModal
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { useDevice } from '@/hooks/useDevice';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import WelcomeAnimation from '@/components/auth/welcome/WelcomeAnimation';
 import { markFeedbackTooltipForNextLogin } from '@/components/feedback/feedbackTooltipFlag';
 import { getPendingAffiliate, clearPendingAffiliate, type PendingAffiliate } from '@/lib/affiliate';
+import { claimAffiliate } from '@/lib/api/affiliates';
 
 type AuthMode = 'login' | 'signup' | 'invite';
 
@@ -25,12 +25,12 @@ export default function Auth() {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState(''); // Store password for post-verification sign in
+  const [signupPassword, setSignupPassword] = useState('');
   const [signupUserId, setSignupUserId] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
   const device = useDevice();
   const { signIn, signUp, signInWithGoogle, user } = useAuth();
-  const { toast } = useToast();
 
   // Re-check pending affiliate when query/storage changes (e.g. after the
   // InviteCodeForm validates a pasted personal invite link and stashes one).
@@ -69,28 +69,14 @@ export default function Auth() {
   }, [user, navigate, showEmailConfirmation]);
 
   const handleLogin = async (email: string, password: string) => {
+    setAuthError(null);
     const { error } = await signIn(email, password);
     if (error) {
-      toast({
-        title: "Login failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      setAuthError(error.message);
     } else {
-      // Set the tooltip flag BEFORE any further awaits. The auth-state change
-      // listener can trigger navigation to /home while hasCompletedOnboarding()
-      // is still pending, so if we wait until after that await the FeedbackButton
-      // will already have mounted and consumed nothing.
       markFeedbackTooltipForNextLogin();
-
       const { hasCompletedOnboarding } = await import('@/lib/api/profiles');
       const onboardingComplete = await hasCompletedOnboarding();
-      
-      toast({
-        title: "Welcome back!",
-        description: "You've successfully logged in."
-      });
-
       if (onboardingComplete) {
         navigate('/home');
       } else {
@@ -100,12 +86,9 @@ export default function Auth() {
   };
 
   const handleSignUp = async (email: string, password: string, confirmPassword: string) => {
+    setAuthError(null);
     if (password !== confirmPassword) {
-      toast({
-        title: "Passwords don't match",
-        description: "Please ensure both passwords are the same.",
-        variant: "destructive"
-      });
+      setAuthError("Passwords don't match — please ensure both fields are the same.");
       return;
     }
 
@@ -118,11 +101,7 @@ export default function Auth() {
 
     const { data, error } = await signUp(email, password, affiliateContext);
     if (error) {
-      toast({
-        title: "Sign up failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      setAuthError(error.message);
     } else {
       // Store the email and password for confirmation modal and post-verification sign in
       setSignupEmail(email);
@@ -133,13 +112,10 @@ export default function Auth() {
         setSignupUserId(data.user.id);
       }
 
-      // The DB trigger has persisted invited_by/invited_via_circle_id at this
-      // point, so the localStorage stash has done its job. Clear it so a
-      // future signup on this device doesn't inherit a stale affiliate.
-      if (pendingAffiliate) {
-        clearPendingAffiliate();
-        setPendingAffiliateState(null);
-      }
+      // Keep pendingAffiliate in localStorage; we only have a real session
+      // (and thus auth.uid() for claim_affiliate) after handleContinueToOnboarding
+      // signs the user in. Clearing here would orphan the affiliate context
+      // if the DB trigger silently failed.
 
       // Show email confirmation modal with 4-digit code input
       setShowEmailConfirmation(true);
@@ -154,18 +130,37 @@ export default function Auth() {
     
     if (error) {
       console.error('Error signing in after verification:', error);
-      toast({
-        title: "Sign in required",
-        description: "Please sign in with your credentials to continue.",
-        variant: "destructive"
-      });
-      // Clear stored password
+      setAuthError('Sign-in after verification failed. Please sign in manually.');
       setSignupPassword('');
       return;
     }
     
     // Clear stored password after successful sign in
     setSignupPassword('');
+
+    // Now that a real session exists, claim any pending affiliate context.
+    // The RPC is first-writer-wins, so it's a no-op if the DB trigger already
+    // populated invited_by; it's the recovery path when the trigger silently
+    // failed. One retry handles the race where the profile row isn't visible
+    // yet.
+    const stash = getPendingAffiliate();
+    if (stash) {
+      try {
+        let ok = await claimAffiliate(stash.inviterId, stash.circleId ?? null);
+        if (!ok) {
+          await new Promise((r) => setTimeout(r, 800));
+          ok = await claimAffiliate(stash.inviterId, stash.circleId ?? null);
+        }
+        if (!ok) {
+          console.warn('claimAffiliate returned false after retry');
+        }
+      } catch (affErr) {
+        console.warn('claimAffiliate failed:', affErr);
+      } finally {
+        clearPendingAffiliate();
+        setPendingAffiliateState(null);
+      }
+    }
 
     // Auto-reveal the bug-report tooltip once when they reach the home page.
     markFeedbackTooltipForNextLogin();
@@ -176,13 +171,10 @@ export default function Auth() {
   };
 
   const handleGoogleAuth = async () => {
+    setAuthError(null);
     const { error } = await signInWithGoogle();
     if (error) {
-      toast({
-        title: "Google sign in failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      setAuthError(error.message);
     }
   };
 
@@ -199,10 +191,15 @@ export default function Auth() {
           onContinue={handleContinueToOnboarding}
         />
         <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="w-full max-w-sm">
+          <div className="w-full max-w-sm space-y-3">
+            {authError && (
+              <div className="px-4 py-3 rounded-xl bg-destructive/10 text-destructive text-sm text-center">
+                {authError}
+              </div>
+            )}
             {mode === 'login' && (
               <LoginForm
-                onSwitchToSignup={() => setMode('invite')}
+                onSwitchToSignup={() => { setMode('invite'); setAuthError(null); }}
                 onGoogleSignIn={handleGoogleAuth}
                 onLogin={handleLogin}
               />
@@ -210,12 +207,12 @@ export default function Auth() {
             {mode === 'invite' && (
               <InviteCodeForm
                 onValidCode={handleValidInviteCode}
-                onBack={() => setMode('login')}
+                onBack={() => { setMode('login'); setAuthError(null); }}
               />
             )}
             {mode === 'signup' && (
               <SignupForm
-                onSwitchToLogin={() => setMode('login')}
+                onSwitchToLogin={() => { setMode('login'); setAuthError(null); }}
                 onGoogleSignUp={handleGoogleAuth}
                 onSignUp={handleSignUp}
                 invitedBy={invitedByForBanner}
@@ -237,10 +234,15 @@ export default function Auth() {
       <div className="min-h-screen lg:h-screen lg:overflow-hidden grid lg:grid-cols-2">
         {/* Left side - Auth forms */}
         <div className="flex items-center justify-center p-8 lg:overflow-y-auto custom-scrollbar">
-          <div className="w-full max-w-sm">
+          <div className="w-full max-w-sm space-y-3">
+            {authError && (
+              <div className="px-4 py-3 rounded-xl bg-destructive/10 text-destructive text-sm text-center">
+                {authError}
+              </div>
+            )}
             {mode === 'login' && (
               <LoginForm
-                onSwitchToSignup={() => setMode('invite')}
+                onSwitchToSignup={() => { setMode('invite'); setAuthError(null); }}
                 onGoogleSignIn={handleGoogleAuth}
                 onLogin={handleLogin}
               />
@@ -248,12 +250,12 @@ export default function Auth() {
             {mode === 'invite' && (
               <InviteCodeForm
                 onValidCode={handleValidInviteCode}
-                onBack={() => setMode('login')}
+                onBack={() => { setMode('login'); setAuthError(null); }}
               />
             )}
             {mode === 'signup' && (
               <SignupForm
-                onSwitchToLogin={() => setMode('login')}
+                onSwitchToLogin={() => { setMode('login'); setAuthError(null); }}
                 onGoogleSignUp={handleGoogleAuth}
                 onSignUp={handleSignUp}
                 invitedBy={invitedByForBanner}

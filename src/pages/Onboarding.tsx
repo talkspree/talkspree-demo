@@ -4,7 +4,6 @@ import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { EmailConfirmationBanner } from '@/components/auth/EmailConfirmationBanner';
 import { useDevice } from '@/hooks/useDevice';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
@@ -70,11 +69,11 @@ export default function Onboarding() {
   const [currentStep, setCurrentStep] = useState(1);
   const [data, setData] = useState<OnboardingData>(initialData);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const device = useDevice();
   const { user } = useAuth();
-  const { toast } = useToast();
 
   // Check if user is authenticated and if they've already completed onboarding
   useEffect(() => {
@@ -173,30 +172,12 @@ export default function Onboarding() {
 
       // Save user data to Supabase
       await completeOnboarding(finalData);
-      
+
       console.log('✅ Onboarding data saved successfully!');
-      
-      toast({
-        title: "Profile saved! 🎉",
-        description: "Your profile has been successfully created.",
-      });
-      
       navigate('/home');
     } catch (error: any) {
       console.error('❌ Error completing onboarding:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
-      
-      toast({
-        title: "Failed to save profile",
-        description: error.message || 'Unknown error occurred. Please try again.',
-        variant: "destructive"
-      });
-      
+      setSaveError(error.message || 'Unknown error occurred. Please try again.');
       // Don't navigate if save failed
     } finally {
       setSaving(false);
@@ -260,6 +241,11 @@ export default function Onboarding() {
 
           {/* Step content */}
           {renderStep()}
+          {saveError && (
+            <div className="mt-4 px-4 py-3 rounded-xl bg-destructive/10 text-destructive text-sm text-center">
+              {saveError}
+            </div>
+          )}
         </div>
       </div>
     </AdaptiveLayout>

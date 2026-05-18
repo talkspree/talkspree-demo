@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { X, Plus, Loader2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 import {
   getVisibleTopics,
@@ -41,6 +40,7 @@ export function CustomTopicsModal({
   const [customQuestions, setCustomQuestions] = useState<string[]>([]);
   const [newQuestion, setNewQuestion] = useState('');
   const [nameError, setNameError] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   
   // Available topics from database
@@ -120,7 +120,8 @@ export function CustomTopicsModal({
       if (selectedTopicIds.length < 5) {
         setSelectedTopicIds([...selectedTopicIds, topicId]);
       } else {
-        toast({ description: 'Maximum 5 topics allowed', variant: 'destructive' });
+        setFormError('Maximum 5 topics allowed');
+        setTimeout(() => setFormError(null), 3000);
       }
     }
   };
@@ -139,13 +140,14 @@ export function CustomTopicsModal({
   const handleSavePreset = async () => {
     if (!presetName.trim()) {
       setNameError(true);
-      toast({ description: 'Please enter a preset name', variant: 'destructive' });
+      setFormError('Please enter a preset name');
       return;
     }
     if (selectedTopicIds.length === 0 && customQuestions.length === 0) {
-      toast({ description: 'Select at least 1 topic or add a custom question', variant: 'destructive' });
+      setFormError('Select at least 1 topic or add a custom question');
       return;
     }
+    setFormError(null);
     
     setSaving(true);
     try {
@@ -168,33 +170,29 @@ export function CustomTopicsModal({
       }
       
       if (editingPresetId) {
-        // Update existing preset - save custom questions directly
         await updateUserPreset(editingPresetId, {
           name: presetName,
           defaultTopicIds,
           circleTopicIds,
           userTopicIds,
-          customQuestions // Save as editable custom questions, NOT a frozen topic
+          customQuestions
         });
-        toast({ description: 'Preset updated successfully!' });
       } else {
-        // Create new preset - save custom questions directly
         await createUserPreset({
           name: presetName,
           defaultTopicIds,
           circleTopicIds,
           userTopicIds,
-          customQuestions // Save as editable custom questions, NOT a frozen topic
+          customQuestions
         });
-        toast({ description: 'Preset saved successfully!' });
       }
-      
+
       await onSavePreset();
       onOpenChange(false);
       resetForm();
     } catch (error) {
       console.error('Error saving preset:', error);
-      toast({ description: 'Failed to save preset', variant: 'destructive' });
+      setFormError('Failed to save preset. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -202,17 +200,15 @@ export function CustomTopicsModal({
 
   const handleUseOnce = () => {
     if (selectedTopicIds.length === 0 && customQuestions.length === 0) {
-      toast({ description: 'Select at least 1 topic or add a custom question', variant: 'destructive' });
+      setFormError('Select at least 1 topic or add a custom question');
       return;
     }
-    // Get topic names from IDs for legacy compatibility
     const topicNames = availableTopics
       .filter(t => selectedTopicIds.includes(t.id))
       .map(t => t.name);
-    
+
     onUseOnce?.(topicNames, customQuestions.length > 0 ? customQuestions : undefined);
     onOpenChange(false);
-    toast({ description: 'Custom topics applied!' });
   };
 
   const handleDeletePreset = async () => {
@@ -223,11 +219,10 @@ export function CustomTopicsModal({
       await deleteUserPreset(editingPresetId);
       await onDeletePreset?.();
       onOpenChange(false);
-      toast({ description: 'Preset deleted successfully!' });
       resetForm();
     } catch (error) {
       console.error('Error deleting preset:', error);
-      toast({ description: 'Failed to delete preset', variant: 'destructive' });
+      setFormError('Failed to delete preset. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -327,6 +322,9 @@ export function CustomTopicsModal({
           </div>
 
           {/* Actions */}
+          {formError && (
+            <p className="text-sm text-destructive">{formError}</p>
+          )}
           <div className="flex gap-2 justify-between">
             <div className="flex gap-2">
               <Button 

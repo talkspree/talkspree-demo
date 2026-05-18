@@ -9,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
-import { toast } from '@/hooks/use-toast';
 import { getOrCreateDefaultCircle, getCircleRoles, updateMyCircleRole, CircleRole } from '@/lib/api/circles';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
@@ -31,6 +30,7 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedRole, setSelectedRole] = useState(currentRole);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [circle, setCircle] = useState<any>(null);
   const [roles, setRoles] = useState<{ value: string; label: string }[]>(DEFAULT_ROLES);
 
@@ -70,21 +70,14 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
     }
 
     setSaving(true);
+    setSaveError(null);
     try {
       await updateMyCircleRole(circle.id, selectedRole);
-      toast({
-        title: 'Success',
-        description: `Your role has been updated to ${selectedRole}`,
-      });
-      onRoleChanged(); // Trigger refresh
+      onRoleChanged();
       onOpenChange(false);
     } catch (error) {
       console.error('Error updating role:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update your role. Please try again.',
-        variant: 'destructive',
-      });
+      setSaveError('Failed to update your role. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -143,6 +136,9 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
             </div>
 
             {/* Actions */}
+            {saveError && (
+              <p className="text-sm text-destructive text-center">{saveError}</p>
+            )}
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"

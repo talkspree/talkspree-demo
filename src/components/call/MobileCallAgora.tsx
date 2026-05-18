@@ -333,7 +333,7 @@ export function MobileCallAgora() {
   return (
     <div className="fixed inset-0 bg-zinc-950 overflow-hidden">
       {/* Mobile View */}
-      <div className="h-screen flex flex-col relative text-white">
+      <div className="h-screen h-[100dvh] flex flex-col relative text-white">
         <div ref={remoteVideoRef} className={`absolute inset-0 w-full h-full agora-video-container ${hasRemoteUser && remoteUsers[0].videoTrack ? '' : 'hidden'}`} />
         <div className={`absolute inset-0 w-full h-full bg-zinc-900 flex flex-col items-center justify-center ${hasRemoteUser && remoteUsers[0].videoTrack ? 'hidden' : ''}`}>
           <Avatar className="h-28 w-28 mb-4 border-4 border-white/10 shadow-xl">
@@ -348,7 +348,7 @@ export function MobileCallAgora() {
         </div>
 
         {/* Top: Prompt / Small Talk card */}
-        <div className="absolute top-safe top-5 left-4 right-4 z-30 pointer-events-none">
+        <div className="absolute left-4 right-4 z-30 pointer-events-none top-[calc(env(safe-area-inset-top)+1.25rem)]">
           <div className={`w-full ${GLASS_SURFACE} rounded-3xl px-5 py-4 saturate-100 pointer-events-auto transition-colors`}>
             {showSmallTalk ? (
               <div className="text-center">
@@ -387,7 +387,7 @@ export function MobileCallAgora() {
         )}
 
         {/* Local video (Picture-in-Picture) */}
-        <div className="absolute bottom-28 left-4 z-10 transition-all duration-300 animate-in fade-in zoom-in-95">
+        <div className="absolute left-4 z-10 transition-all duration-300 animate-in fade-in zoom-in-95 bottom-[calc(env(safe-area-inset-bottom)+7rem)]">
           <div className={`w-28 h-40 rounded-[28px] overflow-hidden relative ${GLASS_SURFACE}`}>
             <div ref={localVideoRef} className={`w-full h-full agora-video-container ${isCameraOn && localVideoTrack ? '' : 'hidden'}`} />
             <div className={`w-full h-full flex flex-col items-center justify-center absolute inset-0 ${isCameraOn && localVideoTrack ? 'hidden' : ''}`}>
@@ -406,14 +406,14 @@ export function MobileCallAgora() {
         <Button
           size="icon"
           variant="ghost"
-          className={`absolute bottom-28 right-4 z-20 h-16 w-16 rounded-full text-white ${GLASS_SURFACE} saturate-100 transition-all duration-300 animate-in fade-in zoom-in-95`}
+          className={`absolute right-4 z-20 h-16 w-16 rounded-full text-white ${GLASS_SURFACE} saturate-100 transition-all duration-300 animate-in fade-in zoom-in-95 bottom-[calc(env(safe-area-inset-bottom)+7rem)]`}
           onClick={() => handleButtonClick(() => setShowProfile(true), 'light')}
         >
           <User size={30} strokeWidth={2} className="text-white" />
         </Button>
 
         {/* Bottom Timer pill */}
-        <div className="absolute bottom-28 left-0 right-0 z-30 flex justify-center pointer-events-none transition-all duration-300">
+        <div className="absolute left-0 right-0 z-30 flex justify-center pointer-events-none transition-all duration-300 bottom-[calc(env(safe-area-inset-bottom)+7rem)]">
           {(() => {
             const lowTime = parseInt(formattedTime.split(':')[0]) < 2;
             const lowGlass =
@@ -433,7 +433,7 @@ export function MobileCallAgora() {
         </div>
 
         {/* Bottom Nav */}
-        <div className="absolute bottom-safe bottom-6 left-0 right-0 z-40 px-4 flex justify-center">
+        <div className="absolute left-0 right-0 z-40 px-4 flex justify-center bottom-[calc(env(safe-area-inset-bottom)+1.5rem)]">
           <div className={`${GLASS_SURFACE} rounded-[2.5rem] p-2 flex items-center justify-center gap-2 w-max mx-auto`}>
             <Button
               size="icon"
@@ -504,7 +504,7 @@ export function MobileCallAgora() {
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 30, stiffness: 320 }}
                 onClick={(e) => e.stopPropagation()}
-                className="bg-white w-full h-[85vh] rounded-t-[2rem] flex flex-col text-slate-900 shadow-2xl overflow-hidden"
+                className="bg-white w-full h-[85dvh] rounded-t-[2rem] flex flex-col text-slate-900 shadow-2xl overflow-hidden"
               >
                 {/* Chat header */}
                 <header className="z-10 flex shrink-0 items-center justify-between border-b border-gray-100 bg-white/90 px-2 py-2 backdrop-blur-md">
@@ -699,10 +699,10 @@ export function MobileCallAgora() {
       {showProfile && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity animate-in fade-in-0"
+            className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm transition-opacity animate-in fade-in-0"
             onClick={() => setShowProfile(false)}
           />
-          <div className="relative w-full max-w-3xl bg-card rounded-[1.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95 fade-in-0 duration-300 border border-white/10">
+          <div className="relative w-full max-w-3xl bg-card rounded-[1.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden flex flex-col max-h-[88dvh] animate-in zoom-in-95 fade-in-0 duration-300 border border-white/10">
             <button
               onClick={() => setShowProfile(false)}
               className="absolute top-4 right-4 p-2 z-50 rounded-full bg-muted/80 backdrop-blur text-muted-foreground transition-colors"
@@ -710,19 +710,24 @@ export function MobileCallAgora() {
               <X size={20} />
             </button>
             <div className="overflow-y-auto custom-scrollbar-contact pl-6 pr-2 mr-2">
-              <div className="flex flex-col gap-6 items-center text-center mb-8 pt-6">
-                <div className="w-32 h-32 shrink-0 rounded-full ring-4 ring-primary/20 shadow-xl overflow-hidden bg-muted">
-                  <Avatar className="w-full h-full">
-                    <AvatarImage src={matchedUser.profilePicture || ''} />
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl">
-                      {matchedUser.firstName[0]}{matchedUser.lastName[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="space-y-4 pt-2">
-                  <h2 className="text-3xl font-extrabold tracking-tight">{matchedUser.firstName} {matchedUser.lastName}</h2>
+              <div className="flex flex-col items-center text-center mb-8 pt-6">
+                <Avatar className="h-24 w-24 mb-3">
+                  <AvatarImage src={matchedUser.profilePicture || ''} />
+                  <AvatarFallback className="bg-warning text-warning-foreground text-2xl">
+                    {matchedUser.firstName[0]}{matchedUser.lastName[0]}
+                  </AvatarFallback>
+                </Avatar>
+                <h2 className="text-xl font-bold">{matchedUser.firstName} {matchedUser.lastName}</h2>
+                {matchedUser.role && (
+                  <span className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-background text-foreground neu-concave">
+                    {matchedUser.role.charAt(0).toUpperCase() + matchedUser.role.slice(1)}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-6 pb-6">
+                <div>
+                  <h4 className="font-semibold mb-2">About Me</h4>
                   <AboutMeSection
-                    role={matchedUser.role}
                     occupation={matchedUser.occupation}
                     industry={matchedUser.industry}
                     studyField={matchedUser.studyField}
@@ -733,14 +738,12 @@ export function MobileCallAgora() {
                     className="text-muted-foreground"
                   />
                 </div>
-              </div>
-              <div className="space-y-6 pb-6">
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Bio</h3>
-                  <p className="text-foreground leading-relaxed text-base">{matchedUser.bio}</p>
+                <div>
+                  <h4 className="font-semibold mb-2">Bio</h4>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{matchedUser.bio}</p>
                 </div>
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Contacts</h3>
+                <div>
+                  <h4 className="font-semibold mb-2">Contacts</h4>
                   <div className="flex flex-wrap gap-2">
                     {matchedUser.instagram && <Badge variant="secondary" className="bg-[#E1306C]/10 border-[#E1306C]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#E1306C]">● Instagram</span></Badge>}
                     {matchedUser.facebook && <Badge variant="secondary" className="bg-[#1877F2]/10 border-[#1877F2]/20 blur-[2px] select-none cursor-not-allowed"><span className="text-[#1877F2]">● Facebook</span></Badge>}
@@ -750,15 +753,16 @@ export function MobileCallAgora() {
                   </div>
                   <p className="text-xs text-muted-foreground italic mt-2">Connect after the call to view contact details</p>
                 </div>
-                <div className="space-y-3">
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Interests</h3>
-                  <div className="flex flex-wrap gap-2.5">
+                <div>
+                  <h4 className="font-semibold mb-3">Interests</h4>
+                  <div className="flex flex-wrap gap-2">
                     {userInterests.map((interest) => {
                       const isCommon = currentUserInterests.some(ui => ui?.id === interest!.id);
                       return (
                         <Badge
                           key={interest!.id}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${isCommon ? 'bg-primary text-primary-foreground border-primary shadow-lg scale-105' : 'bg-muted/50 text-muted-foreground border-transparent'}`}
+                          variant={isCommon ? 'default' : 'secondary'}
+                          className={isCommon ? 'bg-primary text-primary-foreground' : ''}
                         >
                           {interest!.emoji} {interest!.name}
                         </Badge>

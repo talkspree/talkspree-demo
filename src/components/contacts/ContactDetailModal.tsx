@@ -11,7 +11,7 @@ import { AboutMeSection } from '@/components/profile/AboutMeSection';
 import { useDevice } from '@/hooks/useDevice';
 import { useState, useEffect } from 'react';
 import { deleteMutualContact } from '@/lib/api/contacts';
-import { toast } from '@/hooks/use-toast';
+import { ReportModal } from '@/components/call/ReportModal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +49,8 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [emailCopied, setEmailCopied] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -87,10 +89,6 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
       navigator.clipboard.writeText(email);
       setEmailCopied(true);
       setTimeout(() => setEmailCopied(false), 2000);
-      toast({
-        title: 'Email copied!',
-        description: `${email} copied to clipboard`,
-      });
     }
   };
 
@@ -112,23 +110,15 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
 
   const handleDeleteContact = async () => {
     setIsDeleting(true);
+    setDeleteError(null);
     try {
       await deleteMutualContact(contact.userId);
-      toast({
-        title: 'Contact deleted',
-        description: `${contact.user.firstName} ${contact.user.lastName} has been removed from your contacts.`,
-      });
       onOpenChange(false);
       setShowDeleteConfirm(false);
-      // Notify parent component to refresh the contacts list
       onContactDeleted?.();
     } catch (error) {
       console.error('Error deleting contact:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to delete contact. Please try again.',
-        variant: 'destructive',
-      });
+      setDeleteError('Failed to delete contact. Please try again.');
     } finally {
       setIsDeleting(false);
     }
@@ -141,7 +131,7 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6">
           {/* Backdrop */}
           <div 
-            className="absolute inset-0 bg-background/60 backdrop-blur-md transition-opacity animate-in fade-in-0" 
+            className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm transition-opacity animate-in fade-in-0"
             onClick={() => onOpenChange(false)}
           />
 
@@ -265,16 +255,24 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
                   </div>
                 </div>
 
-                {/* Remove Contact Button (Bottom of content) */}
-                <div className="flex justify-center pt-6 border-t border-border">
-                   <Button 
-                     variant="destructive"
-                     className="w-fit py-6 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all group"
-                     onClick={() => setShowDeleteConfirm(true)}
-                   >
-                     <Trash2 size={18} className="group-hover:rotate-12 transition-transform" />
-                     <span>Remove Contact</span>
-                   </Button>
+                {/* Action Buttons (Bottom of content) */}
+                <div className="flex justify-center gap-3 pt-6 border-t border-border flex-wrap">
+                  <Button
+                    variant="outline"
+                    className="w-fit py-6 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-sm hover:shadow-md transition-all group border-red-200 text-red-500 hover:bg-red-50 hover:border-red-400"
+                    onClick={() => setShowReportModal(true)}
+                  >
+                    <AlertTriangle size={18} className="group-hover:scale-110 transition-transform" />
+                    <span>Report</span>
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-fit py-6 rounded-xl font-bold text-base flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all group"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 size={18} className="group-hover:rotate-12 transition-transform" />
+                    <span>Remove Contact</span>
+                  </Button>
                 </div>
 
               </div>
@@ -308,18 +306,31 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
               </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteContact}
-              disabled={isDeleting}
-              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-            >
-              {isDeleting ? 'Removing...' : 'Remove Contact'}
-            </AlertDialogAction>
+          <AlertDialogFooter className="flex-col gap-2">
+            {deleteError && (
+              <p className="text-sm text-destructive text-center w-full">{deleteError}</p>
+            )}
+            <div className="flex gap-2 w-full justify-end">
+              <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteContact}
+                disabled={isDeleting}
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              >
+                {isDeleting ? 'Removing...' : 'Remove Contact'}
+              </AlertDialogAction>
+            </div>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ReportModal
+        open={showReportModal}
+        onOpenChange={setShowReportModal}
+        userName={`${contact.user.firstName} ${contact.user.lastName}`}
+        reportedUserId={contact.userId}
+        elevated
+      />
     </>
   );
 }

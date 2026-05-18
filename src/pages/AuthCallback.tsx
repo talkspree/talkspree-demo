@@ -46,36 +46,38 @@ export default function AuthCallback() {
         // bug-report tooltip to auto-reveal once on the next page (desktop).
         markFeedbackTooltipForNextLogin();
 
-        // OAuth signup cannot inject `raw_user_meta_data`, so the
-        // `handle_new_user` trigger never sees the affiliate context. Apply
-        // it here from localStorage. The DB RPC is first-writer-wins and
-        // rejects self-invite, so calling this on every callback is safe
-        // (existing accounts logging in via Google won't be re-affiliated).
-        const pendingAffiliate = getPendingAffiliate();
-        if (pendingAffiliate) {
-          try {
-            await claimAffiliate(pendingAffiliate.inviterId, pendingAffiliate.circleId ?? null);
-          } catch (affErr) {
-            console.warn('claimAffiliate failed in AuthCallback:', affErr);
-          } finally {
-            clearPendingAffiliate();
-          }
-        }
-
         // Check if user has completed onboarding
+        let onboardingComplete = false;
         try {
-          const onboardingComplete = await hasCompletedOnboarding();
-          
-          if (onboardingComplete) {
-            // User has completed onboarding - go to home
-            navigate('/home', { replace: true });
-          } else {
-            // User hasn't completed onboarding - go to onboarding
-            navigate('/onboarding', { replace: true });
-          }
+          onboardingComplete = await hasCompletedOnboarding();
         } catch (profileError) {
           console.error('Error checking onboarding status:', profileError);
-          // If profile doesn't exist yet, go to onboarding
+          // Treat unknown state as fresh signup (profile may not exist yet)
+          onboardingComplete = false;
+        }
+
+        // OAuth signup cannot inject `raw_user_meta_data`, so the
+        // `handle_new_user` trigger never sees the affiliate context. Apply
+        // it here from localStorage — but ONLY for fresh signups (onboarding
+        // not yet complete). A legacy user with `invited_by IS NULL` logging
+        // back in via Google with stale localStorage would otherwise get
+        // attributed to whoever's link they last visited. Clear pending in
+        // either case so it can't linger across sessions.
+        const pendingAffiliate = getPendingAffiliate();
+        if (pendingAffiliate) {
+          if (!onboardingComplete) {
+            try {
+              await claimAffiliate(pendingAffiliate.inviterId, pendingAffiliate.circleId ?? null);
+            } catch (affErr) {
+              console.warn('claimAffiliate failed in AuthCallback:', affErr);
+            }
+          }
+          clearPendingAffiliate();
+        }
+
+        if (onboardingComplete) {
+          navigate('/home', { replace: true });
+        } else {
           navigate('/onboarding', { replace: true });
         }
       } catch (error) {

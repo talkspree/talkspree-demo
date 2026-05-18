@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
@@ -21,6 +21,14 @@ export default function WrapUp() {
   const [decision, setDecision] = useState<'connect' | 'skip' | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [alreadyConnected, setAlreadyConnected] = useState<boolean | null>(null);
+  const [reportTooltipVisible, setReportTooltipVisible] = useState(false);
+  const reportTooltipTimerRef = useRef<number | null>(null);
+
+  // One-shot snapshot — viewport class won't change mid-wrap-up.
+  const isMobile = useMemo(
+    () => typeof window !== 'undefined' && window.innerWidth < 640,
+    [],
+  );
 
   const toSimilarityProfile = (user: any): ProfileForSimilarity => ({
     id: user.id,
@@ -33,9 +41,14 @@ export default function WrapUp() {
     occupation: user.occupation,
   });
 
-  const similarity = matchedUser
-    ? computeSimilarityScore(toSimilarityProfile(profileData), toSimilarityProfile(matchedUser))
-    : 0;
+  const similarity = useMemo(
+    () =>
+      matchedUser
+        ? computeSimilarityScore(toSimilarityProfile(profileData), toSimilarityProfile(matchedUser))
+        : 0,
+    // profileData is read inside via closure; the score is stable for a given match.
+    [matchedUser?.id],
+  );
 
   useEffect(() => {
     if (!matchedUser) return;
@@ -48,18 +61,28 @@ export default function WrapUp() {
   useEffect(() => {
     if (alreadyConnected) return;
     if (phase === 0) {
-      const timer = setTimeout(() => setPhase(1), 1500);
+      const timer = setTimeout(() => setPhase(1), isMobile ? 800 : 1500);
       return () => clearTimeout(timer);
     }
     if (phase === 1) {
-      const timer = setTimeout(() => setPhase(2), 2500);
+      const timer = setTimeout(() => setPhase(2), isMobile ? 1400 : 2500);
       return () => clearTimeout(timer);
     }
     if (phase === 3) {
-      const timer = setTimeout(() => setPhase(4), 1500);
+      const timer = setTimeout(() => setPhase(4), isMobile ? 800 : 1500);
       return () => clearTimeout(timer);
     }
-  }, [phase, alreadyConnected]);
+  }, [phase, alreadyConnected, isMobile]);
+
+  useEffect(() => {
+    const showTimer = window.setTimeout(() => setReportTooltipVisible(true), 1800);
+    const hideTimer = window.setTimeout(() => setReportTooltipVisible(false), 5600);
+    reportTooltipTimerRef.current = showTimer;
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, []);
 
   if (!matchedUser) {
     navigate('/');
@@ -70,29 +93,32 @@ export default function WrapUp() {
     setDecision('connect');
     setPhase(3);
 
-    const duration = 1500;
-    const end = Date.now() + duration;
-    const isMobile = window.innerWidth < 640;
-    const particleCount = isMobile ? 2 : 5;
+    // Skip confetti on mobile — canvas-confetti is the biggest single source
+    // of jank on low-end phones during this transition.
+    if (!isMobile) {
+      const duration = 1500;
+      const end = Date.now() + duration;
+      const particleCount = 5;
 
-    const frame = () => {
-      confetti({
-        particleCount,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0, y: 0.8 },
-        colors: ['#3b82f6', '#8b5cf6', '#ffffff'],
-      });
-      confetti({
-        particleCount,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1, y: 0.8 },
-        colors: ['#3b82f6', '#8b5cf6', '#ffffff'],
-      });
-      if (Date.now() < end) requestAnimationFrame(frame);
-    };
-    frame();
+      const frame = () => {
+        confetti({
+          particleCount,
+          angle: 60,
+          spread: 55,
+          origin: { x: 0, y: 0.8 },
+          colors: ['#3b82f6', '#8b5cf6', '#ffffff'],
+        });
+        confetti({
+          particleCount,
+          angle: 120,
+          spread: 55,
+          origin: { x: 1, y: 0.8 },
+          colors: ['#3b82f6', '#8b5cf6', '#ffffff'],
+        });
+        if (Date.now() < end) requestAnimationFrame(frame);
+      };
+      frame();
+    }
 
     if (callId) {
       try {
@@ -137,15 +163,47 @@ export default function WrapUp() {
 
   return (
     <>
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 overflow-hidden relative">
-        {/* Report Button */}
-        <button
-          className="absolute top-6 right-6 text-slate-400 hover:text-red-500 transition-colors flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm z-50"
-          onClick={() => setShowReportModal(true)}
+      <div className="h-screen h-[100dvh] bg-slate-50 flex items-center justify-center p-4 overflow-hidden relative">
+        {/* Report Button + tooltip */}
+        <div
+          className="absolute top-6 right-6 z-50 flex items-center"
+          onMouseEnter={() => {
+            if (reportTooltipTimerRef.current !== null) window.clearTimeout(reportTooltipTimerRef.current);
+            setReportTooltipVisible(true);
+          }}
+          onMouseLeave={() => setReportTooltipVisible(false)}
         >
-          <AlertTriangle size={18} />
-          <span className="text-sm font-medium hidden sm:inline">Report</span>
-        </button>
+          <AnimatePresence>
+            {reportTooltipVisible && (
+              <div className="absolute right-[calc(100%+16px)] top-1/2 -translate-y-1/2 z-50 pointer-events-none drop-shadow-xl flex items-center origin-right">
+                <motion.div
+                  key="report-tooltip"
+                  initial={{ opacity: 0, x: 6, scale: 0.93 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 6, scale: 0.93 }}
+                  transition={{ type: "spring", stiffness: 280, damping: 25 }}
+                  className="feedback-tooltip-float relative"
+                >
+                  <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-orange-400 text-white text-[13px] font-medium px-4 py-2.5 rounded-xl whitespace-nowrap flex items-center shadow-[0_8px_32px_rgba(239,68,68,0.4),inset_0_0_0_0.5px_rgba(255,255,255,0.2)] tracking-tight">
+                    <div className="feedback-tooltip-shimmer absolute inset-0 rounded-xl" />
+                    <span className="relative z-10">⚠ See something wrong? Report it</span>
+                  </div>
+                  <div className="absolute right-[-6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[7px] border-y-transparent border-l-[8px] border-l-orange-400" />
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+          <button
+            className="text-slate-400 hover:text-red-500 transition-colors flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm"
+            onClick={() => {
+              setReportTooltipVisible(false);
+              setShowReportModal(true);
+            }}
+          >
+            <AlertTriangle size={18} />
+            <span className="text-sm font-medium hidden sm:inline">Report</span>
+          </button>
+        </div>
 
         {/* Main Circular Card */}
         <motion.div
@@ -205,89 +263,84 @@ export default function WrapUp() {
             {/* Background Track */}
             <circle cx="50" cy="50" r="48" fill="none" strokeWidth="2" stroke="#f1f5f9" />
 
-            {/* Similarity Progress */}
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="48"
-              stroke="url(#gradient-similarity)"
-              strokeWidth="4"
-              fill="none"
-              strokeLinecap="round"
-              filter="url(#glow)"
-              initial={{ pathLength: 0, opacity: 1 }}
-              animate={{
-                pathLength: similarity / 100,
-                opacity: phase >= 3 || phase === 5 ? 0 : 1,
-              }}
-              transition={{
-                pathLength: { duration: 1.5, ease: 'easeOut' },
-                opacity: { duration: 0.3 },
-              }}
-            />
+            {/* Only render the circle for the current state — keeps frame rate
+                up on mobile by avoiding 3 unused pathLength animations. */}
+            {phase < 3 && phase !== 5 && (
+              <motion.circle
+                cx="50"
+                cy="50"
+                r="48"
+                stroke="url(#gradient-similarity)"
+                strokeWidth="4"
+                fill="none"
+                strokeLinecap="round"
+                filter="url(#glow)"
+                initial={{ pathLength: 0, opacity: 1 }}
+                animate={{ pathLength: similarity / 100, opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  pathLength: { duration: 1.5, ease: 'easeOut' },
+                  opacity: { duration: 0.3 },
+                }}
+              />
+            )}
 
-            {/* Connect Progress */}
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="48"
-              stroke="url(#gradient-connect)"
-              strokeWidth="4"
-              fill="none"
-              strokeLinecap="round"
-              filter="url(#glow)"
-              initial={{ pathLength: similarity / 100, opacity: 0 }}
-              animate={{
-                pathLength: phase >= 3 && decision === 'connect' ? 1 : similarity / 100,
-                opacity: phase >= 3 && decision === 'connect' ? 1 : 0,
-              }}
-              transition={{
-                pathLength: { duration: 0.8, ease: 'easeInOut' },
-                opacity: { duration: 0.3 },
-              }}
-            />
+            {phase >= 3 && phase !== 5 && decision === 'connect' && (
+              <motion.circle
+                cx="50"
+                cy="50"
+                r="48"
+                stroke="url(#gradient-connect)"
+                strokeWidth="4"
+                fill="none"
+                strokeLinecap="round"
+                filter="url(#glow)"
+                initial={{ pathLength: similarity / 100, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{
+                  pathLength: { duration: 0.8, ease: 'easeInOut' },
+                  opacity: { duration: 0.3 },
+                }}
+              />
+            )}
 
-            {/* Skip Progress */}
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="48"
-              stroke="url(#gradient-skip)"
-              strokeWidth="4"
-              fill="none"
-              strokeLinecap="round"
-              filter="url(#glow)"
-              initial={{ pathLength: similarity / 100, opacity: 0 }}
-              animate={{
-                pathLength: phase >= 3 && decision === 'skip' ? 1 : similarity / 100,
-                opacity: phase >= 3 && decision === 'skip' ? 1 : 0,
-              }}
-              transition={{
-                pathLength: { duration: 0.8, ease: 'easeInOut' },
-                opacity: { duration: 0.3 },
-              }}
-            />
+            {phase >= 3 && phase !== 5 && decision === 'skip' && (
+              <motion.circle
+                cx="50"
+                cy="50"
+                r="48"
+                stroke="url(#gradient-skip)"
+                strokeWidth="4"
+                fill="none"
+                strokeLinecap="round"
+                filter="url(#glow)"
+                initial={{ pathLength: similarity / 100, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{
+                  pathLength: { duration: 0.8, ease: 'easeInOut' },
+                  opacity: { duration: 0.3 },
+                }}
+              />
+            )}
 
-            {/* Already Connected Golden Ring */}
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="48"
-              stroke="url(#gradient-gold)"
-              strokeWidth="4"
-              fill="none"
-              strokeLinecap="round"
-              filter="url(#glow)"
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{
-                pathLength: phase === 5 ? 1 : 0,
-                opacity: phase === 5 ? 1 : 0,
-              }}
-              transition={{
-                pathLength: { duration: 1.2, ease: 'easeOut' },
-                opacity: { duration: 0.3 },
-              }}
-            />
+            {phase === 5 && (
+              <motion.circle
+                cx="50"
+                cy="50"
+                r="48"
+                stroke="url(#gradient-gold)"
+                strokeWidth="4"
+                fill="none"
+                strokeLinecap="round"
+                filter="url(#glow)"
+                initial={{ pathLength: 0, opacity: 0 }}
+                animate={{ pathLength: 1, opacity: 1 }}
+                transition={{
+                  pathLength: { duration: 1.2, ease: 'easeOut' },
+                  opacity: { duration: 0.3 },
+                }}
+              />
+            )}
           </svg>
 
           {/* Content Area */}
@@ -333,10 +386,11 @@ export default function WrapUp() {
                 <p className="text-slate-600 font-medium mb-1">{matchedUser.role}</p>
                 <p className="text-slate-400 text-sm mb-0 sm:mb-8">{matchedUser.location}</p>
 
-                <div className="absolute -bottom-20 left-1/2 -translate-x-1/2 sm:relative sm:bottom-auto sm:left-auto sm:translate-x-0 flex gap-4 w-full max-w-[280px]">
+                {/* Desktop-only — mobile uses the viewport-fixed bottom bar below */}
+                <div className="hidden sm:flex gap-4 w-full max-w-[280px]">
                   <button
                     onClick={handleSkip}
-                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full bg-red-50 text-red-600 font-bold hover:bg-red-100 hover:text-red-700 transition-colors shadow-lg sm:shadow-none shadow-red-500/10"
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full bg-red-50 text-red-600 font-bold hover:bg-red-100 hover:text-red-700 transition-colors"
                   >
                     <X size={20} strokeWidth={3} /> Skip
                   </button>
@@ -403,7 +457,8 @@ export default function WrapUp() {
                           : 'Moving on to the next person.'}
                       </p>
 
-                      <div className="absolute -bottom-28 left-1/2 -translate-x-1/2 sm:relative sm:bottom-auto sm:left-auto sm:translate-x-0 flex flex-col gap-4 w-full max-w-[260px] items-center">
+                      {/* Desktop-only — mobile uses the viewport-fixed bottom bar below */}
+                      <div className="hidden sm:flex flex-col gap-4 w-full max-w-[260px] items-center">
                         <button
                           onClick={handleNext}
                           className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white font-bold hover:opacity-90 transition-opacity shadow-lg shadow-blue-500/25"
@@ -473,18 +528,19 @@ export default function WrapUp() {
                   </span>
                 </motion.div>
 
+                {/* Desktop-only — mobile uses the viewport-fixed bottom bar below */}
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 }}
-                  className="absolute -bottom-28 left-1/2 -translate-x-1/2 sm:relative sm:bottom-auto sm:left-auto sm:translate-x-0 flex flex-col gap-4 w-full max-w-[260px] items-center"
+                  className="hidden sm:flex flex-col gap-4 w-full max-w-[260px] items-center"
                 >
-                   <button
-                          onClick={handleNext}
-                          className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white font-bold hover:opacity-90 transition-opacity shadow-lg shadow-blue-500/25"
-                        >
-                          <ArrowRight size={20} /> Next Person
-                        </button>
+                  <button
+                    onClick={handleNext}
+                    className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white font-bold hover:opacity-90 transition-opacity shadow-lg shadow-blue-500/25"
+                  >
+                    <ArrowRight size={20} /> Next Person
+                  </button>
                   <button
                     onClick={() => navigate('/')}
                     className="text-slate-400 hover:text-slate-700 font-semibold text-sm transition-all duration-200 hover:underline underline-offset-4 active:scale-95 cursor-pointer"
@@ -496,12 +552,92 @@ export default function WrapUp() {
             )}
           </AnimatePresence>
         </motion.div>
+
+        {/* Mobile-only viewport-fixed action bar. Lives outside any framer
+            motion.div so no transformed ancestor can break centering. */}
+        <div className="fixed inset-x-0 bottom-2 z-30 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),1rem)] pt-4 sm:hidden pointer-events-none">
+          <AnimatePresence mode="wait">
+            {phase === 2 && (
+              <motion.div
+                key="m-phase2"
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 32 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+                className="flex w-full max-w-[320px] gap-3 pointer-events-auto"
+              >
+                <button
+                  onClick={handleSkip}
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full bg-red-50 text-red-600 font-bold active:bg-red-100 transition-colors shadow-md shadow-red-500/10"
+                >
+                  <X size={20} strokeWidth={3} /> Skip
+                </button>
+                <button
+                  onClick={handleConnect}
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white font-bold active:opacity-90 transition-opacity shadow-lg shadow-blue-500/25"
+                >
+                  <Check size={20} strokeWidth={3} /> Connect
+                </button>
+              </motion.div>
+            )}
+
+            {phase >= 4 && phase < 5 && (
+              <motion.div
+                key="m-phase4"
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 32 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+                className="flex w-full max-w-[320px] flex-col items-center gap-3 pointer-events-auto"
+              >
+                <button
+                  onClick={handleNext}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white font-bold active:opacity-90 transition-opacity shadow-lg shadow-blue-500/25"
+                >
+                  <ArrowRight size={20} /> Next Person
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="text-slate-400 font-semibold text-sm active:text-slate-700 transition-colors py-1"
+                >
+                  Return Home
+                </button>
+              </motion.div>
+            )}
+
+            {phase === 5 && (
+              <motion.div
+                key="m-phase5"
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 32 }}
+                transition={{ type: 'spring', damping: 22, stiffness: 280, delay: 0.3 }}
+                className="flex w-full max-w-[320px] flex-col items-center gap-3 pointer-events-auto"
+              >
+                <button
+                  onClick={handleNext}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-full bg-gradient-to-r from-blue-500 to-violet-500 text-white font-bold active:opacity-90 transition-opacity shadow-lg shadow-blue-500/25"
+                >
+                  <ArrowRight size={20} /> Next Person
+                </button>
+                <button
+                  onClick={() => navigate('/')}
+                  className="text-slate-400 font-semibold text-sm active:text-slate-700 transition-colors py-1"
+                >
+                  Return Home
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       <ReportModal
         open={showReportModal}
         onOpenChange={setShowReportModal}
         userName={`${matchedUser.firstName} ${matchedUser.lastName}`}
+        reportedUserId={matchedUser.id}
+        callId={callId}
       />
     </>
   );

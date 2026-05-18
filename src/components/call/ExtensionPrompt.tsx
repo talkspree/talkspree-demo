@@ -27,7 +27,7 @@ export function ExtensionPrompt({
   // Both agreed - show success message briefly
   if (bothAgreed) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm mx-4 text-center">
           <div className="mb-4 flex justify-center">
             <div className="rounded-full bg-green-100 p-3">
@@ -48,7 +48,7 @@ export function ExtensionPrompt({
   // I requested, waiting for them to approve
   if (iRequested && !theyRequested) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm mx-4 text-center">
           <div className="mb-4 flex justify-center">
             <Clock className="h-12 w-12 text-primary animate-pulse" />
@@ -74,7 +74,7 @@ export function ExtensionPrompt({
   // They requested, I need to approve/decline
   if (theyRequested) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm">
         <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm mx-4 text-center">
           <div className="mb-4 flex justify-center">
             <Clock className="h-12 w-12 text-warning" />
@@ -107,7 +107,7 @@ export function ExtensionPrompt({
 
   // Initial state: Ask if user wants to extend
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm mx-4 text-center">
         <div className="mb-4 flex justify-center">
           <Clock className="h-12 w-12 text-warning" />

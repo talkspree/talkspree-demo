@@ -17,7 +17,6 @@ import { useDevice } from "@/hooks/useDevice";
 import { useProfileData } from "@/hooks/useProfileData";
 import { useCircleRole } from "@/hooks/useCircleRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 
 export default function Settings() {
@@ -35,6 +34,8 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [resetStatus, setResetStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [timezone, setTimezone] = useState("GMT+02:00");
   const [language, setLanguage] = useState("en");
 
@@ -63,54 +64,53 @@ export default function Settings() {
     ...(isAdmin ? [{ id: "circle", label: "Circle Settings", icon: Settings2 }] : []),
   ];
 
+  const setStatus = (setter: typeof setPasswordStatus, msg: string, ok: boolean) => {
+    setter({ msg, ok });
+    setTimeout(() => setter(null), 3000);
+  };
+
   const handleChangePassword = async () => {
+    setPasswordStatus(null);
     if (!oldPassword || !newPassword || !confirmPassword) {
-      toast({ description: 'Please fill in all password fields', variant: 'destructive' });
+      setStatus(setPasswordStatus, 'Please fill in all password fields', false);
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast({ description: "New passwords don't match", variant: 'destructive' });
+      setStatus(setPasswordStatus, "New passwords don't match", false);
       return;
     }
     if (newPassword.length < 6) {
-      toast({ description: 'Password must be at least 6 characters', variant: 'destructive' });
+      setStatus(setPasswordStatus, 'Password must be at least 6 characters', false);
       return;
     }
     if (!user?.email) {
-      toast({ description: 'Could not determine your email', variant: 'destructive' });
+      setStatus(setPasswordStatus, 'Could not determine your email', false);
       return;
     }
 
     setChangingPassword(true);
     try {
-      // Re-authenticate with the old password before allowing the update.
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: oldPassword,
       });
       if (signInError) {
-        toast({
-          description: 'Current password is incorrect',
-          variant: 'destructive',
-        });
+        setStatus(setPasswordStatus, 'Current password is incorrect', false);
         return;
       }
 
       const { error } = await updatePassword(newPassword);
       if (error) {
-        toast({ description: error.message, variant: 'destructive' });
+        setStatus(setPasswordStatus, error.message, false);
         return;
       }
 
-      toast({ description: 'Password updated successfully' });
+      setStatus(setPasswordStatus, 'Password updated successfully', true);
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      toast({
-        description: err?.message || 'Failed to update password',
-        variant: 'destructive',
-      });
+      setStatus(setPasswordStatus, err?.message || 'Failed to update password', false);
     } finally {
       setChangingPassword(false);
     }
@@ -118,20 +118,17 @@ export default function Settings() {
 
   const handleSendResetEmail = async () => {
     if (!user?.email) {
-      toast({ description: 'No email on file', variant: 'destructive' });
+      setStatus(setResetStatus, 'No email on file', false);
       return;
     }
     setSendingReset(true);
     try {
       const { error } = await resetPassword(user.email);
       if (error) {
-        toast({ description: error.message, variant: 'destructive' });
+        setStatus(setResetStatus, error.message, false);
         return;
       }
-      toast({
-        title: 'Reset email sent',
-        description: `Check ${user.email} for instructions.`,
-      });
+      setStatus(setResetStatus, `Reset email sent — check ${user.email}`, true);
     } finally {
       setSendingReset(false);
     }
@@ -226,6 +223,11 @@ export default function Settings() {
               {changingPassword && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {changingPassword ? 'Updating...' : 'Change Password'}
             </Button>
+            {passwordStatus && (
+              <p className={`text-sm text-center ${passwordStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                {passwordStatus.msg}
+              </p>
+            )}
 
             <div className="pt-2 border-t">
               <p className="text-sm text-muted-foreground mb-2">
@@ -240,6 +242,11 @@ export default function Settings() {
                 {sendingReset && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Send password reset email
               </Button>
+              {resetStatus && (
+                <p className={`text-sm mt-2 ${resetStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                  {resetStatus.msg}
+                </p>
+              )}
             </div>
           </div>
         </Card>

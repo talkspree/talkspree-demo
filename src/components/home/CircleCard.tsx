@@ -136,8 +136,6 @@ export function CircleCard() {
         [type === 'logo' ? 'logo_url' : 'cover_image_url']: publicUrl
       });
       reloadCircle();
-      
-      toast({ title: 'Success', description: `${type === 'logo' ? 'Profile picture' : 'Cover image'} updated` });
     } catch (error: any) {
       console.error('Error uploading image:', error);
       toast({ 
@@ -178,12 +176,6 @@ export function CircleCard() {
         setInviteCopied(false);
         inviteCopyResetRef.current = null;
       }, 2000);
-    } else {
-      toast({
-        title: "Could not copy",
-        description: "Select the link and copy it manually.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -385,9 +377,9 @@ export function CircleCard() {
                       size="icon"
                       variant="outline"
                       className={cn(
-                        "rounded-full neu-concave shrink-0",
+                        "rounded-full shrink-0",
                         inviteCopied &&
-                          "border-success bg-success text-success-foreground hover:bg-success/90 hover:border-success hover:text-success-foreground"
+                          "border-success bg-success/90 text-success-foreground hover:bg-success hover:border-success hover:text-success-foreground" || 'neu-concave secondary'
                       )}
                       onClick={() => void copyInviteLink()}
                       aria-label={inviteCopied ? "Copied" : "Copy invite link"}

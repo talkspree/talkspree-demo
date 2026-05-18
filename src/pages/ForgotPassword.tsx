@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/card';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Loader2, Mail } from 'lucide-react';
 import logo from '@/assets/logo.svg';
 
@@ -20,22 +19,19 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { resetPassword } = useAuth();
-  const { toast } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    setErrorMsg(null);
     setLoading(true);
     try {
       const { error } = await resetPassword(email.trim());
       if (error) {
-        toast({
-          title: 'Could not send reset email',
-          description: error.message,
-          variant: 'destructive',
-        });
+        setErrorMsg(error.message);
         return;
       }
       setSubmitted(true);
@@ -104,6 +100,9 @@ export default function ForgotPassword() {
                     {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                     Send reset link
                   </Button>
+                  {errorMsg && (
+                    <p className="text-sm text-destructive text-center">{errorMsg}</p>
+                  )}
                 </form>
               )}
 

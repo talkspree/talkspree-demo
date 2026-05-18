@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { toast } from '@/hooks/use-toast';
 import { interests, interestCategories, getInterestsByCategory } from '@/data/interests';
 import { useProfileData } from '@/hooks/useProfileData';
 import { Upload, ArrowLeft } from 'lucide-react';
@@ -110,7 +109,6 @@ export default function ProfileEdit() {
       } else if (prev.length < MAX_INTERESTS) {
         return [...prev, id];
       } else {
-        toast({ description: 'Maximum 20 interests allowed', variant: 'destructive' });
         return prev;
       }
     });
@@ -119,6 +117,7 @@ export default function ProfileEdit() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
+  const [pageStatus, setPageStatus] = useState<{ msg: string; ok: boolean } | null>(null);
   const [cropSource, setCropSource] = useState<File | null>(null);
   const [showCropModal, setShowCropModal] = useState(false);
   
@@ -170,19 +169,13 @@ export default function ProfileEdit() {
         const roleUpdates = Object.entries(circleRoleChanges);
         if (roleUpdates.length > 0) {
           await Promise.all(
-            roleUpdates.map(([circleId, role]) => 
+            roleUpdates.map(([circleId, role]) =>
               updateMyCircleRole(circleId, role)
             )
           );
-          toast({
-            title: 'Success',
-            description: 'Your circle roles have been updated',
-          });
-          setCircleRoleChanges({}); // Clear pending changes
-        } else {
-          toast({
-            description: 'No changes to save',
-          });
+          setCircleRoleChanges({});
+          setPageStatus({ msg: 'Circle roles updated', ok: true });
+          setTimeout(() => setPageStatus(null), 2500);
         }
         setIsSaving(false);
         return;
@@ -196,8 +189,6 @@ export default function ProfileEdit() {
         if (import.meta.env.DEV) {
           console.log('🖼️  New profile picture file detected:', uploadedFile.name);
         }
-        toast({ description: 'Uploading profile picture...' });
-        
         // Delete old profile picture if it exists
         if (profileData.profilePicture && !profileData.profilePicture.startsWith('data:')) {
           try {
@@ -302,18 +293,13 @@ export default function ProfileEdit() {
         }
       }
 
-      toast({ description: 'Profile updated successfully!' });
-      
-      // Reload the page to refresh all profile data
+      setPageStatus({ msg: 'Profile updated successfully', ok: true });
       setTimeout(() => {
         window.location.href = '/';
-      }, 500);
+      }, 800);
     } catch (error: any) {
       console.error('Error updating profile:', error);
-      toast({ 
-        description: error.message || 'Failed to update profile', 
-        variant: 'destructive' 
-      });
+      setPageStatus({ msg: error.message || 'Failed to update profile', ok: false });
     } finally {
       setIsSaving(false);
     }
@@ -597,6 +583,11 @@ export default function ProfileEdit() {
                       Cancel
                     </Button>
                   </div>
+                  {pageStatus && (
+                    <p className={`text-sm text-center ${pageStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                      {pageStatus.msg}
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             ) : (

@@ -303,9 +303,22 @@ All colors MUST be HSL.
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Apple-style focus rings */
+  /* Subtle focus indicator — no thick blue ring, no offset glow */
   *:focus-visible {
-    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+    @apply outline-none;
+    box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
+  }
+
+  /* Prevent iOS Safari auto-zoom when focusing inputs on mobile.
+     Safari zooms any text-entry control whose computed font-size < 16px.
+     Forcing 16px on mobile is the standard, accessible workaround. */
+  @media (max-width: 767px) {
+    input,
+    textarea,
+    select,
+    [contenteditable="true"] {
+      font-size: 16px !important;
+    }
   }
 
   /* Smooth scrolling */

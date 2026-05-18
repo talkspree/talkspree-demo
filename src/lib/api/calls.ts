@@ -307,7 +307,7 @@ export async function getCurrentCall() {
  */
 export async function reportUser(
   reportedUserId: string,
-  callId: string,
+  callId: string | null | undefined,
   reason: string,
   description?: string,
   evidenceUrls?: string[]

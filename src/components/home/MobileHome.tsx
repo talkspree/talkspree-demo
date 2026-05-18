@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, Check, MessageSquare, MessageCircle, Info, User, Bell, Shield, Users } from 'lucide-react';
 import { useChat } from '@/contexts/ChatContext';
 import { FiltersSection } from './FiltersSection';
-import { toast } from '@/hooks/use-toast';
 import logo from '@/assets/logo.svg';
 import headerPattern from '@/assets/header-pattern.png';
 import profileViewIcon from '@/assets/profile-view.png';
@@ -147,12 +146,6 @@ export function MobileHome() {
         setInviteCopied(false);
         inviteCopyResetRef.current = null;
       }, 2000);
-    } else {
-      toast({
-        title: 'Could not copy',
-        description: 'Select the link and copy it manually.',
-        variant: 'destructive',
-      });
     }
   };
 

@@ -1,15 +1,21 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useEffect, useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, NESTED_DIALOG_Z } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { CheckCircle2 } from 'lucide-react';
+import { reportUser } from '@/lib/api/calls';
 
 interface ReportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userName: string;
+  reportedUserId?: string;
+  callId?: string | null;
+  /** Raise above high-z parents (e.g. ContactDetailModal at z-[9999]). */
+  elevated?: boolean;
 }
 
 const reportReasons = [
@@ -21,86 +27,139 @@ const reportReasons = [
   { value: 'other', label: 'Other' },
 ];
 
-export function ReportModal({ open, onOpenChange, userName }: ReportModalProps) {
+const AUTO_CLOSE_MS = 2400;
+
+export function ReportModal({
+  open,
+  onOpenChange,
+  userName,
+  reportedUserId,
+  callId,
+  elevated = false,
+}: ReportModalProps) {
   const [selectedReason, setSelectedReason] = useState('');
   const [details, setDetails] = useState('');
-  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  // Reset form whenever the modal opens
+  useEffect(() => {
+    if (open) {
+      setSelectedReason('');
+      setDetails('');
+      setSubmitted(false);
+      setError(null);
+    }
+  }, [open]);
+
+  // Auto-close after showing confirmation
+  useEffect(() => {
+    if (!submitted) return;
+    const timer = window.setTimeout(() => onOpenChange(false), AUTO_CLOSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [submitted, onOpenChange]);
+
+  const handleSubmit = async () => {
     if (!selectedReason) {
-      toast({
-        title: 'Please select a reason',
-        description: 'You must select a reason for reporting.',
-        variant: 'destructive',
-      });
+      setError('Please select a reason for reporting.');
+      return;
+    }
+    if (!reportedUserId) {
+      setError('Unable to identify the user being reported.');
       return;
     }
 
-    // Here you would typically send the report to your backend
-    console.log('Report submitted:', { user: userName, reason: selectedReason, details });
-
-    toast({
-      title: 'Report submitted',
-      description: 'Thank you for helping us maintain a safe community.',
-    });
-
-    // Reset form
-    setSelectedReason('');
-    setDetails('');
-    onOpenChange(false);
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await reportUser(reportedUserId, callId ?? null, selectedReason, details.trim() || undefined);
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Failed to submit report:', err);
+      setError('Failed to submit report. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Report {userName}</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div>
-            <Label className="text-base mb-3 block">Reason for reporting</Label>
-            <RadioGroup value={selectedReason} onValueChange={setSelectedReason}>
-              {reportReasons.map((reason) => (
-                <div key={reason.value} className="flex items-center space-x-2 mb-2">
-                  <RadioGroupItem value={reason.value} id={reason.value} />
-                  <Label htmlFor={reason.value} className="cursor-pointer font-normal">
-                    {reason.label}
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
+      <DialogContent
+        className={cn(
+          'max-w-md w-[calc(100%-2rem)] rounded-2xl sm:rounded-2xl',
+          elevated && NESTED_DIALOG_Z,
+        )}
+        overlayClassName={elevated ? NESTED_DIALOG_Z : undefined}
+      >
+        {submitted ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-4 text-center">
+            <CheckCircle2 className="w-14 h-14 text-green-500 shrink-0" strokeWidth={1.5} />
+            <div className="space-y-1">
+              <p className="text-lg font-semibold">Report submitted</p>
+              <p className="text-sm text-muted-foreground">
+                Thank you for helping us maintain a safe community.
+              </p>
+            </div>
           </div>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Report {userName}</DialogTitle>
+            </DialogHeader>
 
-          <div>
-            <Label htmlFor="details" className="text-base mb-2 block">
-              Additional details (optional)
-            </Label>
-            <Textarea
-              id="details"
-              placeholder="Please provide any additional information..."
-              value={details}
-              onChange={(e) => setDetails(e.target.value)}
-              rows={4}
-            />
-          </div>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base mb-3 block">Reason for reporting</Label>
+                <RadioGroup value={selectedReason} onValueChange={(v) => { setSelectedReason(v); setError(null); }}>
+                  {reportReasons.map((reason) => (
+                    <div key={reason.value} className="flex items-center space-x-2 mb-2">
+                      <RadioGroupItem value={reason.value} id={reason.value} />
+                      <Label htmlFor={reason.value} className="cursor-pointer font-normal">
+                        {reason.label}
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
 
-          <div className="flex gap-3 pt-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="flex-1 bg-destructive hover:bg-destructive/90"
-              onClick={handleSubmit}
-            >
-              Submit Report
-            </Button>
-          </div>
-        </div>
+              <div>
+                <Label htmlFor="details" className="text-base mb-2 block">
+                  Additional details (optional)
+                </Label>
+                <Textarea
+                  id="details"
+                  placeholder="Please provide any additional information..."
+                  value={details}
+                  onChange={(e) => setDetails(e.target.value)}
+                  rows={4}
+                />
+              </div>
+
+              {error && (
+                <p className="text-sm text-destructive">{error}</p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => onOpenChange(false)}
+                  disabled={isSubmitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-destructive hover:bg-destructive/90"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Submitting…' : 'Submit Report'}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -10,7 +10,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Mail, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 import { verifyEmailCode, resendVerificationCode } from '@/lib/api/profiles';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 
 interface EmailConfirmationModalProps {
@@ -25,7 +24,7 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
   const [resending, setResending] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
+  const [resendStatus, setResendStatus] = useState<{ ok: boolean; msg: string } | null>(null);
   
   // Refs for each input box
   const inputRefs = [
@@ -76,11 +75,6 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
       // Code verified successfully!
       setIsConfirmed(true);
 
-      toast({
-        title: "Email verified! 🎉",
-        description: "Setting up your account...",
-      });
-
       // Wait a brief moment to show success state, then continue
       // The parent component will handle sign in and navigation
       setTimeout(() => {
@@ -102,21 +96,13 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
 
     try {
       await resendVerificationCode(email);
-      
-      toast({
-        title: "Code sent!",
-        description: "Check your email for the new verification code.",
-      });
-      
+      setResendStatus({ ok: true, msg: 'Code sent — check your inbox' });
+      setTimeout(() => setResendStatus(null), 4000);
       // Clear the inputs
       setCode(['', '', '', '']);
       inputRefs[0].current?.focus();
     } catch (err: any) {
-      toast({
-        title: "Failed to resend code",
-        description: err.message,
-        variant: "destructive",
-      });
+      setResendStatus({ ok: false, msg: err.message || 'Failed to resend code' });
     } finally {
       setResending(false);
     }
@@ -272,7 +258,7 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
         </AlertDialogHeader>
         
         {!isConfirmed && (
-          <AlertDialogFooter>
+          <AlertDialogFooter className="flex-col gap-2">
             <Button
               onClick={handleResendCode}
               variant="ghost"
@@ -291,6 +277,11 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
                 </>
               )}
             </Button>
+            {resendStatus && (
+              <p className={`text-sm text-center ${resendStatus.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                {resendStatus.msg}
+              </p>
+            )}
           </AlertDialogFooter>
         )}
       </AlertDialogContent>

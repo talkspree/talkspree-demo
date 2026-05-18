@@ -1,5 +1,4 @@
 import { Instagram, Facebook, Linkedin, Youtube, Music, Mail, Check, MapPin, MessageSquare, GraduationCap, Briefcase, User } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
 import { AnimatedBorderCard } from '@/components/ui/animated-border-card';
 import { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
@@ -106,10 +105,6 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
       navigator.clipboard.writeText(contact.email);
       setEmailCopied(true);
       setTimeout(() => setEmailCopied(false), 2000);
-      toast({
-        title: 'Email copied!',
-        description: `${contact.email} copied to clipboard`,
-      });
     }
   };
 
