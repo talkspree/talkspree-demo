@@ -59,6 +59,7 @@ export default function AuthCallback() {
         // not yet complete). A legacy user with `invited_by IS NULL` logging
         // back in via Google with stale localStorage would otherwise get
         // attributed to whoever's link they last visited.
+        console.log('[AuthCallback] session.user.id=', session.user.id, 'onboardingComplete=', onboardingComplete);
         if (onboardingComplete) {
           // Re-login: drop any stale stash so it can't linger across sessions.
           clearPendingAffiliate();
@@ -67,10 +68,11 @@ export default function AuthCallback() {
           // only clear the stash on success. On 'failed', leave the stash
           // for the Onboarding page to take another shot at it.
           const outcome = await claimPendingAffiliate(session.user.id);
+          console.log('[AuthCallback] claimPendingAffiliate outcome=', outcome);
           if (outcome === 'claimed' || outcome === 'already-claimed' || outcome === 'no-stash') {
             clearPendingAffiliate();
           } else {
-            console.warn('claimPendingAffiliate failed in AuthCallback; leaving stash for onboarding retry');
+            console.warn('[AuthCallback] claimPendingAffiliate failed; leaving stash for onboarding retry');
           }
         }
 

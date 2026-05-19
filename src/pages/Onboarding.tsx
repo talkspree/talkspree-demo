@@ -120,11 +120,13 @@ export default function Onboarding() {
       // pending affiliate context (profile-row race or transient RPC failure),
       // give it one more shot here. Fire-and-forget — onboarding UX doesn't
       // need to wait on this.
+      console.log('[Onboarding] firing claimPendingAffiliate userId=', currentUser.id);
       claimPendingAffiliate(currentUser.id).then((outcome) => {
+        console.log('[Onboarding] claimPendingAffiliate outcome=', outcome);
         if (outcome === 'claimed' || outcome === 'already-claimed' || outcome === 'no-stash') {
           clearPendingAffiliate();
         } else {
-          console.warn('claimPendingAffiliate failed on Onboarding mount');
+          console.warn('[Onboarding] claimPendingAffiliate failed');
         }
       });
 

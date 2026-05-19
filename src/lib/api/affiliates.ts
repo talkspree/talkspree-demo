@@ -125,59 +125,72 @@ export type ClaimPendingAffiliateOutcome =
 export async function claimPendingAffiliate(
   userId: string,
 ): Promise<ClaimPendingAffiliateOutcome> {
+  console.log('[claimPendingAffiliate] start userId=', userId);
   const stash = getPendingAffiliate();
+  console.log('[claimPendingAffiliate] stash=', stash);
   if (!stash) return 'no-stash';
 
   // Poll for the profile row to appear (handle_new_user trigger may still be
   // running). ~3 s total: 15 attempts × 200 ms.
   let profileRow: { id: string; invited_by: string | null } | null = null;
+  let pollAttempts = 0;
   for (let attempt = 0; attempt < 15; attempt++) {
+    pollAttempts = attempt + 1;
     const { data, error } = await supabase
       .from('profiles')
       .select('id, invited_by')
       .eq('id', userId)
       .maybeSingle();
 
+    if (error) {
+      console.warn('[claimPendingAffiliate] poll error attempt', pollAttempts, error);
+    }
     if (!error && data) {
       profileRow = data as { id: string; invited_by: string | null };
       break;
     }
     await new Promise((r) => setTimeout(r, 200));
   }
+  console.log('[claimPendingAffiliate] poll done attempts=', pollAttempts, 'profileRow=', profileRow);
 
   // Race-won case: profile exists and someone already attributed the inviter.
   if (profileRow && profileRow.invited_by) {
+    console.log('[claimPendingAffiliate] invited_by already set; returning already-claimed');
     return 'already-claimed';
   }
 
   const inviterId = stash.inviterId;
   const circleId = stash.circleId || null;
+  console.log('[claimPendingAffiliate] calling claim_affiliate RPC', { inviterId, circleId });
 
-  const tryClaim = async (): Promise<{ ok: boolean }> => {
+  const tryClaim = async (label: string): Promise<{ ok: boolean }> => {
     try {
       const ok = await claimAffiliate(inviterId, circleId);
+      console.log(`[claimPendingAffiliate] ${label} → ok=`, ok);
       return { ok };
     } catch (err) {
-      console.warn('claimPendingAffiliate: claim_affiliate threw:', err);
+      console.warn(`[claimPendingAffiliate] ${label} threw:`, err);
       return { ok: false };
     }
   };
 
-  let result = await tryClaim();
+  let result = await tryClaim('attempt-1');
   if (!result.ok) {
     await new Promise((r) => setTimeout(r, 800));
-    result = await tryClaim();
+    result = await tryClaim('attempt-2');
   }
 
   if (result.ok) return 'claimed';
 
   // Race-reconciliation: another writer may have won between our UPDATE and
   // now. If the profile shows invited_by populated, treat as success.
-  const { data: reselect } = await supabase
+  const { data: reselect, error: reselectError } = await supabase
     .from('profiles')
     .select('invited_by')
     .eq('id', userId)
     .maybeSingle();
+
+  console.log('[claimPendingAffiliate] race-reconcile reselect=', reselect, 'error=', reselectError);
 
   if (reselect && (reselect as { invited_by: string | null }).invited_by) {
     return 'already-claimed';
