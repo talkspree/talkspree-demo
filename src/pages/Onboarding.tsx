@@ -119,14 +119,11 @@ export default function Onboarding() {
       // Safety net for the OAuth path: if AuthCallback couldn't apply the
       // pending affiliate context (profile-row race or transient RPC failure),
       // give it one more shot here. Fire-and-forget — onboarding UX doesn't
-      // need to wait on this.
-      console.log('[Onboarding] firing claimPendingAffiliate userId=', currentUser.id);
+      // need to wait on this, and completeOnboarding's INSERT path is the
+      // last-chance fallback if this also fails.
       claimPendingAffiliate(currentUser.id).then((outcome) => {
-        console.log('[Onboarding] claimPendingAffiliate outcome=', outcome);
         if (outcome === 'claimed' || outcome === 'already-claimed' || outcome === 'no-stash') {
           clearPendingAffiliate();
-        } else {
-          console.warn('[Onboarding] claimPendingAffiliate failed');
         }
       });
 

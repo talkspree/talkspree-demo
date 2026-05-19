@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { OnboardingData } from '@/pages/Onboarding';
+import { getPendingAffiliate, clearPendingAffiliate } from '@/lib/affiliate';
 
 export interface Profile {
   id: string;
@@ -437,23 +438,45 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
   };
 
   if (!existingProfile) {
-    // Create profile if it doesn't exist
-    console.log('Creating new profile...');
+    // Create profile if it doesn't exist.
+    //
+    // OAuth signups land here when the `handle_new_user` trigger silently
+    // fails (no UPSERT safety net exists for them, unlike email signup which
+    // is rescued by `storeVerificationCode`). So this is the *only* path
+    // that creates the profile row for those users — meaning it must carry
+    // the affiliate context from localStorage forward, or `invited_by` is
+    // permanently lost. Self-invite is filtered out as a safety net even
+    // though the inviter slug lookup shouldn't produce one.
+    const pendingAffiliate = getPendingAffiliate();
+    const affiliateFields =
+      pendingAffiliate && pendingAffiliate.inviterId && pendingAffiliate.inviterId !== userId
+        ? {
+            invited_by: pendingAffiliate.inviterId,
+            invited_via_circle_id: pendingAffiliate.circleId || null,
+          }
+        : {};
+
+    console.log('Creating new profile...', { hasAffiliate: !!pendingAffiliate });
     const { data: newProfile, error: createError } = await supabase
       .from('profiles')
       .insert({
         id: userId,
         email: userEmail!,
         ...profileData,
+        ...affiliateFields,
       })
       .select()
       .single();
-    
+
     if (createError) {
       console.error('Error creating profile:', createError);
       throw new Error(`Failed to create profile: ${createError.message}. Code: ${createError.code}`);
     }
-    
+
+    if (pendingAffiliate) {
+      clearPendingAffiliate();
+    }
+
     console.log('✅ Profile created:', newProfile);
   } else {
     // Update existing profile
