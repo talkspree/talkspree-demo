@@ -4,8 +4,8 @@ import { Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { hasCompletedOnboarding } from '@/lib/api/profiles';
 import { markFeedbackTooltipForNextLogin } from '@/components/feedback/feedbackTooltipFlag';
-import { getPendingAffiliate, clearPendingAffiliate } from '@/lib/affiliate';
-import { claimAffiliate } from '@/lib/api/affiliates';
+import { clearPendingAffiliate } from '@/lib/affiliate';
+import { claimPendingAffiliate } from '@/lib/api/affiliates';
 
 /**
  * Handles OAuth callbacks (Google, etc.)
@@ -39,9 +39,6 @@ export default function AuthCallback() {
           return;
         }
 
-        // Wait a bit longer for the trigger to create the profile
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
         // OAuth callback always represents a fresh sign-in event, so flag the
         // bug-report tooltip to auto-reveal once on the next page (desktop).
         markFeedbackTooltipForNextLogin();
@@ -61,18 +58,20 @@ export default function AuthCallback() {
         // it here from localStorage — but ONLY for fresh signups (onboarding
         // not yet complete). A legacy user with `invited_by IS NULL` logging
         // back in via Google with stale localStorage would otherwise get
-        // attributed to whoever's link they last visited. Clear pending in
-        // either case so it can't linger across sessions.
-        const pendingAffiliate = getPendingAffiliate();
-        if (pendingAffiliate) {
-          if (!onboardingComplete) {
-            try {
-              await claimAffiliate(pendingAffiliate.inviterId, pendingAffiliate.circleId ?? null);
-            } catch (affErr) {
-              console.warn('claimAffiliate failed in AuthCallback:', affErr);
-            }
-          }
+        // attributed to whoever's link they last visited.
+        if (onboardingComplete) {
+          // Re-login: drop any stale stash so it can't linger across sessions.
           clearPendingAffiliate();
+        } else {
+          // Fresh signup: poll for the profile row, claim with retry, and
+          // only clear the stash on success. On 'failed', leave the stash
+          // for the Onboarding page to take another shot at it.
+          const outcome = await claimPendingAffiliate(session.user.id);
+          if (outcome === 'claimed' || outcome === 'already-claimed' || outcome === 'no-stash') {
+            clearPendingAffiliate();
+          } else {
+            console.warn('claimPendingAffiliate failed in AuthCallback; leaving stash for onboarding retry');
+          }
         }
 
         if (onboardingComplete) {

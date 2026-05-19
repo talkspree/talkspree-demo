@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { getPendingAffiliate } from '@/lib/affiliate';
 
 export interface InviterInfo {
   id: string;
@@ -94,4 +95,93 @@ export async function claimAffiliate(
   }
 
   return data === true;
+}
+
+export type ClaimPendingAffiliateOutcome =
+  | 'claimed'
+  | 'already-claimed'
+  | 'no-stash'
+  | 'failed';
+
+/**
+ * Robust recovery wrapper around `claim_affiliate` for the OAuth signup path.
+ *
+ * Google OAuth can't inject `raw_user_meta_data`, so the `handle_new_user` DB
+ * trigger creates the profile row with NULL affiliate columns. This helper
+ * applies the pending affiliate context from localStorage after the fact,
+ * tolerating two race conditions:
+ *
+ *   - Trigger latency: the `profiles` row might not exist yet when we land in
+ *     `/auth/callback`. We poll for it (up to ~3 s) before issuing the RPC.
+ *   - JWT propagation: `claim_affiliate` can raise "not authenticated" or
+ *     return FALSE on a transient blip. We retry once with a short delay.
+ *
+ * After both attempts fail, we re-SELECT `invited_by` once more: if another
+ * writer (re-fired trigger, parallel tab) won the race in the meantime, that
+ * counts as success — first-writer-wins is the whole point.
+ *
+ * The caller decides when to clear `pendingAffiliate` based on the outcome.
+ */
+export async function claimPendingAffiliate(
+  userId: string,
+): Promise<ClaimPendingAffiliateOutcome> {
+  const stash = getPendingAffiliate();
+  if (!stash) return 'no-stash';
+
+  // Poll for the profile row to appear (handle_new_user trigger may still be
+  // running). ~3 s total: 15 attempts × 200 ms.
+  let profileRow: { id: string; invited_by: string | null } | null = null;
+  for (let attempt = 0; attempt < 15; attempt++) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, invited_by')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!error && data) {
+      profileRow = data as { id: string; invited_by: string | null };
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  // Race-won case: profile exists and someone already attributed the inviter.
+  if (profileRow && profileRow.invited_by) {
+    return 'already-claimed';
+  }
+
+  const inviterId = stash.inviterId;
+  const circleId = stash.circleId || null;
+
+  const tryClaim = async (): Promise<{ ok: boolean }> => {
+    try {
+      const ok = await claimAffiliate(inviterId, circleId);
+      return { ok };
+    } catch (err) {
+      console.warn('claimPendingAffiliate: claim_affiliate threw:', err);
+      return { ok: false };
+    }
+  };
+
+  let result = await tryClaim();
+  if (!result.ok) {
+    await new Promise((r) => setTimeout(r, 800));
+    result = await tryClaim();
+  }
+
+  if (result.ok) return 'claimed';
+
+  // Race-reconciliation: another writer may have won between our UPDATE and
+  // now. If the profile shows invited_by populated, treat as success.
+  const { data: reselect } = await supabase
+    .from('profiles')
+    .select('invited_by')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (reselect && (reselect as { invited_by: string | null }).invited_by) {
+    return 'already-claimed';
+  }
+
+  return 'failed';
 }

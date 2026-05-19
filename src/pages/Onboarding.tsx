@@ -9,6 +9,8 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { hasCompletedOnboarding } from '@/lib/api/profiles';
+import { claimPendingAffiliate } from '@/lib/api/affiliates';
+import { clearPendingAffiliate } from '@/lib/affiliate';
 import logo from '@/assets/logo.svg';
 
 // We'll create these components next
@@ -113,6 +115,18 @@ export default function Onboarding() {
         navigate('/home', { replace: true });
         return;
       }
+
+      // Safety net for the OAuth path: if AuthCallback couldn't apply the
+      // pending affiliate context (profile-row race or transient RPC failure),
+      // give it one more shot here. Fire-and-forget — onboarding UX doesn't
+      // need to wait on this.
+      claimPendingAffiliate(currentUser.id).then((outcome) => {
+        if (outcome === 'claimed' || outcome === 'already-claimed' || outcome === 'no-stash') {
+          clearPendingAffiliate();
+        } else {
+          console.warn('claimPendingAffiliate failed on Onboarding mount');
+        }
+      });
 
       setLoading(false);
     };
