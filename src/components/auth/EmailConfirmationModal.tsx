@@ -210,7 +210,7 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
                       value={code[index]}
                       onChange={(e) => handleInputChange(index, e.target.value)}
                       onKeyDown={(e) => handleKeyDown(index, e)}
-                      className="w-14 h-14 text-center text-2xl font-bold border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-14 h-14 text-center text-2xl font-bold border-2 rounded-lg transition-[border-color,background-color] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none focus:border-primary focus-visible:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={verifying}
                       autoComplete="off"
                     />

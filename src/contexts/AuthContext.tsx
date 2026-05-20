@@ -31,11 +31,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   // Track online status for logged-in users
   useOnlineStatus(user?.id);
 
   useEffect(() => {
+    // Defensive fallback for password-recovery links that landed at the wrong
+    // route because the Supabase project's Redirect URLs allowlist didn't
+    // include `/reset-password`. We force navigation to the reset page so the
+    // recovery session is never silently treated as a normal sign-in.
+    const routeRecoveryToResetPage = () => {
+      if (window.location.pathname !== '/reset-password') {
+        navigate('/reset-password', { replace: true });
+      }
+    };
+
     // Check active sessions and subscribe to auth changes
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
@@ -50,13 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+      if (event === 'PASSWORD_RECOVERY') {
+        routeRecoveryToResetPage();
+      }
     });
 
     return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const signUp = async (

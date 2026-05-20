@@ -337,27 +337,27 @@ export function CircleCard() {
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Connect with us:</h3>
                   <div className="flex gap-2 justify-center">
-                    <Button size="icon" variant="outline" className="rounded-full neu-concave h-12 w-12" asChild>
+                    <Button size="icon" variant="sociallinks" className="rounded-full neu-concave h-12 w-12 hover:scale-105 transition-all duration-200" asChild>
                       <a href={circleData.socials.website} target="_blank" rel="noreferrer">
                         <Globe className="h-5 w-5" />
                       </a>
                     </Button>
-                    <Button size="icon" variant="outline" className="rounded-full neu-concave h-12 w-12" asChild>
+                    <Button size="icon" variant="sociallinks" className="rounded-full neu-concave h-12 w-12 hover:scale-105 transition-all duration-200" asChild>
                       <a href={circleData.socials.instagram} target="_blank" rel="noreferrer">
                         <Instagram className="h-5 w-5" />
                       </a>
                     </Button>
-                    <Button size="icon" variant="outline" className="rounded-full neu-concave h-12 w-12" asChild>
+                    <Button size="icon" variant="sociallinks" className="rounded-full neu-concave h-12 w-12 hover:scale-105 transition-all duration-200" asChild>
                       <a href={circleData.socials.facebook} target="_blank" rel="noreferrer">
                         <Facebook className="h-5 w-5" />
                       </a>
                     </Button>
-                    <Button size="icon" variant="outline" className="rounded-full neu-concave h-12 w-12" asChild>
+                    <Button size="icon" variant="sociallinks" className="rounded-full neu-concave h-12 w-12 hover:scale-105 transition-all duration-200" asChild>
                       <a href={circleData.socials.linkedin} target="_blank" rel="noreferrer">
                         <Linkedin className="h-5 w-5" />
                       </a>
                     </Button>
-                    <Button size="icon" variant="outline" className="rounded-full neu-concave h-12 w-12" asChild>
+                    <Button size="icon" variant="sociallinks" className="rounded-full neu-concave h-12 w-12 hover:scale-105 transition-all duration-200" asChild>
                       <a href={circleData.socials.email}>
                         <Mail className="h-5 w-5" />
                       </a>
@@ -375,9 +375,9 @@ export function CircleCard() {
                     <Button
                       type="button"
                       size="icon"
-                      variant="outline"
+                      variant="sociallinks"
                       className={cn(
-                        "rounded-full shrink-0",
+                        "rounded-full shrink-0 hover:scale-105 transition-all duration-200",
                         inviteCopied &&
                           "border-success bg-success/90 text-success-foreground hover:bg-success hover:border-success hover:text-success-foreground" || 'neu-concave secondary'
                       )}

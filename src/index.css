@@ -303,10 +303,38 @@ All colors MUST be HSL.
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
-  /* Subtle focus indicator — no thick blue ring, no offset glow */
+  /* Subtle focus indicator for interactive controls (not text fields). */
   *:focus-visible {
     @apply outline-none;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  [role="checkbox"]:focus-visible,
+  [role="radio"]:focus-visible,
+  [role="switch"]:focus-visible,
+  summary:focus-visible {
     box-shadow: 0 0 0 1px hsl(var(--ring) / 0.35);
+  }
+
+  /* Form controls: border-only focus — avoids stacked rings / inner rectangles on mobile. */
+  input,
+  textarea,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  input:focus,
+  textarea:focus,
+  select:focus,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: none;
+    box-shadow: none;
   }
 
   /* Prevent iOS Safari auto-zoom when focusing inputs on mobile.

@@ -430,8 +430,8 @@ export function MobileHome() {
         type="button"
         onClick={openMobileMessenger}
         aria-label="Open messenger"
-        style={{ position: 'fixed', bottom: '1.5rem', left: '1.5rem' }}
-        className="h-16 w-16 rounded-full bg-gradient-primary shadow-glow hover:opacity-90 active:scale-95 transition-all z-40 flex items-center justify-center"
+        style={{ position: 'fixed', bottom: '0.4rem', left: '1.2rem' }}
+        className="h-16 w-16 rounded-full bg-gradient-primary shadow-md hover:opacity-90 active:scale-95 transition-all z-40 flex items-center justify-center"
       >
         <MessageCircle size={30} strokeWidth={2} className="text-white" />
         {totalUnread > 0 && (
@@ -449,8 +449,8 @@ export function MobileHome() {
         type="button"
         onClick={() => navigate('/contacts')}
         aria-label="View contacts"
-        style={{ position: 'fixed', bottom: '1.5rem', right: '1.5rem' }}
-        className="h-16 w-16 rounded-full bg-gradient-primary shadow-glow hover:opacity-90 active:scale-95 transition-all z-40 flex items-center justify-center"
+        style={{ position: 'fixed', bottom: '0.4rem', right: '1.2rem' }}
+        className="h-16 w-16 rounded-full bg-gradient-primary shadow-md hover:opacity-90 active:scale-95 transition-all z-40 flex items-center justify-center"
       >
         <Users size={28} strokeWidth={2} className="text-white" />
         {unseenContactCount > 0 && (

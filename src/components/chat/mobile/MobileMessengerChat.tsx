@@ -420,7 +420,7 @@ export function MobileMessengerChat({ contact, onBack }: MobileMessengerChatProp
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder={editingMessage ? 'Edit message…' : 'Message…'}
-              className="w-full bg-transparent py-2.5 text-[15px] placeholder-gray-500 outline-none"
+              className="w-full bg-transparent py-2.5 text-[15px] placeholder-gray-500 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
             />
             <button
               type="button"

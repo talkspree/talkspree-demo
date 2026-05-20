@@ -302,7 +302,7 @@ export function MobileMessengerInbox({
             placeholder="Search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full rounded-full bg-gray-100 py-2.5 pl-10 pr-4 text-[15px] text-gray-900 placeholder-gray-500 transition-colors focus:bg-gray-200 focus:outline-none"
+            className="block w-full rounded-full bg-gray-100 py-2.5 pl-10 pr-4 text-[15px] text-gray-900 placeholder-gray-500 transition-colors focus:bg-gray-200 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none"
           />
         </div>
       </header>

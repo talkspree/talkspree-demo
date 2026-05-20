@@ -1030,7 +1030,7 @@ export default function WaitingRoom() {
               <div className="relative rounded-xl overflow-hidden bg-transparent" style={{ width: "100%", maxWidth: 620 }}>
                 <iframe
                   ref={dinoIframeRef}
-                  src={`/dino-game.html?uid=${profileData?.id || "guest"}&hs=${dinoHs}`}
+                  src={`${window.location.origin}/dino-game.html?uid=${profileData?.id || "guest"}&hs=${dinoHs}`}
                   title="Dino game"
                   style={{ border: "none", background: "transparent", width: "100%", height: 160, display: "block" }}
                 />
