@@ -149,9 +149,9 @@ export function SignupForm({ onSwitchToLogin, onGoogleSignUp, onSignUp, invitedB
 
     <p className="mt-4 text-center text-[11px] text-muted-foreground/70 leading-relaxed px-1">
       By signing up you agree to our{' '}
-      <a href="/terms" className="underline hover:text-foreground transition-colors">Terms of Use</a>,{' '}
-      <a href="/privacy" className="underline hover:text-foreground transition-colors">Privacy Policy</a> and{' '}
-      <a href="/cookies" className="underline hover:text-foreground transition-colors">Cookie Policy</a>.
+      <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">Terms of Use</a>,{' '}
+      <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">Privacy Policy</a> and{' '}
+      <a href="/cookies" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground transition-colors">Cookie Policy</a>.
     </p>
     </div>
   );

@@ -37,7 +37,7 @@ import { EmojiPicker } from '@/components/chat/mobile/EmojiPicker';
 
 // Reusable glassmorphic surface used by the prompt card, PiP, timer pill, etc.
 const GLASS_SURFACE =
-  'bg-gradient-to-br from-white/10 to-transparent backdrop-blur-md border border-white/10 shadow-[0_4px_24px_0_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.2)]';
+  'bg-gradient-to-br from-white/10 to-transparent bg-black/15 backdrop-blur-md border border-white/10 shadow-[0_4px_24px_0_rgba(0,0,0,0.35),inset_0_1px_1px_rgba(255,255,255,0.2)]';
 
 export function MobileCallAgora() {
   const navigate = useNavigate();
@@ -333,7 +333,7 @@ export function MobileCallAgora() {
   return (
     <div className="fixed inset-0 bg-zinc-950 overflow-hidden">
       {/* Mobile View */}
-      <div className="h-screen h-[100dvh] flex flex-col relative text-white">
+      <div className="h-[100svh] flex flex-col relative text-white">
         <div ref={remoteVideoRef} className={`absolute inset-0 w-full h-full agora-video-container ${hasRemoteUser && remoteUsers[0].videoTrack ? '' : 'hidden'}`} />
         <div className={`absolute inset-0 w-full h-full bg-zinc-900 flex flex-col items-center justify-center ${hasRemoteUser && remoteUsers[0].videoTrack ? 'hidden' : ''}`}>
           <Avatar className="h-28 w-28 mb-4 border-4 border-white/10 shadow-xl">

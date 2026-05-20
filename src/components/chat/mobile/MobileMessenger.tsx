@@ -30,13 +30,24 @@ export function MobileMessenger() {
     closeMobileChat,
   } = useChat();
 
-  // Lock body scroll while the messenger is open
+  // Lock body scroll while the messenger is open.
+  // Why: iOS Safari ignores `overflow: hidden` once the soft keyboard opens —
+  // the visual viewport pans freely and reveals the page underneath. Pinning
+  // body with `position: fixed` + saved scrollY fully blocks that.
   useEffect(() => {
     if (!isMobileMessengerOpen) return;
-    const original = document.body.style.overflow;
+    const scrollY = window.scrollY;
     document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
     return () => {
-      document.body.style.overflow = original;
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+      const top = document.body.style.top;
+      document.body.style.top = '';
+      window.scrollTo(0, -parseInt(top || '0'));
     };
   }, [isMobileMessengerOpen]);
 
@@ -53,7 +64,7 @@ export function MobileMessenger() {
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
           transition={{ type: 'spring', damping: 30, stiffness: 280 }}
-          className="fixed inset-0 z-[100] bg-white"
+          className="fixed inset-0 z-[100] h-[100dvh] bg-white"
         >
           <div className="relative h-full w-full overflow-hidden bg-white">
 

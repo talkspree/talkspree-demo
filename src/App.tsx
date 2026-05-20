@@ -13,6 +13,9 @@ import AffiliateInvite from "./pages/AffiliateInvite";
 import ClearSession from "./pages/ClearSession";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
+import Cookies from "./pages/Cookies";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
 import ProfileEdit from "./pages/ProfileEdit";
@@ -51,6 +54,11 @@ function App() {
               <Route path="/auth/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/clear-session" element={<ClearSession />} />
+
+              {/* Legal pages - opened in new tab from auth links */}
+              <Route path="/terms" element={<Terms />} />
+              <Route path="/privacy" element={<Privacy />} />
+              <Route path="/cookies" element={<Cookies />} />
               
               {/* Protected routes */}
               <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
