@@ -30,7 +30,9 @@ export async function getAgoraToken(callId: string): Promise<AgoraTokenResponse>
     // For production: Call your edge function to generate a token
     const { data, error } = await supabase.functions.invoke('generate-agora-token', {
       body: {
-        channelName,
+        // Send the callId; the edge function derives the channel name and verifies
+        // the caller is a participant of this call before issuing a token.
+        callId,
         uid,
         role: 'publisher', // or 'subscriber'
       },

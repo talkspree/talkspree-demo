@@ -30,3 +30,6 @@ dist-ssr
 
 # Documentation
 README.md
+
+# MCP
+.mcp.json

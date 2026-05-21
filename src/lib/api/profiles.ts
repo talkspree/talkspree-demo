@@ -134,20 +134,46 @@ export async function storeVerificationCode(userId: string, code: string, email?
  * Verify the 4-digit email code
  */
 export async function verifyEmailCode(email: string, code: string) {
+  // The verification code is checked SERVER-SIDE by the verify_email_with_code
+  // RPC (SECURITY DEFINER). The client never reads the code, and profiles is no
+  // longer anon-readable. See migration 081.
+  const { data, error } = await supabase.rpc('verify_email_with_code', {
+    p_email: email.toLowerCase().trim(),
+    p_code: code,
+  });
+
+  if (error) {
+    console.error('Error verifying email:', error);
+    return { success: false, error: 'Failed to verify email' };
+  }
+
+  const result = (data ?? {}) as { success?: boolean; error?: string; user_id?: string };
+  if (!result.success) {
+    return { success: false, error: result.error || 'Invalid verification code' };
+  }
+
+  return { success: true, userId: result.user_id };
+}
+
+/**
+ * Legacy client-side verification path (no longer used). Retained only so the
+ * symbol is not referenced elsewhere; the real check is server-side above.
+ */
+async function _legacyVerifyEmailCode(email: string, code: string) {
   const normalizedEmail = email.toLowerCase().trim();
   console.log('🔍 Verifying email code for:', email, '(normalized:', normalizedEmail, ')');
-  
+
   // Try multiple query approaches
   let profile = null;
   let profileError = null;
-  
+
   // Approach 1: Exact match (normalized)
   const { data: profile1, error: error1 } = await supabase
     .from('profiles')
     .select('id, verification_code, verification_code_expires_at, email')
     .eq('email', normalizedEmail)
     .maybeSingle();
-  
+
   if (profile1) {
     profile = profile1;
     console.log('✅ Found profile with exact match');

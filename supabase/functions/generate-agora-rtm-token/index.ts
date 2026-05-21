@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-// Use Agora's official RTC token builder
-import { RtcTokenBuilder, RtcRole } from 'npm:agora-access-token@2.0.4'
+// Use npm: specifier for better Deno compatibility
+import { RtmTokenBuilder, RtmRole } from 'npm:agora-access-token@2.0.4'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,8 +20,8 @@ serve(async (req) => {
     if (!authHeader) {
       throw new Error('No authorization header')
     }
-    
-    // Create Supabase client
+
+    // Caller-scoped client (runs under the caller's JWT)
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
@@ -34,32 +34,13 @@ serve(async (req) => {
       throw new Error('Unauthorized')
     }
 
-    // Get request body. The channel is DERIVED from a call the caller belongs to;
-    // we never trust a client-supplied channel name.
-    const { callId, uid, role = 'publisher' } = await req.json()
-
-    if (!callId || !uid) {
-      throw new Error('Missing required parameters: callId, uid')
-    }
-
-    // Authorization: the caller must be a participant of this call. The
-    // call_history SELECT RLS policy already restricts rows to participants; we
-    // also assert the ids explicitly as defence in depth.
-    const { data: call, error: callError } = await supabaseClient
-      .from('call_history')
-      .select('id, caller_id, recipient_id')
-      .eq('id', callId)
-      .maybeSingle()
-
-    if (callError || !call || (call.caller_id !== user.id && call.recipient_id !== user.id)) {
-      throw new Error('Not authorized to join this channel')
-    }
-
-    const channelName = `call_${String(callId).replace(/-/g, '')}`
+    // SECURITY: mint an RTM token only for the authenticated caller's own id.
+    // The previous version trusted a client-supplied `userId`, letting any user
+    // mint a token impersonating any other RTM user.
+    const userId = user.id
 
     // Get Agora credentials with the SERVICE ROLE. get_agora_config() is no longer
-    // exposed to anon/authenticated (see migration 083), so we use a service-role
-    // client here instead of the caller-scoped one.
+    // exposed to anon/authenticated (see migration 083).
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -74,7 +55,7 @@ serve(async (req) => {
 
     // The RPC returns a single row with app_id and app_certificate columns
     const config = Array.isArray(configData) ? configData[0] : configData
-    
+
     const appId = config?.app_id
     const appCertificate = config?.app_certificate
 
@@ -83,33 +64,27 @@ serve(async (req) => {
       throw new Error('Agora credentials not configured')
     }
 
-    // Set token expiration (1 hour is ample for a single call; tokens can be re-fetched)
+    // Set token expiration (1 hour)
     const expirationTimeInSeconds = 3600
     const currentTimestamp = Math.floor(Date.now() / 1000)
-    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds
+    const expireTimestamp = currentTimestamp + expirationTimeInSeconds
 
-    // Determine role: PUBLISHER can publish and subscribe, SUBSCRIBER can only subscribe
-    const agoraRole = role === 'publisher' ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER
-
-    // Generate token using Agora's official token builder
-    const token = RtcTokenBuilder.buildTokenWithUid(
+    // Generate RTM token using RtmTokenBuilder (RTM 1.x format)
+    const token = RtmTokenBuilder.buildToken(
       appId,
       appCertificate,
-      channelName,
-      uid,
-      agoraRole,
-      privilegeExpiredTs,
-      privilegeExpiredTs
+      userId,
+      RtmRole.Rtm_User,
+      expireTimestamp
     )
 
-    console.log('Token generated successfully for user:', user.id)
+    console.log('RTM Token generated successfully for user:', user.id)
 
     return new Response(
       JSON.stringify({
         token,
-        channelName,
-        uid,
-        expiresAt: privilegeExpiredTs,
+        userId,
+        expiresAt: expireTimestamp,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -117,9 +92,9 @@ serve(async (req) => {
       }
     )
   } catch (error) {
-    console.error('Error generating token:', error)
+    console.error('Error generating RTM token:', error)
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: error instanceof Error ? error.message : 'Unknown error',
         details: error instanceof Error ? error.stack : undefined
       }),
@@ -130,4 +105,3 @@ serve(async (req) => {
     )
   }
 })
-
