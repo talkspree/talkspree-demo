@@ -131,28 +131,34 @@ export async function storeVerificationCode(userId: string, code: string, email?
 }
 
 /**
- * Verify the 4-digit email code
+ * Verify the 6-digit email OTP issued by Supabase Auth.
+ * Uses supabase.auth.verifyOtp so Supabase manages token validation and
+ * sets auth.users.email_confirmed_at. We then sync profiles.email_verified.
  */
 export async function verifyEmailCode(email: string, code: string) {
-  // The verification code is checked SERVER-SIDE by the verify_email_with_code
-  // RPC (SECURITY DEFINER). The client never reads the code, and profiles is no
-  // longer anon-readable. See migration 081.
-  const { data, error } = await supabase.rpc('verify_email_with_code', {
-    p_email: email.toLowerCase().trim(),
-    p_code: code,
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: email.toLowerCase().trim(),
+    token: code,
+    type: 'signup',
   });
 
   if (error) {
-    console.error('Error verifying email:', error);
-    return { success: false, error: 'Failed to verify email' };
+    console.error('Error verifying OTP:', error);
+    return { success: false, error: error.message || 'Invalid verification code' };
   }
 
-  const result = (data ?? {}) as { success?: boolean; error?: string; user_id?: string };
-  if (!result.success) {
-    return { success: false, error: result.error || 'Invalid verification code' };
+  if (data.user) {
+    await supabase
+      .from('profiles')
+      .update({
+        email_verified: true,
+        verification_code: null,
+        verification_code_expires_at: null,
+      })
+      .eq('id', data.user.id);
   }
 
-  return { success: true, userId: result.user_id };
+  return { success: true, userId: data.user?.id };
 }
 
 /**
@@ -281,20 +287,16 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
 }
 
 /**
- * Resend verification code — calls the server-side RPC so it works
- * even before the user has an authenticated session (anon-safe).
+ * Resend the Supabase signup OTP email.
  */
 export async function resendVerificationCode(email: string) {
-  const { data, error } = await supabase.rpc('resend_verification_code', {
-    p_email: email,
+  const { error } = await supabase.auth.resend({
+    type: 'signup',
+    email: email.toLowerCase().trim(),
   });
 
   if (error) throw new Error(error.message);
-
-  const result = (data ?? {}) as { success?: boolean; error?: string; code?: string };
-  if (!result.success) throw new Error(result.error || 'Failed to resend code');
-
-  return { success: true, code: result.code };
+  return { success: true };
 }
 
 /**
@@ -446,7 +448,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
     occupation: onboardingData.occupation || null,
     bio: onboardingData.bio || null,
     profile_picture_url: profilePictureUrl,
-    role: (onboardingData.role as 'mentor' | 'mentee' | 'alumni') || null,
     university: onboardingData.university || null,
     study_field: onboardingData.studyField || null,
     work_place: onboardingData.workPlace || null,

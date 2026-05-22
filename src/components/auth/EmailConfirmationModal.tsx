@@ -10,7 +10,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Mail, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 import { verifyEmailCode, resendVerificationCode } from '@/lib/api/profiles';
-import { supabase } from '@/lib/supabase';
+
+// Must match the number of {{ index .Token N }} placeholders in the Supabase
+// email template AND the OTP length set in Dashboard → Auth → Settings.
+const CODE_LENGTH = 6;
 
 interface EmailConfirmationModalProps {
   isOpen: boolean;
@@ -19,41 +22,35 @@ interface EmailConfirmationModalProps {
 }
 
 export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfirmationModalProps) {
-  const [code, setCode] = useState(['', '', '', '']);
+  const [code, setCode] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendStatus, setResendStatus] = useState<{ ok: boolean; msg: string } | null>(null);
-  
-  // Refs for each input box
-  const inputRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
 
-  // Focus first input when modal opens
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const focusInput = (i: number) => inputRefs.current[i]?.focus();
+
   useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        inputRefs[0].current?.focus();
-      }, 100);
-    }
+    if (isOpen) setTimeout(() => focusInput(0), 100);
   }, [isOpen]);
 
-  // Auto-verify when all 4 digits are entered
   useEffect(() => {
-    if (code.every(digit => digit !== '') && !verifying && !isConfirmed) {
+    if (code.every(d => d !== '') && !verifying && !isConfirmed) {
       handleVerifyCode();
     }
   }, [code]);
 
+  const clearCode = () => {
+    setCode(Array(CODE_LENGTH).fill(''));
+    focusInput(0);
+  };
+
   const handleVerifyCode = async () => {
     const fullCode = code.join('');
-    if (fullCode.length !== 4) {
-      setError('Please enter all 4 digits');
+    if (fullCode.length !== CODE_LENGTH) {
+      setError(`Please enter all ${CODE_LENGTH} digits`);
       return;
     }
 
@@ -66,27 +63,17 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
       if (!result.success) {
         setError(result.error || 'Invalid code');
         setVerifying(false);
-        // Clear the code inputs on error
-        setCode(['', '', '', '']);
-        inputRefs[0].current?.focus();
+        clearCode();
         return;
       }
 
-      // Code verified successfully!
       setIsConfirmed(true);
-
-      // Wait a brief moment to show success state, then continue
-      // The parent component will handle sign in and navigation
-      setTimeout(() => {
-        onContinue();
-      }, 800);
+      setTimeout(() => onContinue(), 800);
     } catch (err: any) {
       console.error('Error verifying code:', err);
       setError(err.message || 'Failed to verify code');
       setVerifying(false);
-      // Clear the code inputs on error
-      setCode(['', '', '', '']);
-      inputRefs[0].current?.focus();
+      clearCode();
     }
   };
 
@@ -98,9 +85,7 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
       await resendVerificationCode(email);
       setResendStatus({ ok: true, msg: 'Code sent — check your inbox' });
       setTimeout(() => setResendStatus(null), 4000);
-      // Clear the inputs
-      setCode(['', '', '', '']);
-      inputRefs[0].current?.focus();
+      clearCode();
     } catch (err: any) {
       setResendStatus({ ok: false, msg: err.message || 'Failed to resend code' });
     } finally {
@@ -109,59 +94,38 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
   };
 
   const handleInputChange = (index: number, value: string) => {
-    // Only allow digits
-    const digit = value.replace(/\D/g, '');
-    
-    if (digit.length > 1) {
-      // If user pastes multiple digits, distribute them
-      const digits = digit.slice(0, 4).split('');
+    const digits = value.replace(/\D/g, '');
+
+    if (digits.length > 1) {
       const newCode = [...code];
-      digits.forEach((d, i) => {
-        if (index + i < 4) {
-          newCode[index + i] = d;
-        }
+      digits.slice(0, CODE_LENGTH - index).split('').forEach((d, i) => {
+        newCode[index + i] = d;
       });
       setCode(newCode);
-      
-      // Focus the next empty input or the last one
-      const nextEmptyIndex = newCode.findIndex((d, i) => i > index && d === '');
-      if (nextEmptyIndex !== -1) {
-        inputRefs[nextEmptyIndex].current?.focus();
-      } else if (index + digits.length < 4) {
-        inputRefs[index + digits.length].current?.focus();
-      } else {
-        inputRefs[3].current?.focus();
-      }
+      focusInput(Math.min(index + digits.length, CODE_LENGTH - 1));
     } else {
-      // Single digit input
       const newCode = [...code];
-      newCode[index] = digit;
+      newCode[index] = digits;
       setCode(newCode);
-      
-      // Auto-focus next input if digit was entered
-      if (digit && index < 3) {
-        inputRefs[index + 1].current?.focus();
-      }
+      if (digits && index < CODE_LENGTH - 1) focusInput(index + 1);
     }
-    
+
     setError(null);
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Backspace') {
       if (!code[index] && index > 0) {
-        // If current input is empty, focus previous input
-        inputRefs[index - 1].current?.focus();
+        focusInput(index - 1);
       } else {
-        // Clear current input
         const newCode = [...code];
         newCode[index] = '';
         setCode(newCode);
       }
     } else if (e.key === 'ArrowLeft' && index > 0) {
-      inputRefs[index - 1].current?.focus();
-    } else if (e.key === 'ArrowRight' && index < 3) {
-      inputRefs[index + 1].current?.focus();
+      focusInput(index - 1);
+    } else if (e.key === 'ArrowRight' && index < CODE_LENGTH - 1) {
+      focusInput(index + 1);
     }
   };
 
@@ -171,8 +135,8 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
         <AlertDialogHeader>
           <div className="flex items-center justify-center mb-4">
             <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${
-              isConfirmed 
-                ? 'bg-green-100 dark:bg-green-900/30' 
+              isConfirmed
+                ? 'bg-green-100 dark:bg-green-900/30'
                 : 'bg-primary/10'
             }`}>
               {isConfirmed ? (
@@ -186,51 +150,44 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
             {isConfirmed ? 'Email Verified!' : 'Verify your email'}
           </AlertDialogTitle>
         </AlertDialogHeader>
-        
+
         <div className="text-center space-y-4 px-6">
           {!isConfirmed ? (
             <>
               <p className="text-base text-muted-foreground">
-                We sent a 4-digit verification code to:
+                We sent a {CODE_LENGTH}-digit verification code to:
               </p>
-              <p className="font-semibold text-foreground text-lg">
-                {email}
-              </p>
-              
+              <p className="font-semibold text-foreground text-lg">{email}</p>
+
               <div className="space-y-3 pt-2">
-                {/* 4-Digit Code Input Boxes */}
                 <div className="flex justify-center gap-3">
-                  {[0, 1, 2, 3].map((index) => (
+                  {Array.from({ length: CODE_LENGTH }, (_, index) => (
                     <input
                       key={index}
-                      ref={inputRefs[index]}
+                      ref={el => { inputRefs.current[index] = el; }}
                       type="text"
                       inputMode="numeric"
                       maxLength={1}
                       value={code[index]}
-                      onChange={(e) => handleInputChange(index, e.target.value)}
-                      onKeyDown={(e) => handleKeyDown(index, e)}
-                      className="w-14 h-14 text-center text-2xl font-bold border-2 rounded-lg transition-[border-color,background-color] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none focus:border-primary focus-visible:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                      onChange={e => handleInputChange(index, e.target.value)}
+                      onKeyDown={e => handleKeyDown(index, e)}
+                      className="w-12 h-12 text-center text-xl font-bold border-2 rounded-lg transition-[border-color,background-color] focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:shadow-none focus:border-primary focus-visible:border-primary disabled:opacity-50 disabled:cursor-not-allowed"
                       disabled={verifying}
                       autoComplete="off"
                     />
                   ))}
                 </div>
-                
-                {error && (
-                  <p className="text-sm text-destructive">{error}</p>
-                )}
-                
+
+                {error && <p className="text-sm text-destructive">{error}</p>}
+
                 {verifying && (
                   <div className="flex items-center justify-center gap-2 py-2">
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-sm text-muted-foreground">
-                      Verifying...
-                    </span>
+                    <span className="text-sm text-muted-foreground">Verifying...</span>
                   </div>
                 )}
               </div>
-              
+
               <div className="bg-muted/50 rounded-lg p-3 text-left space-y-1.5 text-sm">
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
@@ -242,7 +199,7 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0 text-primary" />
-                  <span>Code expires in 10 minutes</span>
+                  <span>Code expires in 60 minutes</span>
                 </div>
               </div>
             </>
@@ -252,11 +209,11 @@ export function EmailConfirmationModal({ isOpen, email, onContinue }: EmailConfi
             </p>
           )}
         </div>
-        
+
         <AlertDialogHeader className="sr-only">
           <AlertDialogDescription>Email verification</AlertDialogDescription>
         </AlertDialogHeader>
-        
+
         {!isConfirmed && (
           <AlertDialogFooter className="flex-col gap-2">
             <Button

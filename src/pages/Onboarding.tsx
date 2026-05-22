@@ -72,6 +72,7 @@ export default function Onboarding() {
   const [data, setData] = useState<OnboardingData>(initialData);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [fadingOut, setFadingOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const device = useDevice();
@@ -146,9 +147,11 @@ export default function Onboarding() {
     );
   }
 
-  // Desktop: 7 steps (grouped), Mobile: 11 steps (individual)
+  // Desktop: 5 onboarding steps + 2 circle steps (not counted). Mobile: 9 + 2.
+  const onboardingStepCount = device === 'mobile' ? 9 : 5;
   const totalSteps = device === 'mobile' ? 11 : 7;
-  const progress = (currentStep / totalSteps) * 100;
+  const isCircleStep = currentStep > onboardingStepCount;
+  const progress = (Math.min(currentStep, onboardingStepCount) / onboardingStepCount) * 100;
 
   const updateData = (updates: Partial<OnboardingData>) => {
     setData(prev => ({ ...prev, ...updates }));
@@ -171,8 +174,8 @@ export default function Onboarding() {
 
   const handleComplete = async (selectedRole?: string) => {
     setSaving(true);
+    setFadingOut(true);
     try {
-      // Import the completeOnboarding function
       const { completeOnboarding } = await import('@/lib/api/profiles');
 
       // Merge in the freshly-selected role so we don't depend on React's
@@ -183,15 +186,18 @@ export default function Onboarding() {
 
       console.log('Starting onboarding save...', finalData);
 
-      // Save user data to Supabase
-      await completeOnboarding(finalData);
+      // Run the fade animation and save in parallel; navigate only after both finish.
+      await Promise.all([
+        new Promise(resolve => setTimeout(resolve, 700)),
+        completeOnboarding(finalData),
+      ]);
 
       console.log('✅ Onboarding data saved successfully!');
       navigate('/home');
     } catch (error: any) {
       console.error('❌ Error completing onboarding:', error);
+      setFadingOut(false);
       setSaveError(error.message || 'Unknown error occurred. Please try again.');
-      // Don't navigate if save failed
     } finally {
       setSaving(false);
     }
@@ -231,26 +237,34 @@ export default function Onboarding() {
 
   return (
     <AdaptiveLayout>
+      {/* Full-screen fade-out overlay */}
+      <div
+        className="fixed inset-0 bg-background z-50 transition-opacity duration-700 pointer-events-none"
+        style={{ opacity: fadingOut ? 1 : 0 }}
+      />
+
       <EmailConfirmationBanner />
-      <div className="min-h-screen py-8">
-        <div className="max-w-2xl mx-auto px-4">
+      <div className={`min-h-screen py-8 ${isCircleStep ? 'flex items-center justify-center' : ''}`}>
+        <div className="max-w-2xl w-full mx-auto px-4">
           {/* Logo */}
           <div className="mb-6 text-center">
             <img src={logo} alt="TalkSpree" className="h-6 mx-auto" />
           </div>
 
-          {/* Progress bar */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-muted-foreground">
-                Step {currentStep} of {totalSteps}
-              </span>
-              <span className="text-sm font-medium text-muted-foreground">
-                {Math.round(progress)}%
-              </span>
+          {/* Progress bar — hidden during circle welcome and role selection steps */}
+          {!isCircleStep && (
+            <div className="mb-8">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Step {currentStep} of {onboardingStepCount}
+                </span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+              <Progress value={progress} className="h-2" />
             </div>
-            <Progress value={progress} className="h-2" />
-          </div>
+          )}
 
           {/* Step content */}
           {renderStep()}

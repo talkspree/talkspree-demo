@@ -17,7 +17,7 @@ interface AuthContextType {
     email: string,
     password: string,
     affiliate?: AffiliateSignupContext | null,
-  ) => Promise<{ data: { user: User | null; session: Session | null } | null; error: AuthError | null; verificationCode?: string }>;
+  ) => Promise<{ data: { user: User | null; session: Session | null } | null; error: AuthError | null }>;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signInWithGoogle: () => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
@@ -79,17 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     affiliate?: AffiliateSignupContext | null,
   ) => {
-    const { generateVerificationCode } = await import('@/lib/api/profiles');
-
-    // Generate a 4-digit verification code — stored atomically by the
-    // handle_new_user DB trigger reading raw_user_meta_data.verification_code.
-    const verificationCode = generateVerificationCode();
-
     // Affiliate metadata is read by the `handle_new_user` DB trigger out of
     // raw_user_meta_data. We only attach it when present and well-formed.
-    const metadata: Record<string, string> = {
-      verification_code: verificationCode,
-    };
+    const metadata: Record<string, string> = {};
     if (affiliate?.invitedBy) {
       metadata.invited_by = affiliate.invitedBy;
     }
@@ -101,13 +93,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        // Disable email confirmation link - we'll use our 4-digit code instead
         emailRedirectTo: `${window.location.origin}/onboarding`,
-        data: metadata,
+        data: Object.keys(metadata).length ? metadata : undefined,
       },
     });
 
-    return { data, error, verificationCode };
+    return { data, error };
   };
 
   const signIn = async (email: string, password: string) => {
