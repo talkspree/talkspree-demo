@@ -281,28 +281,20 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
 }
 
 /**
- * Resend verification code
+ * Resend verification code — calls the server-side RPC so it works
+ * even before the user has an authenticated session (anon-safe).
  */
 export async function resendVerificationCode(email: string) {
-  // Get the profile by email
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email)
-    .single();
+  const { data, error } = await supabase.rpc('resend_verification_code', {
+    p_email: email,
+  });
 
-  if (profileError || !profile) {
-    throw new Error('User not found');
-  }
+  if (error) throw new Error(error.message);
 
-  // Generate new code
-  const newCode = generateVerificationCode();
-  
-  // Store the new code
-  await storeVerificationCode(profile.id, newCode);
+  const result = (data ?? {}) as { success?: boolean; error?: string; code?: string };
+  if (!result.success) throw new Error(result.error || 'Failed to resend code');
 
-  // Return the code so it can be sent via email
-  return { success: true, code: newCode };
+  return { success: true, code: result.code };
 }
 
 /**

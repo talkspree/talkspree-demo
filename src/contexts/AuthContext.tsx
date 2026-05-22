@@ -79,10 +79,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     affiliate?: AffiliateSignupContext | null,
   ) => {
-    // Import the verification functions
-    const { generateVerificationCode, storeVerificationCode } = await import('@/lib/api/profiles');
+    const { generateVerificationCode } = await import('@/lib/api/profiles');
 
-    // Generate a 4-digit verification code
+    // Generate a 4-digit verification code — stored atomically by the
+    // handle_new_user DB trigger reading raw_user_meta_data.verification_code.
     const verificationCode = generateVerificationCode();
 
     // Affiliate metadata is read by the `handle_new_user` DB trigger out of
@@ -106,15 +106,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         data: metadata,
       },
     });
-
-    if (data?.user?.id && !error) {
-      try {
-        // Pass the email so it gets stored in the profile
-        await storeVerificationCode(data.user.id, verificationCode, email);
-      } catch (storeError) {
-        console.error('Error storing verification code:', storeError);
-      }
-    }
 
     return { data, error, verificationCode };
   };
