@@ -275,7 +275,6 @@ export default function WaitingRoom() {
     const onPartnerReady = (userId: string) => {
       if (userId === selfId || partnerReadyRef.current || unmountedRef.current) return;
       partnerReadyRef.current = true;
-      console.log("[WaitingRoom] Partner ready → countdown");
       goToCountdown(user, callId, agreedDuration, callStartTime);
     };
 
@@ -306,7 +305,6 @@ export default function WaitingRoom() {
     if (connectionTimeoutRef.current) clearTimeout(connectionTimeoutRef.current);
     connectionTimeoutRef.current = setTimeout(async () => {
       if (unmountedRef.current || partnerReadyRef.current || phaseRef.current !== "connecting") return;
-      console.log("[WaitingRoom] 12 s connection timeout");
       await cancelConnection();
       if (!unmountedRef.current) {
         setPhase("connectionFailed");
@@ -330,8 +328,6 @@ export default function WaitingRoom() {
     const selfId = selfIdRef.current;
     if (!selfId) { matchingInProgressRef.current = false; return; }
 
-    console.log("[WaitingRoom] Mutual rematch consent — attempting match with", partnerId);
-
     try {
       const reducedSkip = chatSessionUsers.filter(id => id !== partnerId);
       const result = await attemptMatch(sessionDuration, topicConfig, reducedSkip.length > 0 ? reducedSkip : undefined);
@@ -340,7 +336,6 @@ export default function WaitingRoom() {
 
       if (!result) {
         // The other user's attemptMatch likely succeeded first — handleIncoming will pick up the call
-        console.log("[WaitingRoom] attemptMatch returned null — waiting for incoming call");
         matchingInProgressRef.current = false;
         return;
       }
@@ -675,7 +670,6 @@ export default function WaitingRoom() {
         if (cancelled) return;
 
         await joinMatchmakingQueue(matchmakingFilters, sessionDuration);
-        console.log("[WaitingRoom] Joined queue");
 
         if (cancelled) return;
 

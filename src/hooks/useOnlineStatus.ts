@@ -24,8 +24,6 @@ export function useOnlineStatus(userId: string | undefined) {
         
         if (error) {
           console.error('Failed to set online status:', error);
-        } else {
-          console.log('✅ Set user online');
         }
       } catch (error) {
         console.error('Failed to set online status:', error);
@@ -44,8 +42,6 @@ export function useOnlineStatus(userId: string | undefined) {
         
         if (error) {
           console.error('Failed to set offline status:', error);
-        } else {
-          console.log('👋 Set user offline');
         }
       } catch (error) {
         console.error('Failed to set offline status:', error);

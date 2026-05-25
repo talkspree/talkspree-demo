@@ -186,9 +186,6 @@ export default function ProfileEdit() {
 
       // Handle profile picture upload if a new file was selected
       if (uploadedFile) {
-        if (import.meta.env.DEV) {
-          console.log('🖼️  New profile picture file detected:', uploadedFile.name);
-        }
         // Delete old profile picture if it exists
         if (profileData.profilePicture && !profileData.profilePicture.startsWith('data:')) {
           try {
@@ -199,9 +196,6 @@ export default function ProfileEdit() {
             const fileName = urlParts[urlParts.length - 1];
             const oldPath = `profile-pictures/${fileName}`;
             
-            if (import.meta.env.DEV) {
-              console.log('🗑️  Deleting old profile picture:', oldPath);
-            }
             
             const { error: deleteError } = await supabase.storage
                 .from('avatars')
@@ -209,8 +203,6 @@ export default function ProfileEdit() {
             
             if (deleteError) {
               console.error('❌ Delete error:', deleteError);
-            } else if (import.meta.env.DEV) {
-              console.log('✅ Old picture deleted successfully');
             }
           } catch (error) {
             console.error('❌ Failed to delete old profile picture:', error);
@@ -219,22 +211,13 @@ export default function ProfileEdit() {
         }
 
         // Upload new profile picture
-        if (import.meta.env.DEV) {
-          console.log('📤 Uploading new profile picture...');
-        }
         const uploadedUrl = await uploadProfilePicture(uploadedFile, false);
-        if (import.meta.env.DEV) {
-          console.log('✅ Upload completed, URL:', uploadedUrl);
-        }
         if (uploadedUrl) {
           profilePictureUrl = uploadedUrl;
         }
       }
 
       // Update profile in database
-      if (import.meta.env.DEV) {
-        console.log('💾 Saving profile with picture URL:', profilePictureUrl);
-      }
       await updateProfileAPI({
         first_name: formData.firstName,
         last_name: formData.lastName,

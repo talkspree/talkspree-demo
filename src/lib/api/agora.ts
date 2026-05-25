@@ -99,7 +99,6 @@ export async function sendCallSignal(
   
   if (!user) throw new Error('Not authenticated');
 
-  console.log('📤 Sending call signal:', { callId, signalType, user_id: user.id, callState });
 
   const { data, error } = await supabase
     .from('call_signals')
@@ -118,7 +117,6 @@ export async function sendCallSignal(
     throw error;
   }
   
-  console.log('✅ Call signal sent successfully:', data);
 }
 
 /**
@@ -128,7 +126,6 @@ export function subscribeToCallSignals(
   callId: string,
   callback: (signal: any) => void
 ) {
-  console.log('📡 Subscribing to call signals for call:', callId);
   
   const channel = supabase
     .channel(`call_signals:${callId}`)
@@ -141,13 +138,10 @@ export function subscribeToCallSignals(
         filter: `call_id=eq.${callId}`,
       },
       (payload) => {
-        console.log('📡 Received call signal event:', payload);
-        console.log('📡 Signal data:', payload.new);
         callback(payload.new);
       }
     )
     .subscribe((status) => {
-      console.log('📡 Signal subscription status:', status);
     });
 
   return channel;

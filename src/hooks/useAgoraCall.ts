@@ -84,7 +84,6 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
     });
 
     service.on('user-left', (user) => {
-      console.log('[Agora] Remote user left:', user.uid);
       remoteDisconnectedRef.current = true;
       setRemoteUsers((prev) => prev.filter((u) => u.uid !== user.uid));
 

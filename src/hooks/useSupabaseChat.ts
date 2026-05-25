@@ -43,14 +43,9 @@ export function useSupabaseChat(
   // Initialize chat and subscribe to messages
   useEffect(() => {
     if (!callId || !myUserId) {
-      console.log('⚠️ Supabase Chat not initialized - missing callId or userId', {
-        hasCallId: !!callId,
-        hasUserId: !!myUserId,
-      });
       return;
     }
 
-    console.log('🚀 Initializing Supabase chat...', { callId, myUserId });
 
     // Fetch existing messages
     const fetchMessages = async () => {
@@ -70,7 +65,6 @@ export function useSupabaseChat(
         if (data) {
           const transformed = data.map((msg: DbChatMessage) => transformMessage(msg, myUserId));
           setMessages(transformed);
-          console.log(`📥 Loaded ${data.length} existing messages`);
         }
       } catch (err: any) {
         console.error('❌ Error fetching messages:', err);
@@ -92,7 +86,6 @@ export function useSupabaseChat(
           filter: `call_id=eq.${callId}`,
         },
         (payload) => {
-          console.log('📨 New message received:', payload.new);
           const newMsg = transformMessage(payload.new as DbChatMessage, myUserId);
           
           // Only add if not already in messages (avoid duplicates from own sends)
@@ -105,15 +98,12 @@ export function useSupabaseChat(
         }
       )
       .subscribe((status) => {
-        console.log('📡 Chat subscription status:', status);
         if (status === 'SUBSCRIBED') {
           setIsConnected(true);
           setError(null);
-          console.log('✅ Supabase chat connected');
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           setIsConnected(false);
           setError('Chat connection lost');
-          console.log('❌ Chat subscription failed:', status);
         }
       });
 
@@ -121,7 +111,6 @@ export function useSupabaseChat(
 
     // Cleanup
     return () => {
-      console.log('🧹 Cleaning up Supabase chat...');
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
@@ -138,11 +127,9 @@ export function useSupabaseChat(
     }
 
     if (!text.trim()) {
-      console.log('⚠️ Empty message, skipping');
       return;
     }
 
-    console.log('📤 Sending message via Supabase:', text);
 
     try {
       const { data, error: insertError } = await supabase
@@ -161,7 +148,6 @@ export function useSupabaseChat(
         throw insertError;
       }
 
-      console.log('✅ Message sent successfully:', data?.id);
       
       // The realtime subscription will add the message to the list
       // But we can add it immediately for better UX (with deduplication in the subscription handler)

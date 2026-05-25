@@ -9,6 +9,9 @@ export function useCallTimer(
   const [showExtendPrompt, setShowExtendPrompt] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout>();
   const extendedTimeRef = useRef(0); // Track manual extensions
+  // Mirror showExtendPrompt so the interval can read it without being a dependency
+  // (otherwise the interval tears down and rebuilds on every tick / prompt change).
+  const showExtendPromptRef = useRef(false);
 
   // Calculate initial time remaining based on start time
   useEffect(() => {
@@ -18,7 +21,6 @@ export function useCallTimer(
       const elapsedSeconds = Math.floor((now - startTime) / 1000);
       const remaining = totalDurationSeconds + extendedTimeRef.current - elapsedSeconds;
       setTimeRemaining(Math.max(0, remaining));
-      console.log(`⏱️ Timer initialized: ${Math.max(0, remaining)}s remaining (started ${elapsedSeconds}s ago)`);
     }
   }, [startedAt, totalDurationSeconds]);
 
@@ -35,8 +37,9 @@ export function useCallTimer(
 
           setTimeRemaining(newTime);
 
-          // Show extend prompt at 2 minutes
-          if (newTime === 120 && !showExtendPrompt) {
+          // Show extend prompt at 2 minutes (once)
+          if (newTime === 120 && !showExtendPromptRef.current) {
+            showExtendPromptRef.current = true;
             setShowExtendPrompt(true);
           }
 
@@ -48,7 +51,8 @@ export function useCallTimer(
           setTimeRemaining(prev => {
             const newTime = prev - 1;
 
-            if (newTime === 120) {
+            if (newTime === 120 && !showExtendPromptRef.current) {
+              showExtendPromptRef.current = true;
               setShowExtendPrompt(true);
             }
 
@@ -68,17 +72,21 @@ export function useCallTimer(
         clearInterval(intervalRef.current);
       }
     };
-  }, [isRunning, timeRemaining, startedAt, totalDurationSeconds, showExtendPrompt]);
+    // Note: timeRemaining and showExtendPrompt are intentionally NOT deps — the
+    // interval reads them via refs / functional updates and self-stops at 0 via
+    // setIsRunning(false), so it only needs to be created once per run.
+  }, [isRunning, startedAt, totalDurationSeconds]);
 
   const extendCall = (additionalMinutes: number = 10) => {
     const additionalSeconds = additionalMinutes * 60;
     extendedTimeRef.current += additionalSeconds;
     setTimeRemaining(prev => prev + additionalSeconds);
+    showExtendPromptRef.current = false;
     setShowExtendPrompt(false);
-    console.log(`⏱️ Call extended by ${additionalMinutes} minutes`);
   };
 
   const declineExtend = () => {
+    showExtendPromptRef.current = false;
     setShowExtendPrompt(false);
   };
 

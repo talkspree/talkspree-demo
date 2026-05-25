@@ -26,7 +26,6 @@ export function AgoraCameraView({
   // Play local video track
   useEffect(() => {
     if (localVideoTrack && localVideoRef.current && isCameraOn) {
-      console.log('🎥 Playing local video track');
       localVideoTrack.play(localVideoRef.current);
 
       return () => {
@@ -41,12 +40,10 @@ export function AgoraCameraView({
       const container = remoteVideoRefs.current.get(user.uid.toString());
       
       if (user.videoTrack && container) {
-        console.log('🎥 Playing remote video for user:', user.uid);
         user.videoTrack.play(container);
       }
       
       if (user.audioTrack) {
-        console.log('🔊 Playing remote audio for user:', user.uid);
         user.audioTrack.play();
       }
     });

@@ -169,6 +169,9 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
 
+    /* custom circle color */
+    --circle-primary: 50 91% 100%;
+
     /* Brand Colors - Subtle blue to purple gradient theme */
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 98%;

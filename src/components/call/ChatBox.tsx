@@ -88,7 +88,6 @@ export function ChatBox({
 
   // Debug log
   useEffect(() => {
-    console.log('📊 ChatBox render - chatMessages count:', chatMessages.length, 'total allMessages:', allMessages.length);
   }, [chatMessages, allMessages]);
 
   // Add extend notification when prompt appears
@@ -232,14 +231,11 @@ export function ChatBox({
     if (accept) {
       // If they requested, I'm approving. Otherwise, I'm requesting.
       if (theyRequested && onExtendApprove) {
-        console.log('👍 Approving extension request');
         onExtendApprove();
       } else if (!iRequested && !theyRequested && onExtendRequest) {
-        console.log('📤 Requesting extension');
         onExtendRequest();
       }
     } else if (!accept && onExtendDecline) {
-      console.log('❌ Declining extension');
       onExtendDecline();
     }
   };

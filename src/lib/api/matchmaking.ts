@@ -201,7 +201,6 @@ export async function findMatches(filters: MatchmakingFilters) {
         .from('matchmaking_queue')
         .delete()
         .in('id', idsToDelete);
-      console.log(`[findMatches] Cleaned up ${idsToDelete.length} duplicate entries for user ${user.id}`);
     }
   }
 
@@ -248,8 +247,6 @@ export async function findMatches(filters: MatchmakingFilters) {
     console.error('Error finding matches:', error);
     throw error;
   }
-
-  console.log(`[findMatches] User ${user.id} found ${data?.length || 0} potential matches (circle_id: ${currentQueueEntry?.circle_id || 'null'})`);
 
   const seen = new Set<string>();
   const unique = (data || []).filter((row) => {
@@ -507,7 +504,6 @@ export async function createMatch(
   // 1. RLS prevents us from updating other users' entries
   // 2. The matched user will update their own entry when they receive the call_history INSERT notification
   // This is handled in WaitingRoom.tsx call_history subscription
-  console.log(`[createMatch] Created call ${call.id} for user ${matchedUserId}. They will receive notification via call_history subscription.`);
 
   // Mark matched user as in_call so their UI reflects it immediately
   const { error: profileUpdateError } = await supabase

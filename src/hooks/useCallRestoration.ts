@@ -16,7 +16,6 @@ export function useCallRestoration() {
         const call = await getCurrentCall();
 
         if (call) {
-          console.log('🔄 Found ongoing call after page load, restoring...', call.id);
           setHasOngoingCall(true);
 
           // Restore call state and navigate to call page

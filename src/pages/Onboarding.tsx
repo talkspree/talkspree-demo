@@ -89,14 +89,12 @@ export default function Onboarding() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           currentUser = session.user;
-          console.log('Got user from session in onboarding page');
         } else {
           // Wait a bit more for session to be created
           await new Promise(resolve => setTimeout(resolve, 1500));
           const { data: { session: retrySession } } = await supabase.auth.getSession();
           if (retrySession?.user) {
             currentUser = retrySession.user;
-            console.log('Got user from session after retry');
           }
         }
       }
@@ -104,7 +102,6 @@ export default function Onboarding() {
       // If still no user, redirect to auth
       // (Email verification via 4-digit code now creates a session)
       if (!currentUser) {
-        console.log('No authenticated user found, redirecting to auth');
         navigate('/auth', { replace: true });
         return;
       }
@@ -184,15 +181,12 @@ export default function Onboarding() {
         ? { ...data, role: selectedRole }
         : data;
 
-      console.log('Starting onboarding save...', finalData);
-
       // Run the fade animation and save in parallel; navigate only after both finish.
       await Promise.all([
         new Promise(resolve => setTimeout(resolve, 700)),
         completeOnboarding(finalData),
       ]);
 
-      console.log('✅ Onboarding data saved successfully!');
       navigate('/home');
     } catch (error: any) {
       console.error('❌ Error completing onboarding:', error);

@@ -13,7 +13,6 @@ export function useVideoStream() {
     
     const startStream = async () => {
       try {
-        console.log('🎥 Requesting camera access...');
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: { 
             facingMode,
@@ -26,16 +25,11 @@ export function useVideoStream() {
           }
         });
         
-        console.log('✅ Camera access granted:', {
-          video: mediaStream.getVideoTracks().length,
-          audio: mediaStream.getAudioTracks().length
-        });
         
         if (mounted) {
           currentStream = mediaStream;
           setStream(mediaStream);
           setError(null);
-          console.log('✅ Stream set to state');
         } else {
           mediaStream.getTracks().forEach(track => track.stop());
         }
@@ -52,7 +46,6 @@ export function useVideoStream() {
     return () => {
       mounted = false;
       if (currentStream) {
-        console.log('🧹 Cleaning up stream');
         currentStream.getTracks().forEach(track => track.stop());
       }
     };

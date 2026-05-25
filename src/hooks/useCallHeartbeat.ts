@@ -30,8 +30,6 @@ export function useCallHeartbeat(callId?: string, isActive = true) {
 
         if (error) {
           console.warn('⚠️ Failed to send heartbeat:', error);
-        } else {
-          console.log('💓 Heartbeat sent for call:', callId);
         }
       } catch (error) {
         console.error('❌ Heartbeat error:', error);

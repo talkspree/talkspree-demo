@@ -51,27 +51,32 @@ export async function storeVerificationCode(userId: string, code: string, email?
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + 10); // Code expires in 10 minutes
 
-  console.log('💾 Storing verification code for user:', userId);
-  
-  // Wait longer for trigger to create profile
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Poll for the profile the signup trigger creates (instead of a fixed 1s sleep).
+  // Resolves as soon as the row appears, capped at ~2s in 100ms steps.
+  let existingProfile: { id: string; email: string } | null = null;
+  const profileDeadline = Date.now() + 2000;
+  while (Date.now() < profileDeadline) {
+    const { data, error: checkError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('id', userId)
+      .maybeSingle();
 
-  // Get user email from the signup response
-  // We need to get it from auth.users, but we can't directly query that
-  // So we'll try to get it from the session or use the email passed during signup
-  
-  // Check if profile exists first (use maybeSingle to avoid errors)
-  const { data: existingProfile, error: checkError } = await supabase
-    .from('profiles')
-    .select('id, email')
-    .eq('id', userId)
-    .maybeSingle();
+    if (checkError) {
+      console.error('Error checking existing profile:', checkError);
+    }
 
-  if (checkError) {
-    console.error('❌ Error checking existing profile:', checkError);
+    if (data) {
+      existingProfile = data;
+      break;
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
-  
-  console.log('📋 Existing profile check:', existingProfile ? `EXISTS (email: ${existingProfile.email})` : 'NOT FOUND');
+
+  if (!existingProfile) {
+    console.warn('Profile row not visible within 2s of signup; proceeding with upsert (trigger may still be in flight)');
+  }
 
   // Get email - priority: parameter > existing profile > auth session
   let userEmail = email || existingProfile?.email || '';
@@ -81,7 +86,6 @@ export async function storeVerificationCode(userId: string, code: string, email?
       const { data: { user } } = await supabase.auth.getUser();
       if (user && user.id === userId) {
         userEmail = user.email || '';
-        console.log('📧 Got email from auth session:', userEmail);
       }
     } catch (e) {
       console.warn('Could not get user email from session:', e);
@@ -93,8 +97,6 @@ export async function storeVerificationCode(userId: string, code: string, email?
     console.error('❌ CRITICAL: No email found for user:', userId);
     console.error('   Profile will be created but verification will fail!');
     console.error('   Make sure to pass email to storeVerificationCode(userId, code, email)');
-  } else {
-    console.log('📧 Using email for profile:', userEmail);
   }
 
   // Use UPSERT (INSERT ... ON CONFLICT DO UPDATE)
@@ -119,14 +121,6 @@ export async function storeVerificationCode(userId: string, code: string, email?
     throw error;
   }
 
-  console.log('✅ Verification code stored successfully');
-  if (data && data.length > 0) {
-    console.log('📋 Stored profile data:', {
-      id: data[0].id,
-      email: data[0].email,
-      has_code: !!data[0].verification_code
-    });
-  }
   return { success: true };
 }
 
@@ -167,7 +161,6 @@ export async function verifyEmailCode(email: string, code: string) {
  */
 async function _legacyVerifyEmailCode(email: string, code: string) {
   const normalizedEmail = email.toLowerCase().trim();
-  console.log('🔍 Verifying email code for:', email, '(normalized:', normalizedEmail, ')');
 
   // Try multiple query approaches
   let profile = null;
@@ -182,7 +175,6 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
 
   if (profile1) {
     profile = profile1;
-    console.log('✅ Found profile with exact match');
   } else if (error1) {
     console.error('❌ Query error (exact):', error1);
     profileError = error1;
@@ -190,7 +182,6 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
   
   // Approach 2: Case-insensitive search
   if (!profile) {
-    console.log('🔄 Trying case-insensitive search...');
     const { data: profiles, error: error2 } = await supabase
       .from('profiles')
       .select('id, email, verification_code, verification_code_expires_at')
@@ -198,7 +189,6 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
     
     if (profiles && profiles.length > 0) {
       profile = profiles[0];
-      console.log('✅ Found profile with case-insensitive search:', profile.email);
     } else if (error2) {
       console.error('❌ Query error (case-insensitive):', error2);
       if (!profileError) profileError = error2;
@@ -207,7 +197,6 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
   
   // Approach 3: Try without normalization
   if (!profile) {
-    console.log('🔄 Trying with original email...');
     const { data: profile3, error: error3 } = await supabase
       .from('profiles')
       .select('id, email, verification_code, verification_code_expires_at')
@@ -216,7 +205,6 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
     
     if (profile3) {
       profile = profile3;
-      console.log('✅ Found profile with original email');
     } else if (error3) {
       console.error('❌ Query error (original):', error3);
       if (!profileError) profileError = error3;
@@ -230,14 +218,9 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
 
   if (!profile) {
     console.error('❌ No profile found after all attempts');
-    console.log('💡 Debug: Try running this in Supabase SQL Editor:');
-    console.log(`   SELECT id, email, verification_code FROM profiles WHERE email ILIKE '%${normalizedEmail}%';`);
     return { success: false, error: 'User not found. The profile may not exist or RLS is blocking the query. Please contact support.' };
   }
   
-  console.log('✅ Profile found:', profile.id, 'Email in DB:', profile.email);
-  console.log('🔑 Verification code in profile:', profile.verification_code ? 'EXISTS' : 'MISSING');
-  console.log('🔑 Code to verify:', code);
 
   // Check if code exists
   if (!profile.verification_code) {
@@ -260,7 +243,6 @@ async function _legacyVerifyEmailCode(email: string, code: string) {
     }
   }
   
-  console.log('✅ Code is valid!');
 
   // Code is valid! Update the user's email as confirmed in auth.users
   // This requires using the service role, so we'll use a database function
@@ -369,11 +351,6 @@ export async function updateProfile(updates: Partial<Profile>) {
   
   if (!user) throw new Error('Not authenticated');
 
-  if (import.meta.env.DEV) {
-    console.log('💾 updateProfile called with:', updates);
-    console.log('🔑 User ID:', user.id);
-  }
-
   const { data, error } = await supabase
     .from('profiles')
     .update(updates)
@@ -386,9 +363,6 @@ export async function updateProfile(updates: Partial<Profile>) {
     throw error;
   }
 
-  if (import.meta.env.DEV) {
-    console.log('✅ Profile updated successfully:', data);
-  }
   return data;
 }
 
@@ -397,7 +371,6 @@ export async function updateProfile(updates: Partial<Profile>) {
  * Works with or without an active session
  */
 export async function completeOnboarding(onboardingData: OnboardingData) {
-  console.log('completeOnboarding called with data:', onboardingData);
   
   // Get user from session (should always exist after email verification)
   const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -409,7 +382,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
   
   const userId = user.id;
   const userEmail = user.email;
-  console.log('User authenticated - ID:', userId, 'Email:', userEmail);
 
   // Import addUserToDefaultCircle here to avoid circular dependencies
   const { addUserToDefaultCircle } = await import('@/lib/api/circles');
@@ -417,10 +389,8 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
   // Upload profile picture if provided
   let profilePictureUrl: string | null = null;
   if (onboardingData.profilePicture) {
-    console.log('Uploading profile picture...');
     try {
       profilePictureUrl = await uploadProfilePicture(onboardingData.profilePicture);
-      console.log('✅ Profile picture uploaded:', profilePictureUrl);
     } catch (error) {
       console.error('Failed to upload profile picture:', error);
       // Continue even if upload fails
@@ -475,7 +445,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
           }
         : {};
 
-    console.log('Creating new profile...', { hasAffiliate: !!pendingAffiliate });
     const { data: newProfile, error: createError } = await supabase
       .from('profiles')
       .insert({
@@ -496,10 +465,8 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
       clearPendingAffiliate();
     }
 
-    console.log('✅ Profile created:', newProfile);
   } else {
     // Update existing profile
-    console.log('Updating existing profile...');
     const { data: updatedProfile, error: profileError } = await supabase
       .from('profiles')
       .update(profileData)
@@ -512,7 +479,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
       throw new Error(`Failed to update profile: ${profileError.message}. Code: ${profileError.code}`);
     }
     
-    console.log('✅ Profile updated:', updatedProfile);
   }
 
   // Prepare interests and social links
@@ -584,7 +550,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
     }
   } else {
     // No session - use database function (bypasses RLS)
-    console.log('No session - using database function to save interests and social links');
     
     // Prepare parameters - use null if empty arrays
     const rpcParams: any = {
@@ -610,7 +575,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
       throw new Error(`Failed to save interests and social links: ${functionError.message}`);
     }
     
-    console.log('✅ Interests and social links saved via database function');
   }
 
   // Add user to default circle with their selected role
@@ -620,7 +584,6 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
       ? onboardingData.role.charAt(0).toUpperCase() + onboardingData.role.slice(1)
       : undefined;
     await addUserToDefaultCircle(userId, formattedRole);
-    console.log('✅ User added to default circle with role:', formattedRole);
   } catch (error) {
     console.error('Failed to add user to circle:', error);
     // Continue even if circle membership fails
@@ -637,17 +600,9 @@ export async function uploadProfilePicture(file: File, updateProfileAfterUpload:
   
   if (!user) throw new Error('Not authenticated');
 
-  if (import.meta.env.DEV) {
-    console.log('📤 Uploading profile picture:', file.name, 'Size:', file.size);
-  }
-
   const fileExt = file.name.split('.').pop();
   const fileName = `${user.id}-${Date.now()}.${fileExt}`;
   const filePath = `profile-pictures/${fileName}`;
-
-  if (import.meta.env.DEV) {
-    console.log('📁 Storage path:', filePath);
-  }
 
   const { error: uploadError } = await supabase.storage
     .from('avatars')
@@ -658,23 +613,12 @@ export async function uploadProfilePicture(file: File, updateProfileAfterUpload:
     throw uploadError;
   }
 
-  if (import.meta.env.DEV) {
-    console.log('✅ File uploaded to storage successfully');
-  }
-
   const { data: { publicUrl } } = supabase.storage
     .from('avatars')
     .getPublicUrl(filePath);
 
-  if (import.meta.env.DEV) {
-    console.log('🌐 Public URL:', publicUrl);
-  }
-
   // Only update profile if explicitly requested (for standalone uploads)
   if (updateProfileAfterUpload) {
-    if (import.meta.env.DEV) {
-      console.log('💾 Updating profile with new picture URL...');
-    }
     await updateProfile({ profile_picture_url: publicUrl });
   }
 

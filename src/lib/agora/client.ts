@@ -58,28 +58,24 @@ export class AgoraService {
 
     // Handle remote user joined
     this.client.on('user-joined', (user) => {
-      console.log('Remote user joined:', user.uid);
       this.remoteUsers.set(user.uid, user);
       this.onUserJoinedCallback?.(user);
     });
 
     // Handle remote user left
     this.client.on('user-left', (user, reason) => {
-      console.log('Remote user left:', user.uid, 'Reason:', reason);
       this.remoteUsers.delete(user.uid);
       this.onUserLeftCallback?.(user);
     });
 
     // Handle remote user published media
     this.client.on('user-published', async (user, mediaType) => {
-      console.log('Remote user published:', user.uid, 'Media:', mediaType);
       try {
         await this.client!.subscribe(user, mediaType);
         this.remoteUsers.set(user.uid, user);
 
         // CRITICAL: Auto-play audio tracks immediately
         if (mediaType === 'audio' && user.audioTrack) {
-          console.log('🔊 Auto-playing remote audio for user:', user.uid);
           user.audioTrack.play();
         }
 
@@ -91,22 +87,16 @@ export class AgoraService {
 
     // Handle remote user unpublished media
     this.client.on('user-unpublished', (user, mediaType) => {
-      console.log('Remote user unpublished:', user.uid, 'Media:', mediaType);
       this.onUserUnpublishedCallback?.(user, mediaType);
     });
 
     // Handle connection state changes
     this.client.on('connection-state-change', (curState, revState, reason) => {
-      console.log('Connection state changed:', { curState, revState, reason });
 
       // Handle disconnection and network issues
       if (curState === 'DISCONNECTED') {
         console.warn('⚠️ Agora disconnected. Reason:', reason);
         // The SDK will automatically try to reconnect
-      } else if (curState === 'RECONNECTING') {
-        console.log('🔄 Agora reconnecting...');
-      } else if (curState === 'CONNECTED') {
-        console.log('✅ Agora connection established/restored');
       }
 
       this.onConnectionStateChangeCallback?.(curState, revState, reason);
@@ -133,18 +123,13 @@ export class AgoraService {
       throw new Error('Agora App ID is not configured');
     }
 
-    console.log('🚀 Joining channel:', channelName, 'with UID:', uid);
-
     // Create tracks first. If this fails entirely we throw before touching the channel.
-    console.log('📹 Pre-creating local media tracks...');
     await this.createLocalTracks();
 
     // Join the channel. If this fails, isJoined stays false and we must clean up tracks.
     try {
-      console.log('🔗 Joining Agora channel...');
       await this.client.join(agoraConfig.appId, channelName, token, uid);
       this.isJoined = true;
-      console.log('✅ Successfully joined channel');
     } catch (joinError) {
       console.error('❌ Failed to join Agora channel:', joinError);
       // Tracks were created but join failed — release them immediately.
@@ -157,9 +142,7 @@ export class AgoraService {
     const tracksToPublish = [this.localAudioTrack, this.localVideoTrack].filter(Boolean) as any[];
     if (tracksToPublish.length > 0) {
       try {
-        console.log('📤 Publishing local tracks...');
         await this.client.publish(tracksToPublish);
-        console.log('✅ Published', tracksToPublish.length, 'track(s)');
       } catch (publishError) {
         // Non-fatal: we are still in the channel. leave() will handle full cleanup.
         console.warn('⚠️ Failed to publish tracks (still in channel):', publishError);
@@ -190,7 +173,6 @@ export class AgoraService {
    * Create local audio and video tracks
    */
   async createLocalTracks(): Promise<void> {
-    console.log('Creating local tracks (mic + camera)...');
 
     // Microphone
     try {
@@ -237,7 +219,6 @@ export class AgoraService {
    * any intermediate errors — uses finally blocks so nothing is skipped.
    */
   async leave(): Promise<void> {
-    console.log('Leaving Agora channel...');
 
     // 1. Always release local tracks first (turns off camera/mic indicator).
     this._releaseTracks();
@@ -259,7 +240,6 @@ export class AgoraService {
 
       try {
         await this.client.leave();
-        console.log('[Agora] Successfully left channel');
       } catch (e) {
         console.warn('[Agora] leave error:', e);
       }
@@ -287,7 +267,6 @@ export class AgoraService {
     try {
       await this.localVideoTrack.setEnabled(!this.isCameraOn);
       this.isCameraOn = !this.isCameraOn;
-      console.log('Camera:', this.isCameraOn ? 'ON' : 'OFF');
       return this.isCameraOn;
     } catch (error) {
       console.error('Failed to toggle camera:', error);
@@ -304,7 +283,6 @@ export class AgoraService {
     try {
       await this.localAudioTrack.setEnabled(!this.isMicOn);
       this.isMicOn = !this.isMicOn;
-      console.log('Microphone:', this.isMicOn ? 'ON' : 'OFF');
       return this.isMicOn;
     } catch (error) {
       console.error('Failed to toggle microphone:', error);
@@ -345,7 +323,6 @@ export class AgoraService {
       const trySetDevice = async () => {
         await this.localVideoTrack!.setDevice(nextDeviceId);
         this.currentCameraIndex = nextIndex;
-        console.log('Camera switched to:', cameras[nextIndex].label);
       };
 
       try {

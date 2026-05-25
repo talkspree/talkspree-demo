@@ -85,7 +85,6 @@ export function CircleCard() {
         await supabase.storage
           .from('circle-assets')
           .remove([oldPath]);
-        console.log('Deleted old image:', oldPath);
       } catch (error) {
         console.warn('Could not delete old image:', error);
         // Don't throw - continue with upload even if delete fails

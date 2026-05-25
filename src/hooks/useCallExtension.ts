@@ -60,7 +60,6 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
       console.error('Failed to send extension request:', error);
       setState(prev => ({ ...prev, iRequested: false }));
     } else {
-      console.log(`📣 Extension request sent (${extensionMinutes} minutes)`);
 
       // Update call_history to track who requested
       await supabase
@@ -91,7 +90,6 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
     if (error) {
       console.error('Failed to send extension approval:', error);
     } else {
-      console.log(`✅ Extension approved (${extensionMinutes} minutes)`);
       setState(prev => ({ ...prev, bothAgreed: true }));
 
       // Apply the extension
@@ -139,7 +137,6 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
         signal_data: {},
       });
 
-    console.log('❌ Extension declined');
   }, [callId]);
 
   // Subscribe to extension signals
@@ -160,14 +157,12 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
           const signal = payload.new;
           const isFromMe = signal.sender_id === myUserIdRef.current;
 
-          console.log('📨 Extension signal received:', signal.signal_type, 'from:', isFromMe ? 'me' : 'them');
 
           switch (signal.signal_type) {
             case 'extension_request':
               if (!isFromMe) {
                 // Other user requested extension
                 setState(prev => ({ ...prev, theyRequested: true }));
-                console.log('🔔 Other user wants to extend the call');
               }
               break;
 
@@ -175,7 +170,6 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
               if (!isFromMe) {
                 // Other user approved our request
                 setState(prev => ({ ...prev, bothAgreed: true }));
-                console.log('🎉 Other user approved extension');
 
                 // Apply the extension
                 const minutes = signal.signal_data?.minutes || extensionMinutes;
@@ -194,7 +188,6 @@ export function useCallExtension(callId: string | undefined, onExtend: (minutes:
                   bothAgreed: false,
                   theyDeclined: true,
                 }));
-                console.log('😞 Other user declined extension');
 
                 if (declinedTimerRef.current) clearTimeout(declinedTimerRef.current);
                 declinedTimerRef.current = setTimeout(() => {

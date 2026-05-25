@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ContactCard } from './ContactCard';
-import { ArrowUpDown, ChevronDown } from 'lucide-react';
+import { ArrowUpDown, ChevronDown, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrCreateDefaultCircle } from '@/lib/api/circles';
@@ -134,7 +134,7 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
         </div>
 
         {/* Contacts Section */}
-        <div className="lg:pl-6">
+        <div className="lg:pl-6 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-muted-foreground">Contacts</h2>
             {/*<DropdownMenu>
@@ -169,15 +169,25 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
           </div>
 
           {/* Contacts Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-            {filteredContacts.map((contact) => (
-              <ContactCard 
-                key={contact.id} 
-                contact={contact}
-                onClick={() => onContactClick?.(contact)}
-              />
-            ))}
-          </div>
+          {filteredContacts.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
+              <div className="flex items-center justify-center w-24 h-24 rounded-full bg-muted/60 mb-2">
+                <UserPlus className="h-11 w-11 text-muted-foreground/50" />
+              </div>
+              <p className="text-2xl font-semibold tracking-tight text-foreground">No contacts yet</p>
+              <p className="text-sm text-muted-foreground max-w-[220px] leading-relaxed">People you connect with will show up here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+              {filteredContacts.map((contact) => (
+                <ContactCard
+                  key={contact.id}
+                  contact={contact}
+                  onClick={() => onContactClick?.(contact)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

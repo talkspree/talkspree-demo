@@ -78,7 +78,7 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
     return () => { mountedRef.current = false; };
   }, [loadAll, user, authLoading]);
 
-  // Poll member counts (30s) and unseen contact count (10s)
+  // Poll member counts (30s) and unseen contact count (30s)
   useEffect(() => {
     if (!circle) return;
     const circleId = circle.id;
@@ -95,7 +95,7 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
         const count = await getUnseenContactsCount();
         if (mountedRef.current) setUnseenContactCount(count);
       } catch { /* silent */ }
-    }, 10_000);
+    }, 30_000);
 
     return () => {
       clearInterval(countsInterval);

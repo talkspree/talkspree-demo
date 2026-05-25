@@ -71,7 +71,7 @@ export function WrapUpModal({
             size="sm"
             variant="destructive"
             className="absolute right-0 top-0"
-            onClick={() => console.log('Report')}
+            onClick={() => {}}
           >
             <AlertTriangle className="h-4 w-4 mr-2" />
             Report

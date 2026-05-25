@@ -240,9 +240,18 @@ export function useDirectMessages(
     [otherUserId, myUserId]
   );
 
-  // Send typing indicator
+  // Send typing indicator (throttled: at most one "typing" broadcast per 500ms;
+  // "stop typing" always goes through immediately to avoid a stuck indicator).
+  const lastTypingSentRef = useRef(0);
   const sendTypingIndicator = useCallback(
     (isTyping: boolean) => {
+      if (isTyping) {
+        const now = Date.now();
+        if (now - lastTypingSentRef.current < 500) return;
+        lastTypingSentRef.current = now;
+      } else {
+        lastTypingSentRef.current = 0;
+      }
       typingRef.current?.sendTyping(isTyping);
     },
     []

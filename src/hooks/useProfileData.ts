@@ -1,5 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCurrentProfile, getUserInterests, getUserSocialLinks } from '@/lib/api/profiles';
+
+// Shared cache key for the current user's profile. All consumers read the same
+// cached result (deduped), so multiple profile-displaying components on a page
+// trigger a single fetch instead of one per component.
+export const CURRENT_PROFILE_QUERY_KEY = ['profile', 'current'] as const;
 
 export interface ProfileData {
   id: string;
@@ -54,74 +59,73 @@ const DEFAULT_PROFILE: ProfileData = {
   slug: ''
 };
 
+async function fetchProfileData(): Promise<ProfileData> {
+  const profile = await getCurrentProfile();
+  if (!profile) return DEFAULT_PROFILE;
+
+  // Parallel fetch interests and social links (independent of each other)
+  const [interests, socialLinks] = await Promise.all([
+    getUserInterests(),
+    getUserSocialLinks(),
+  ]);
+
+  const interestIds = interests.map((interest: any) => interest.id);
+
+  const socialLinksMap: Record<string, string> = {};
+  socialLinks.forEach((link: any) => {
+    socialLinksMap[link.platform] = link.url;
+  });
+
+  return {
+    id: profile.id || '',
+    firstName: profile.first_name || '',
+    lastName: profile.last_name || '',
+    dateOfBirth: profile.date_of_birth || '',
+    gender: profile.gender || '',
+    location: profile.location || '',
+    occupation: profile.occupation || '',
+    bio: profile.bio || '',
+    phone: profile.phone || '',
+    email: profile.email || '',
+    instagram: socialLinksMap['instagram'] || '',
+    facebook: socialLinksMap['facebook'] || '',
+    linkedin: socialLinksMap['linkedin'] || '',
+    youtube: socialLinksMap['youtube'] || '',
+    tiktok: socialLinksMap['tiktok'] || '',
+    interests: interestIds,
+    profilePicture: profile.profile_picture_url || '',
+    role: profile.role || '',
+    university: profile.university || '',
+    studyField: profile.study_field || '',
+    workPlace: profile.work_place || '',
+    industry: profile.industry || '',
+    slug: profile.slug || ''
+  };
+}
+
 export function useProfileData() {
-  const [profileData, setProfileData] = useState<ProfileData>(DEFAULT_PROFILE);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const loadProfile = async () => {
-    try {
-      setLoading(true);
-      const profile = await getCurrentProfile();
-      
-      if (profile) {
-        // Parallel fetch interests and social links (independent of each other)
-        const [interests, socialLinks] = await Promise.all([
-          getUserInterests(),
-          getUserSocialLinks(),
-        ]);
+  const { data, isLoading } = useQuery({
+    queryKey: CURRENT_PROFILE_QUERY_KEY,
+    queryFn: fetchProfileData,
+    staleTime: 60_000,
+  });
 
-        const interestIds = interests.map((interest: any) => interest.id);
+  const profileData = data ?? DEFAULT_PROFILE;
 
-        const socialLinksMap: Record<string, string> = {};
-        socialLinks.forEach((link: any) => {
-          socialLinksMap[link.platform] = link.url;
-        });
-
-        const profilePictureUrl = profile.profile_picture_url || '';
-
-        setProfileData({
-          id: profile.id || '',
-          firstName: profile.first_name || '',
-          lastName: profile.last_name || '',
-          dateOfBirth: profile.date_of_birth || '',
-          gender: profile.gender || '',
-          location: profile.location || '',
-          occupation: profile.occupation || '',
-          bio: profile.bio || '',
-          phone: profile.phone || '',
-          email: profile.email || '',
-          instagram: socialLinksMap['instagram'] || '',
-          facebook: socialLinksMap['facebook'] || '',
-          linkedin: socialLinksMap['linkedin'] || '',
-          youtube: socialLinksMap['youtube'] || '',
-          tiktok: socialLinksMap['tiktok'] || '',
-          interests: interestIds,
-          profilePicture: profilePictureUrl,
-          role: profile.role || '',
-          university: profile.university || '',
-          studyField: profile.study_field || '',
-          workPlace: profile.work_place || '',
-          industry: profile.industry || '',
-          slug: profile.slug || ''
-        });
-      }
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
+  // Local optimistic update — writes directly to the shared cache so every
+  // consumer sees the change immediately.
   const updateProfile = (updates: Partial<ProfileData>) => {
-    setProfileData(prev => ({ ...prev, ...updates }));
+    queryClient.setQueryData<ProfileData>(CURRENT_PROFILE_QUERY_KEY, (prev) => ({
+      ...(prev ?? DEFAULT_PROFILE),
+      ...updates,
+    }));
   };
 
+  // Force a refetch of the shared profile cache (e.g. after persisting changes).
   const reloadProfile = async () => {
-    await loadProfile();
+    await queryClient.invalidateQueries({ queryKey: CURRENT_PROFILE_QUERY_KEY });
   };
 
   const calculateAge = (dateOfBirth: string) => {
@@ -141,6 +145,6 @@ export function useProfileData() {
     updateProfile,
     reloadProfile,
     age: calculateAge(profileData.dateOfBirth),
-    loading
+    loading: isLoading
   };
 }
