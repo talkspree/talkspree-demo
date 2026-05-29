@@ -57,20 +57,34 @@ export default function CircleSettings() {
   };
   
   // Circle data
+  const EMPTY_SOCIAL_LINKS = {
+    website: '',
+    instagram: '',
+    facebook: '',
+    linkedin: '',
+    email: '',
+    youtube: '',
+  };
+
   const [circle, setCircle] = useState<Circle | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [abbreviation, setAbbreviation] = useState('');
-  const [socialLinks, setSocialLinks] = useState({
-    website: '',
-    instagram: '',
-    facebook: '',
-    linkedin: '',
-    email: '',
-    youtube: ''
-  });
+  const [socialLinks, setSocialLinks] = useState(EMPTY_SOCIAL_LINKS);
+
+  // Initial snapshot — compared against current values to compute dirty state.
+  // Images that the admin has picked locally are tracked separately so they
+  // only hit Supabase storage when Save is clicked.
+  const [initialName, setInitialName] = useState('');
+  const [initialDescription, setInitialDescription] = useState('');
+  const [initialLogoUrl, setInitialLogoUrl] = useState('');
+  const [initialCoverImageUrl, setInitialCoverImageUrl] = useState('');
+  const [initialAbbreviation, setInitialAbbreviation] = useState('');
+  const [initialSocialLinks, setInitialSocialLinks] = useState(EMPTY_SOCIAL_LINKS);
+  const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
+  const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
 
   // Preview viewport toggle (desktop / mobile) – preview pane is desktop-only.
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'mobile'>('desktop');
@@ -153,28 +167,39 @@ export default function CircleSettings() {
       try {
         const circleData = await getOrCreateDefaultCircle();
         setCircle(circleData);
-        setName(circleData.name || '');
-        setDescription(circleData.description || '');
-        setLogoUrl(circleData.logo_url || '');
-        setCoverImageUrl(circleData.cover_image_url || '');
-        setAbbreviation(circleData.abbreviation || '');
-        
+        const loadedName = circleData.name || '';
+        const loadedDescription = circleData.description || '';
+        const loadedLogo = circleData.logo_url || '';
+        const loadedCover = circleData.cover_image_url || '';
+        const loadedAbbrev = circleData.abbreviation || '';
+        const loadedSocial = {
+          website: circleData.social_links?.website || '',
+          instagram: circleData.social_links?.instagram || '',
+          facebook: circleData.social_links?.facebook || '',
+          linkedin: circleData.social_links?.linkedin || '',
+          email: circleData.social_links?.email || '',
+          youtube: circleData.social_links?.youtube || '',
+        };
+
+        setName(loadedName);
+        setDescription(loadedDescription);
+        setLogoUrl(loadedLogo);
+        setCoverImageUrl(loadedCover);
+        setAbbreviation(loadedAbbrev);
+        setSocialLinks(loadedSocial);
+
+        setInitialName(loadedName);
+        setInitialDescription(loadedDescription);
+        setInitialLogoUrl(loadedLogo);
+        setInitialCoverImageUrl(loadedCover);
+        setInitialAbbreviation(loadedAbbrev);
+        setInitialSocialLinks(loadedSocial);
+
         // Load disabled default preset IDs
         setDisabledDefaultPresetIds(circleData.disabled_default_preset_ids || []);
-        
+
         // Load member custom topics permission (default true when column doesn't exist yet)
         setAllowMemberCustomTopics(circleData.allow_member_custom_topics ?? true);
-        
-        if (circleData.social_links) {
-          setSocialLinks({
-            website: circleData.social_links.website || '',
-            instagram: circleData.social_links.instagram || '',
-            facebook: circleData.social_links.facebook || '',
-            linkedin: circleData.social_links.linkedin || '',
-            email: circleData.social_links.email || '',
-            youtube: circleData.social_links.youtube || ''
-          });
-        }
         
         // Load roles (with error handling)
         try {
@@ -217,8 +242,26 @@ export default function CircleSettings() {
     return null;
   })();
 
+  // ─── Dirty state ───
+  // Active when name/description/abbreviation/socials changed OR the admin
+  // has picked a new logo/cover (which only hits storage on Save).
+  const isDirty = useMemo(() => {
+    if (pendingLogoFile || pendingCoverFile) return true;
+    if (name !== initialName) return true;
+    if (description !== initialDescription) return true;
+    if (normalisedAbbreviation !== initialAbbreviation) return true;
+    if (JSON.stringify(socialLinks) !== JSON.stringify(initialSocialLinks)) return true;
+    return false;
+  }, [
+    pendingLogoFile, pendingCoverFile,
+    name, initialName,
+    description, initialDescription,
+    normalisedAbbreviation, initialAbbreviation,
+    socialLinks, initialSocialLinks,
+  ]);
+
   const handleSave = async () => {
-    if (!circle) return;
+    if (!circle || !isDirty) return;
 
     if (abbreviationError) {
       setStatus(abbreviationError, false);
@@ -227,19 +270,45 @@ export default function CircleSettings() {
 
     setSaving(true);
     try {
+      // Upload any pending images before writing the circle row.
+      let nextLogoUrl = logoUrl;
+      let nextCoverUrl = coverImageUrl;
+
+      if (pendingLogoFile) {
+        nextLogoUrl = await uploadImageToStorage(pendingLogoFile, 'logo', initialLogoUrl);
+      }
+      if (pendingCoverFile) {
+        nextCoverUrl = await uploadImageToStorage(pendingCoverFile, 'cover', initialCoverImageUrl);
+      }
+
       const saved = await updateCircle(circle.id, {
         name,
         description,
-        logo_url: logoUrl || null,
-        cover_image_url: coverImageUrl || null,
+        logo_url: nextLogoUrl || null,
+        cover_image_url: nextCoverUrl || null,
         social_links: socialLinks,
         abbreviation: normalisedAbbreviation,
       });
 
       invalidateDefaultCircleCache();
-      setCircle(prev => prev ? { ...prev, name, abbreviation: saved?.abbreviation ?? normalisedAbbreviation } : prev);
+      const finalAbbrev = saved?.abbreviation ?? normalisedAbbreviation;
+      setCircle(prev =>
+        prev ? { ...prev, name, abbreviation: finalAbbrev, logo_url: nextLogoUrl, cover_image_url: nextCoverUrl } : prev,
+      );
       // Reflect any server-side normalisation (uppercasing) in the input.
       if (saved?.abbreviation) setAbbreviation(saved.abbreviation);
+
+      // Persist the new values as the initial snapshot so dirty state resets.
+      setLogoUrl(nextLogoUrl);
+      setCoverImageUrl(nextCoverUrl);
+      setInitialName(name);
+      setInitialDescription(description);
+      setInitialLogoUrl(nextLogoUrl);
+      setInitialCoverImageUrl(nextCoverUrl);
+      setInitialAbbreviation(finalAbbrev);
+      setInitialSocialLinks(socialLinks);
+      setPendingLogoFile(null);
+      setPendingCoverFile(null);
 
       setStatus('Circle settings saved', true);
     } catch (error) {
@@ -306,48 +375,49 @@ export default function CircleSettings() {
     if (type === 'cover' && coverInputRef.current) coverInputRef.current.value = '';
   };
 
-  const uploadImageToStorage = async (file: File, type: 'logo' | 'cover') => {
-    if (!circle) return;
+  /**
+   * Upload a freshly-picked image to storage, delete the previously-persisted
+   * image, and return the new public URL. Called only from handleSave so the
+   * storage write happens at the same moment as the row update.
+   */
+  const uploadImageToStorage = async (
+    file: File,
+    type: 'logo' | 'cover',
+    oldUrl: string,
+  ): Promise<string> => {
+    if (!circle) throw new Error('Circle not loaded');
 
     const fileName = `${circle.id}/${type}_${Date.now()}.jpg`;
-    const oldUrl = type === 'logo' ? logoUrl : coverImageUrl;
+    const { error: uploadError } = await supabase.storage
+      .from('circle-assets')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: 'image/jpeg',
+      });
 
-    try {
-      const { error: uploadError } = await supabase.storage
-        .from('circle-assets')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: 'image/jpeg',
-        });
-
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        throw uploadError;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('circle-assets')
-        .getPublicUrl(fileName);
-
-      await deleteOldImage(oldUrl);
-
-      if (type === 'logo') {
-        setLogoUrl(publicUrl);
-      } else {
-        setCoverImageUrl(publicUrl);
-      }
-
-      setStatus(`${type === 'logo' ? 'Profile picture' : 'Cover image'} uploaded`, true);
-    } catch (error: any) {
-      console.error('Error uploading image:', error);
-      setStatus(error?.message || 'Failed to upload image', false);
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw uploadError;
     }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('circle-assets')
+      .getPublicUrl(fileName);
+
+    await deleteOldImage(oldUrl);
+    return publicUrl;
   };
 
-  const handleCropComplete = async (croppedFile: File) => {
+  const handleCropComplete = (croppedFile: File, dataUrl: string) => {
     if (!cropTarget) return;
-    await uploadImageToStorage(croppedFile, cropTarget);
+    if (cropTarget === 'logo') {
+      setPendingLogoFile(croppedFile);
+      setLogoUrl(dataUrl);
+    } else {
+      setPendingCoverFile(croppedFile);
+      setCoverImageUrl(dataUrl);
+    }
     setCropSource(null);
     setCropTarget(null);
   };
@@ -659,9 +729,14 @@ export default function CircleSettings() {
                 {pageStatus.msg}
               </span>
             )}
-            <Button onClick={handleSave} disabled={saving || !!abbreviationError}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
+            <Button onClick={handleSave} disabled={!isDirty || saving || !!abbreviationError} className="shadow-sm">
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save changes'}</span>
+              <span className="sm:hidden">{saving ? 'Saving' : 'Save'}</span>
             </Button>
           </div>
         </div>
@@ -735,94 +810,87 @@ export default function CircleSettings() {
                   />
                 </div>
 
-                {/* Profile Picture */}
-                <div className="space-y-2">
-                  <Label>Profile Picture</Label>
-                  <div className="flex items-start gap-4">
-                    <div className="relative group flex-shrink-0">
-                      <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
-                        <AvatarImage src={logoUrl} />
-                        <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
-                          {name?.[0] || 'C'}
-                        </AvatarFallback>
-                      </Avatar>
-                      <button
-                        type="button"
-                        onClick={() => logoInputRef.current?.click()}
-                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      >
-                        <Upload className="h-6 w-6 text-white" />
-                      </button>
-                      <input
-                        ref={logoInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={(e) => e.target.files?.[0] && handleImagePick(e.target.files[0], 'logo')}
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
-                        <Upload className="h-3.5 w-3.5 mr-1.5" />
-                        Upload new
-                      </Button>
-                      <ul className="mt-3 text-xs text-muted-foreground space-y-1 leading-relaxed">
-                        <li><span className="font-medium text-foreground">Aspect:</span> 1:1 (square — displayed as a circle)</li>
-                        <li><span className="font-medium text-foreground">Recommended:</span> 512×512 px or larger</li>
-                        <li><span className="font-medium text-foreground">Formats:</span> JPG, PNG, WebP</li>
-                        <li><span className="font-medium text-foreground">Max size:</span> 5 MB</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Cover Image */}
-                <div className="space-y-2">
-                  <Label>Cover Image</Label>
-                  <div className="flex items-start gap-4">
-                    {/* Thumbnail preview — shows the full image at 16:9, no crop */}
-                    <div className="relative group flex-shrink-0">
-                      <div
-                        className="w-36 rounded-lg overflow-hidden border border-border shadow-sm bg-gradient-primary"
-                        style={{ aspectRatio: '16/9' }}
-                      >
-                        {coverImageUrl ? (
-                          <img
-                            src={coverImageUrl}
-                            alt="Cover"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full bg-gradient-primary opacity-80" />
-                        )}
+                {/* Profile Picture + Cover Image side by side */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  {/* Profile Picture */}
+                  <div className="space-y-2">
+                    <Label>Profile Picture</Label>
+                    <div className="flex items-start gap-3">
+                      <div className="relative group flex-shrink-0">
+                        <Avatar className="h-20 w-20 border-4 border-background shadow-lg">
+                          <AvatarImage src={logoUrl} />
+                          <AvatarFallback className="bg-warning text-warning-foreground text-2xl font-semibold">
+                            {name?.[0] || 'C'}
+                          </AvatarFallback>
+                        </Avatar>
                         <button
                           type="button"
-                          onClick={() => coverInputRef.current?.click()}
-                          className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          onClick={() => logoInputRef.current?.click()}
+                          className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                         >
                           <Upload className="h-5 w-5 text-white" />
                         </button>
+                        <input
+                          ref={logoInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handleImagePick(e.target.files[0], 'logo')}
+                        />
                       </div>
-                      <input
-                        ref={coverInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp"
-                        className="hidden"
-                        onChange={(e) => e.target.files?.[0] && handleImagePick(e.target.files[0], 'cover')}
-                      />
+                      <div className="flex-1 min-w-0">
+                        <Button type="button" variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                          <Upload className="h-3.5 w-3.5 mr-1.5" />
+                          Upload
+                        </Button>
+                        <ul className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                          <li>1:1, ≥ 512×512 px</li>
+                          <li>JPG/PNG/WebP, max 5 MB</li>
+                        </ul>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <Button type="button" variant="outline" size="sm" onClick={() => coverInputRef.current?.click()}>
-                        <Upload className="h-3.5 w-3.5 mr-1.5" />
-                        Upload new
-                      </Button>
-                      <ul className="mt-3 text-xs text-muted-foreground space-y-1 leading-relaxed">
-                        <li><span className="font-medium text-foreground">Usage:</span> Backgrounds the entire circle card — image is centered and cropped to fit</li>
-                        <li><span className="font-medium text-foreground">Key visible area:</span> Top strip ≈ 400×128 px (3.1:1) on desktop; full-width × 128 px on mobile</li>
-                        <li><span className="font-medium text-foreground">Recommended:</span> 800×256 px minimum — keep the main subject centred near the top</li>
-                        <li><span className="font-medium text-foreground">Formats:</span> JPG, PNG, WebP</li>
-                        <li><span className="font-medium text-foreground">Max size:</span> 5 MB</li>
-                      </ul>
+                  </div>
+
+                  {/* Cover Image */}
+                  <div className="space-y-2">
+                    <Label>Cover Image</Label>
+                    <div className="flex items-start gap-3">
+                      <div className="relative group flex-shrink-0">
+                        <div
+                          className="w-20 rounded-lg overflow-hidden border border-border shadow-sm bg-gradient-primary"
+                          style={{ aspectRatio: '9/16' }}
+                        >
+                          {coverImageUrl ? (
+                            <img src={coverImageUrl} alt="Cover" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-primary opacity-80" />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => coverInputRef.current?.click()}
+                            className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          >
+                            <Upload className="h-5 w-5 text-white" />
+                          </button>
+                        </div>
+                        <input
+                          ref={coverInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(e) => e.target.files?.[0] && handleImagePick(e.target.files[0], 'cover')}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Button type="button" variant="outline" size="sm" onClick={() => coverInputRef.current?.click()}>
+                          <Upload className="h-3.5 w-3.5 mr-1.5" />
+                          Upload
+                        </Button>
+                        <ul className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                          <li>16:9, ≥ 800×256 px</li>
+                          <li>JPG/PNG/WebP, max 5 MB</li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1447,22 +1515,18 @@ export default function CircleSettings() {
 
         {/* Danger Zone (only for Creator and Super Admin) */}
         {(adminType === 'creator' || adminType === 'super_admin') && (
-          <Card className="border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
-              <CardDescription>Irreversible actions for this circle</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Delete Circle</p>
-                  <p className="text-sm text-muted-foreground">Permanently delete this circle and all its data</p>
-                </div>
-                <Button variant="destructive" disabled>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Circle
-                </Button>
+          <Card className="border-destructive/40 shadow-sm bg-destructive/[0.02]">
+            <CardContent className="p-5 sm:p-6 space-y-4">
+              <div>
+                <h3 className="font-semibold text-base text-destructive">Danger zone</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Permanently delete this circle and all its data. This cannot be undone.
+                </p>
               </div>
+              <Button variant="destructive" disabled className="w-full sm:w-auto gap-2">
+                <Trash2 className="h-4 w-4" />
+                Delete circle
+              </Button>
             </CardContent>
           </Card>
         )}

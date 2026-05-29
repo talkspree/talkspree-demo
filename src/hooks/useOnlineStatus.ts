@@ -32,15 +32,21 @@ export function useOnlineStatus(userId: string | undefined) {
 
     const setOffline = async () => {
       try {
+        // Skip if the session is already gone (e.g. just signed out — including
+        // the ban "Leave Circle" flow). The anon role has no UPDATE grant on
+        // profiles (42501) and the write is unnecessary at that point.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
         const { error } = await supabase
           .from('profiles')
-          .update({ 
+          .update({
             is_online: false,
             last_seen_at: new Date().toISOString()
           })
           .eq('id', userId);
-        
-        if (error) {
+
+        if (error && error.code !== '42501') {
           console.error('Failed to set offline status:', error);
         }
       } catch (error) {

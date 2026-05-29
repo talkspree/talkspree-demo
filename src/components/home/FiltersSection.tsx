@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/popover';
 import { useDevice } from '@/hooks/useDevice';
 import { useCircle } from '@/contexts/CircleContext';
+import { useModerationBlock } from '@/hooks/useModerationBlock';
+import { RestrictionModal } from '@/components/moderation/RestrictionModal';
 import { supabase } from '@/lib/supabase';
 import { 
   getVisiblePresetsWithUserPresets,
@@ -34,7 +36,9 @@ type Duration = 10 | 15 | 30;
 export function FiltersSection() {
   const navigate = useNavigate();
   const device = useDevice();
-  const { circleId, isAdmin, allowMemberCustomTopics, loading: circleLoading } = useCircle();
+  const { circle, circleId, isAdmin, allowMemberCustomTopics, loading: circleLoading, reloadModeration } = useCircle();
+  const { isBanned, isRestrictionActive, moderation } = useModerationBlock();
+  const [showRestriction, setShowRestriction] = useState(false);
   const [role, setRole] = useState<string>('random');
   const [similarity, setSimilarity] = useState(50);
 
@@ -177,6 +181,15 @@ export function FiltersSection() {
   }, [role, similarity, selectedPreset, duration, circleId]);
 
   const handleStartSession = () => {
+    // Moderation gate. Banned users are already covered by the global
+    // ModerationGate overlay; restricted users get the restriction modal (with
+    // its live countdown) on every START press until the timeout expires.
+    if (isBanned) return;
+    if (isRestrictionActive) {
+      setShowRestriction(true);
+      return;
+    }
+
     // Determine preset type for the waiting room
     let presetType: 'default' | 'circle' | 'user' | null = null;
     if (selectedPreset !== 'none' && selectedPreset !== 'custom') {
@@ -538,6 +551,14 @@ export function FiltersSection() {
           setSelectedPreset('none');
           setEditingPresetId(null);
         }}
+      />
+
+      <RestrictionModal
+        open={showRestriction}
+        moderation={moderation}
+        circleName={circle?.name}
+        onClose={() => setShowRestriction(false)}
+        onExpire={() => { setShowRestriction(false); reloadModeration(); }}
       />
       </div>
     </TooltipProvider>

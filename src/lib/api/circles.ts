@@ -38,8 +38,17 @@ export interface CircleMember {
   type: 'admin' | 'moderator' | 'member'; // Member type (admin/moderator/member)
   role: string | null; // Actual user role in circle (Mentor, Mentee, Alumni, etc.)
   admin_type: 'creator' | 'circle_admin' | null;
-  status: 'active' | 'pending' | 'suspended';
+  status: 'active' | 'pending' | 'suspended'; // Membership lifecycle — NOT moderation
   joined_at: string;
+  // Moderation (see migration 090). Kept separate from `status` so warnings stay
+  // non-blocking and the pervasive status='active' checks keep working.
+  moderation_state: 'none' | 'warned' | 'restricted' | 'banned';
+  moderation_reason: string | null;
+  moderation_message: string | null;
+  moderation_expires_at: string | null;
+  moderation_acknowledged_at: string | null;
+  moderation_by: string | null;
+  moderation_updated_at: string | null;
 }
 
 export interface CircleRole {
@@ -109,7 +118,7 @@ export async function getCircleMembers(circleId: string) {
     .from('circle_members')
     .select(`
       *,
-      profiles (*)
+      profiles!circle_members_user_id_fkey (*)
     `)
     .eq('circle_id', circleId)
     .eq('status', 'active');
@@ -269,7 +278,7 @@ export async function getOnlineCircleMembers(circleId: string) {
     .from('circle_members')
     .select(`
       user_id,
-      profiles!inner (
+      profiles!circle_members_user_id_fkey!inner (
         *
       )
     `)
@@ -294,7 +303,7 @@ export async function getCircleMemberCounts(circleId: string) {
       .eq('status', 'active'),
     supabase
       .from('circle_members')
-      .select('profiles!inner(is_online)', { count: 'exact', head: true })
+      .select('profiles!circle_members_user_id_fkey!inner(is_online)', { count: 'exact', head: true })
       .eq('circle_id', circleId)
       .eq('status', 'active')
       .eq('profiles.is_online', true),
@@ -494,7 +503,7 @@ export async function checkIsSuperAdminForUser(user: { id: string; email?: strin
       .select('id')
       .eq('user_id', user.id)
       .eq('admin_type', 'super_admin')
-      .single();
+      .maybeSingle();
 
     return !!data;
   } catch {

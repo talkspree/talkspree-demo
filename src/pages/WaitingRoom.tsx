@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AdaptiveLayout } from "@/components/layouts/AdaptiveLayout";
 import { useProfileData } from "@/hooks/useProfileData";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useModerationBlock } from "@/hooks/useModerationBlock";
 import { supabase } from "@/lib/supabase";
 import {
   MatchmakingFilters,
@@ -58,6 +59,7 @@ function profileToMatchedUser(p: any, circleRole?: string | null): MatchedUserIn
 
 export default function WaitingRoom() {
   const navigate = useNavigate();
+  const { isBlocked: moderationBlocked } = useModerationBlock();
   const location = useLocation();
   const { profileData } = useProfileData();
   const isMobile = useIsMobile();
@@ -642,6 +644,14 @@ export default function WaitingRoom() {
       cleanupRematchChannel();
     };
   }, []);
+
+  // Moderation: banned users or those under an active restriction can't be in
+  // the waiting room. The matchmaking_queue insert is also rejected server-side
+  // by RLS (migration 090); this is the UX redirect back to Home, where the
+  // ModerationGate / START gate explains why.
+  useEffect(() => {
+    if (moderationBlocked) navigate('/', { replace: true });
+  }, [moderationBlocked, navigate]);
 
   // Join queue on mount, leave on unmount
   useEffect(() => {

@@ -9,6 +9,8 @@ import {
   AdminType,
 } from '@/lib/api/circles';
 import { getUnseenContactsCount } from '@/lib/api/contacts';
+import { getMyModeration, Moderation, NO_MODERATION } from '@/lib/api/moderation';
+import { ModerationGate } from '@/components/moderation/ModerationGate';
 
 interface CircleContextValue {
   circle: Circle | null;
@@ -19,10 +21,12 @@ interface CircleContextValue {
   allowMemberCustomTopics: boolean;
   memberCounts: { total: number; online: number };
   unseenContactCount: number;
+  moderation: Moderation;
   loading: boolean;
   reloadRole: () => Promise<void>;
   reloadCircle: () => Promise<void>;
   refreshUnseenCount: () => Promise<void>;
+  reloadModeration: () => Promise<void>;
 }
 
 const CircleContext = createContext<CircleContextValue | null>(null);
@@ -35,6 +39,7 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
   const [adminType, setAdminType] = useState<AdminType>(null);
   const [memberCounts, setMemberCounts] = useState({ total: 0, online: 0 });
   const [unseenContactCount, setUnseenContactCount] = useState(0);
+  const [moderation, setModeration] = useState<Moderation>(NO_MODERATION);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
@@ -46,10 +51,11 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
       setCircle(circleData);
 
       if (circleData) {
-        const [roleData, counts, unseen] = await Promise.all([
+        const [roleData, counts, unseen, moderationData] = await Promise.all([
           getFullCircleRoleData(circleData.id),
           getCircleMemberCounts(circleData.id),
           getUnseenContactsCount().catch(() => 0),
+          getMyModeration(circleData.id).catch(() => NO_MODERATION),
         ]);
         if (!mountedRef.current) return;
 
@@ -58,6 +64,7 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
         setAdminType(roleData.adminType);
         setMemberCounts(counts);
         setUnseenContactCount(unseen);
+        setModeration(moderationData);
       }
     } catch (error) {
       console.error('CircleContext: Error loading data:', error);
@@ -71,6 +78,7 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
     mountedRef.current = true;
     if (authLoading) return;
     if (!user) {
+      setModeration(NO_MODERATION);
       setLoading(false);
       return;
     }
@@ -129,6 +137,16 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
     } catch { /* silent */ }
   }, []);
 
+  const reloadModeration = useCallback(async () => {
+    if (!circle) return;
+    try {
+      const m = await getMyModeration(circle.id);
+      if (mountedRef.current) setModeration(m);
+    } catch (error) {
+      console.error('CircleContext: Error reloading moderation:', error);
+    }
+  }, [circle]);
+
   return (
     <CircleContext.Provider value={{
       circle,
@@ -139,12 +157,15 @@ export function CircleProvider({ children }: { children: React.ReactNode }) {
       allowMemberCustomTopics: circle?.allow_member_custom_topics ?? true,
       memberCounts,
       unseenContactCount,
+      moderation,
       loading,
       reloadRole,
       reloadCircle,
       refreshUnseenCount,
+      reloadModeration,
     }}>
       {children}
+      <ModerationGate />
     </CircleContext.Provider>
   );
 }

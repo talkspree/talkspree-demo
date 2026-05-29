@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, ProtectedRoute } from "./contexts/AuthContext";
 import { CircleProvider } from "./contexts/CircleContext";
 import { ChatProvider } from "./contexts/ChatContext";
@@ -18,7 +18,6 @@ import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Home from "./pages/Home";
 import Onboarding from "./pages/Onboarding";
-import ProfileEdit from "./pages/ProfileEdit";
 import Settings from "./pages/Settings";
 import CircleSettings from "./pages/CircleSettings";
 import Call from "./pages/Call";
@@ -63,7 +62,8 @@ function App() {
               {/* Protected routes */}
               <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
               <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
-              <Route path="/profile/edit" element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+              {/* /profile/edit is now a Settings tab; redirect for old links/bookmarks */}
+              <Route path="/profile/edit" element={<Navigate to="/settings?tab=profile" replace />} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               <Route path="/settings/circle" element={<ProtectedRoute><CircleSettings /></ProtectedRoute>} />
               <Route path="/call" element={<ProtectedRoute><Call /></ProtectedRoute>} />

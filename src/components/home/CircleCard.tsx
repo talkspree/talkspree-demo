@@ -277,7 +277,7 @@ export function CircleCard() {
                     "hover:w-[4.75rem] hover:justify-start hover:gap-2 hover:px-3",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   )}
-                  onClick={() => navigate('/settings/circle')}
+                  onClick={() => navigate('/settings?tab=circle')}
                   aria-label="Circle settings"
                 >
                   <Settings className="h-4 w-4 shrink-0" />
