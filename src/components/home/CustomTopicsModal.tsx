@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { X, Plus, Loader2 } from 'lucide-react';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { HoverHint } from '@/components/common/HoverHint';
 import { supabase } from '@/lib/supabase';
 import {
   getVisibleTopics,
@@ -42,7 +44,8 @@ export function CustomTopicsModal({
   const [nameError, setNameError] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  
+  const [showAllTopics, setShowAllTopics] = useState(false);
+
   // Available topics from database
   const [availableTopics, setAvailableTopics] = useState<UnifiedTopic[]>([]);
   const [loadingTopics, setLoadingTopics] = useState(true);
@@ -61,10 +64,11 @@ export function CustomTopicsModal({
     }
   }, [circleId]);
 
-  // Load topics when modal opens
+  // Load topics when modal opens; reset expand state each time
   useEffect(() => {
     if (open) {
       loadTopics();
+      setShowAllTopics(false);
     }
   }, [open, loadTopics]);
 
@@ -237,13 +241,14 @@ export function CustomTopicsModal({
   };
 
   return (
+    <TooltipProvider>
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto custom-scrollbar w-[calc(100%-2rem)] rounded-2xl sm:w-full">
         <DialogHeader>
           <DialogTitle>{editingPresetId ? 'Edit Topic Preset' : 'Create Custom Topic Preset'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-4 py-1 sm:py-2">
           <div className="space-y-2">
             <Label htmlFor="preset-name">Preset Name</Label>
             <Input
@@ -259,32 +264,55 @@ export function CustomTopicsModal({
             {nameError && <p className="text-xs text-red-500">Please enter a preset name</p>}
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-destructive font-medium">
-              Select Minimum 1; Maximum 5
-            </div>
-            {loadingTopics && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          </div>
-
           {/* Topics from database */}
-          <div className="flex flex-wrap gap-2">
-            {availableTopics.map((topic) => (
-              <Badge
-                key={topic.id}
-                variant={selectedTopicIds.includes(topic.id) ? 'default' : 'secondary'}
-                className={`cursor-pointer px-5 py-2 text-sm ${
-                  topic.type === 'user' ? 'border-2 border-purple-300' : 
-                  topic.type === 'circle' ? '' : ''
-                } ${selectedTopicIds.includes(topic.id) ? 'border-none' : ''}`}
-                onClick={() => toggleTopic(topic.id)}
-              >
-                {topic.name}
-              </Badge>
-            ))}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Topics</span>
+              <span className={`text-sm font-semibold tabular-nums ${
+                selectedTopicIds.length === 5
+                  ? 'text-green-600 dark:text-green-400'
+                  : selectedTopicIds.length > 0
+                  ? 'text-foreground'
+                  : 'text-muted-foreground'
+              }`}>
+                {selectedTopicIds.length}/5
+              </span>
+              {loadingTopics && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+            </div>
+
+            {/* Badge grid — clipped to 4 rows (~200px) until expanded */}
+            <div
+              className={`flex flex-wrap gap-1.5 overflow-hidden transition-[max-height] duration-300 ease-in-out ${
+                showAllTopics ? '' : 'max-h-[180px]'
+              }`}
+            >
+              {availableTopics.map((topic) => (
+                <HoverHint key={topic.id} content={topic.description} side="top">
+                  <Badge
+                    variant={selectedTopicIds.includes(topic.id) ? 'default' : 'secondary'}
+                    className={`cursor-pointer px-5 py-2 text-sm ${
+                      topic.type === 'user' ? 'border-2 border-purple-300' : 
+                      topic.type === 'circle' ? '' : ''
+                    } ${selectedTopicIds.includes(topic.id) ? 'border-none' : ''}`}
+                    onClick={() => toggleTopic(topic.id)}
+                  >
+                    {topic.name}
+                  </Badge>
+                </HoverHint>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="text-sm font-medium text-blue-500 hover:text-blue-600 transition-colors ml-1"
+              onClick={() => setShowAllTopics(v => !v)}
+            >
+              {showAllTopics ? '↑ Show less' : 'Show all topics ↓'}
+            </button>
           </div>
 
           {/* Custom Questions Section - EDITABLE */}
-          <div className="space-y-3 pt-4 border-t">
+          <div className="space-y-3 pt-4 border-t pb-4">
             <Label className="text-sm font-semibold">Your Custom Questions</Label>
             <p className="text-xs text-muted-foreground">
               Add your own conversation starters. These stay editable and are saved with this preset.
@@ -361,5 +389,6 @@ export function CustomTopicsModal({
         </div>
       </DialogContent>
     </Dialog>
+    </TooltipProvider>
   );
 }

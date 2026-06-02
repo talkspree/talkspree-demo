@@ -1,5 +1,6 @@
-import { Instagram, Facebook, Linkedin, Youtube, Music, Mail, Check, MapPin, MessageSquare, GraduationCap, Briefcase, User } from 'lucide-react';
+import { Instagram, Facebook, Linkedin, Youtube, Music, Mail, Check, MapPin, MessageSquare, Briefcase, User } from 'lucide-react';
 import { AnimatedBorderCard } from '@/components/ui/animated-border-card';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { useChat } from '@/contexts/ChatContext';
@@ -181,7 +182,7 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
             {/* Avatar */}
             <div className="relative shrink-0">
               <div className="w-14 h-14 rounded-full overflow-hidden ring-2 ring-card bg-muted shadow-md">
-                <img src={contact.avatarUrl} alt={contact.name} className="w-full h-full object-cover" />
+                <UserAvatar src={contact.avatarUrl} name={contact.name} className="w-full h-full" fallbackClassName="text-lg" />
               </div>
               <div className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-card ${isOnline ? 'bg-success' : 'bg-muted-foreground'}`} />
             </div>
@@ -194,7 +195,7 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
               </span>
               {contact.role && (
                 <div className="flex items-center gap-1 text-xs">
-                  <GraduationCap size={12} className="text-muted-foreground shrink-0" />
+                  <User size={12} className="text-muted-foreground shrink-0" />
                   <span className="font-medium capitalize truncate">{contact.role}</span>
                 </div>
               )}
@@ -241,11 +242,7 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
         <div className="flex flex-col items-center text-center mt-2 mb-2">
           <div className="relative mb-4 group">
             <div className="w-20 h-20 rounded-full overflow-hidden ring-4 ring-card bg-muted flex items-center justify-center shadow-[0_20px_20px_-10px_rgba(0,0,0,0.2)]">
-              <img 
-                src={contact.avatarUrl} 
-                alt={contact.name} 
-                className="w-full h-full object-cover"
-              />
+              <UserAvatar src={contact.avatarUrl} name={contact.name} className="w-full h-full" fallbackClassName="text-2xl" />
             </div>
             <div className={`absolute bottom-0 right-0 w-5 h-5 rounded-full border-4 border-card ${
               isOnline ? 'bg-success' : 'bg-muted-foreground'
@@ -265,7 +262,7 @@ export function ContactCard({ contact, onClick }: ContactCardProps) {
         <div className="w-full px-2 mb-4 flex flex-col items-center space-y-2">
             {contact.role && (
               <div className="flex items-center gap-2 text-sm text-center">
-                <GraduationCap size={16} className={iconCls} />
+                <User size={16} className={iconCls} />
                 <span className="font-medium capitalize">{contact.role}</span>
               </div>
             )}

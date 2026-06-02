@@ -23,15 +23,18 @@ export default function Contacts() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'similarity' | 'job'>('recent');
   const [connections, setConnections] = useState<Connection[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedContact, setSelectedContact] = useState<Connection | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [seenContactIds, setSeenContactIds] = useState<string[]>([]);
 
   // Load connections
   const loadConnections = async () => {
+    setLoadingContacts(true);
     // Get all connections from database
     const allConnections = await connectionsManager.getConnectionsAsync();
     setConnections(allConnections);
+    setLoadingContacts(false);
     
     // Get seen contact IDs from localStorage (tracks which cards user has clicked on)
     const previouslySeenIds = connectionsManager.getSeenContactIds();
@@ -189,6 +192,7 @@ export default function Contacts() {
               sortBy={sortBy}
               onSortChange={setSortBy}
               onContactClick={handleContactClick}
+              loading={loadingContacts}
             />
           ))}
         </div>

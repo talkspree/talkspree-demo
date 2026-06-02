@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useProfileData } from '@/hooks/useProfileData';
@@ -50,12 +50,13 @@ export function CorrespondentProfile({ matchedUser, isConnected = false, classNa
         <div className="p-6 space-y-6">
           {/* Profile Header */}
           <div className="flex flex-col items-center text-center">
-            <Avatar className="h-24 w-24 mb-3">
-              <AvatarImage src={matchedUser.profilePicture || ''} />
-              <AvatarFallback className="bg-warning text-warning-foreground text-2xl">
-                {matchedUser.firstName[0]}{matchedUser.lastName[0]}
-              </AvatarFallback>
-            </Avatar>
+            <UserAvatar
+              src={matchedUser.profilePicture}
+              firstName={matchedUser.firstName}
+              lastName={matchedUser.lastName}
+              className="h-24 w-24 mb-3"
+              fallbackClassName="text-2xl"
+            />
             <h3 className="text-xl font-bold">{matchedUser.firstName} {matchedUser.lastName}</h3>
             {matchedUser.role && (
               <span className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-background text-foreground neu-concave">

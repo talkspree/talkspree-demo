@@ -26,7 +26,7 @@ import { useProfileData } from '@/hooks/useProfileData';
 import { Badge } from '@/components/ui/badge';
 import { interests } from '@/data/interests';
 import { AboutMeSection } from '@/components/profile/AboutMeSection';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { SampleUser } from '@/data/sampleUsers';
 import { endCall, updateRecipientPreset } from '@/lib/api/calls';
 import { EndCallModal } from './EndCallModal';
@@ -116,6 +116,7 @@ export function MobileCallAgora() {
     toggleCamera,
     toggleMic,
     switchCamera,
+    retryCamera,
   } = useAgoraCall({
     callId: callId || '',
     onRemoteUserJoined: () => setIsConnected(true),
@@ -336,12 +337,13 @@ export function MobileCallAgora() {
       <div className="h-[100svh] flex flex-col relative text-white">
         <div ref={remoteVideoRef} className={`absolute inset-0 w-full h-full agora-video-container ${hasRemoteUser && remoteUsers[0].videoTrack ? '' : 'hidden'}`} />
         <div className={`absolute inset-0 w-full h-full bg-zinc-900 flex flex-col items-center justify-center ${hasRemoteUser && remoteUsers[0].videoTrack ? 'hidden' : ''}`}>
-          <Avatar className="h-28 w-28 mb-4 border-4 border-white/10 shadow-xl">
-            <AvatarImage src={matchedUser.profilePicture || ''} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-4xl">
-              {matchedUser.firstName[0]}{matchedUser.lastName[0]}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar
+            src={matchedUser.profilePicture}
+            firstName={matchedUser.firstName}
+            lastName={matchedUser.lastName}
+            className="h-28 w-28 mb-4 border-4 border-white/10 shadow-xl"
+            fallbackClassName="text-4xl"
+          />
           <p className="text-base font-medium text-white/70 tracking-wide animate-pulse">
             {hasRemoteUser ? 'Camera Stopped' : 'Connecting...'}
           </p>
@@ -391,13 +393,23 @@ export function MobileCallAgora() {
           <div className={`w-28 h-40 rounded-[28px] overflow-hidden relative ${GLASS_SURFACE}`}>
             <div ref={localVideoRef} className={`w-full h-full agora-video-container ${isCameraOn && localVideoTrack ? '' : 'hidden'}`} />
             <div className={`w-full h-full flex flex-col items-center justify-center absolute inset-0 ${isCameraOn && localVideoTrack ? 'hidden' : ''}`}>
-              <Avatar className="h-12 w-12 border border-white/20 shadow-md mb-2">
-                <AvatarImage src={profileData?.profilePicture || ''} />
-                <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                  {profileData?.firstName?.[0] || 'Y'}{profileData?.lastName?.[0] || ''}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-[10px] font-medium text-white/80">You</span>
+              <UserAvatar
+                src={profileData?.profilePicture}
+                firstName={profileData?.firstName}
+                lastName={profileData?.lastName}
+                className="h-12 w-12 border border-white/20 shadow-md mb-2"
+              />
+              {!localVideoTrack ? (
+                <button
+                  onClick={() => { void retryCamera(); }}
+                  className="flex items-center gap-1 text-[10px] font-medium text-white/80 active:opacity-70"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Retry camera
+                </button>
+              ) : (
+                <span className="text-[10px] font-medium text-white/80">You</span>
+              )}
             </div>
           </div>
         </div>
@@ -711,12 +723,13 @@ export function MobileCallAgora() {
             </button>
             <div className="overflow-y-auto custom-scrollbar-contact pl-6 pr-2 mr-2">
               <div className="flex flex-col items-center text-center mb-8 pt-6">
-                <Avatar className="h-24 w-24 mb-3">
-                  <AvatarImage src={matchedUser.profilePicture || ''} />
-                  <AvatarFallback className="bg-warning text-warning-foreground text-2xl">
-                    {matchedUser.firstName[0]}{matchedUser.lastName[0]}
-                  </AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  src={matchedUser.profilePicture}
+                  firstName={matchedUser.firstName}
+                  lastName={matchedUser.lastName}
+                  className="h-24 w-24 mb-3"
+                  fallbackClassName="text-2xl"
+                />
                 <h2 className="text-xl font-bold">{matchedUser.firstName} {matchedUser.lastName}</h2>
                 {matchedUser.role && (
                   <span className="mt-3 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-background text-foreground neu-concave">

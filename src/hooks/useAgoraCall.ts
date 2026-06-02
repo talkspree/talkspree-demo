@@ -33,6 +33,7 @@ export interface UseAgoraCallReturn {
   toggleCamera: () => Promise<void>;
   toggleMic: () => Promise<void>;
   switchCamera: () => Promise<void>;
+  retryCamera: () => Promise<void>;
   agoraService: AgoraService | null;
 }
 
@@ -295,6 +296,20 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
     }
   }, []);
 
+  const retryCamera = useCallback(async () => {
+    const service = agoraServiceRef.current;
+    if (!service) return;
+    try {
+      const track = await service.retryCamera();
+      if (track && agoraServiceRef.current === service) {
+        setLocalVideoTrack(track);
+        setIsCameraOn(true);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to enable camera');
+    }
+  }, []);
+
   return {
     isConnecting,
     isConnected,
@@ -308,6 +323,7 @@ export function useAgoraCall(options: UseAgoraCallOptions): UseAgoraCallReturn {
     toggleCamera,
     toggleMic,
     switchCamera,
+    retryCamera,
     agoraService: agoraServiceRef.current,
   };
 }

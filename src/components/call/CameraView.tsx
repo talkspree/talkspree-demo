@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Video, VideoOff, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 
 interface CameraViewProps {
   stream: MediaStream | null;
@@ -46,12 +46,7 @@ export function CameraView({
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-muted">
-          <Avatar className="h-24 w-24">
-            <AvatarImage src={profilePicture || ''} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-3xl">
-              {name.charAt(0)}
-            </AvatarFallback>
-          </Avatar>
+          <UserAvatar src={profilePicture} name={name} className="h-24 w-24" fallbackClassName="text-3xl" />
         </div>
       )}
       

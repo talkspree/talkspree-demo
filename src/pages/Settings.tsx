@@ -712,7 +712,7 @@ export default function Settings() {
       <Card className="border-border/60 shadow-sm">
         <CardContent className="p-5 sm:p-6 space-y-3">
           <h3 className="font-semibold text-base">Email</h3>
-          <Field label="Email">
+          <Field label="">
             <Input value={profileData.email || ""} disabled />
           </Field>
           <p className="text-xs text-muted-foreground">

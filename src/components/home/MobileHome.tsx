@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, Check, MessageSquare, MessageCircle, Info, User, Shield, Users } from 'lucide-react';
+import { Globe, Instagram, Facebook, Linkedin, Mail, Copy, Check, MessageSquare, MessageCircle, Info, User, Shield, Users, LogOut } from 'lucide-react';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { useChat } from '@/contexts/ChatContext';
 import { FiltersSection } from './FiltersSection';
 import logo from '@/assets/logo.svg';
@@ -147,31 +148,36 @@ export function MobileHome() {
             {/* Profile */}
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full p-0 ml-2 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
-                  <Avatar className="h-10 w-10">
-                    {profileData.profilePicture ? (
-                      <AvatarImage src={profileData.profilePicture} alt="Profile" />
-                    ) : null}
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      {profileData.firstName && profileData.lastName 
-                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
-                        : <User className="h-5 w-5" />
-                      }
-                    </AvatarFallback>
-                  </Avatar>
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full p-0 ml-2 transition-transform hover:scale-105 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
+                  <UserAvatar
+                    src={profileData.profilePicture}
+                    firstName={profileData.firstName}
+                    lastName={profileData.lastName}
+                    className="h-10 w-10"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card z-[100]">
-                <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer justify-center">
                   View Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer justify-center">
                   Settings
                 </DropdownMenuItem>
+                {isAdminRole && (
+                  <DropdownMenuItem
+                    onClick={() => window.open('https://admin.talkspree.com', '_blank', 'noopener,noreferrer')}
+                    className="cursor-pointer justify-center gap-2 my-1 rounded-md border border-border/60 bg-muted/60 text-muted-foreground focus:bg-muted focus:text-foreground"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Admin Manager
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={async () => {
                   await signOut();
                   navigate('/auth');
-                }} className="cursor-pointer">
+                }} className="cursor-pointer justify-center gap-2 text-destructive focus:text-destructive">
+                  <LogOut className="h-4 w-4" />
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -226,12 +232,6 @@ export function MobileHome() {
                   } ${!isAdminRole ? 'cursor-pointer active:scale-95' : 'cursor-default'}`}
                   title={!isAdminRole ? 'Tap to change your role' : ''}
                 >
-                  <Avatar className={`h-6 w-6 ${isAdminRole ? 'border border-white/30' : 'border border-border/50'}`}>
-                    <AvatarImage src={profileData.profilePicture} alt="Profile" />
-                    <AvatarFallback className={`text-xs ${isAdminRole ? 'bg-white/20' : 'bg-muted'}`}>
-                      {profileData.firstName?.[0]}{profileData.lastName?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
                   <span className="text-sm font-medium">{circleRole}</span>
                   {isAdmin && <Shield className="h-3.5 w-3.5" />}
                 </button>

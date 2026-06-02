@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -153,12 +153,13 @@ export function ContactDetailModal({ contact, open, onOpenChange, onContactDelet
               <div className="flex flex-col sm:flex-row gap-6 sm:gap-10 items-center sm:items-start text-center sm:text-left mb-8">
                 {/* Avatar */}
                 <div className="w-32 h-32 sm:w-40 sm:h-40 shrink-0 rounded-full ring-4 ring-primary/20 shadow-apple-lg overflow-hidden bg-muted">
-                  <Avatar className="w-full h-full">
-                    <AvatarImage src={contact.user.profilePicture || ''} />
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl">
-                      {contact.user.firstName[0]}{contact.user.lastName[0]}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    src={contact.user.profilePicture}
+                    firstName={contact.user.firstName}
+                    lastName={contact.user.lastName}
+                    className="w-full h-full"
+                    fallbackClassName="text-3xl"
+                  />
                 </div>
 
                 {/* Basic Info */}

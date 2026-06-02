@@ -90,11 +90,6 @@ export function ChatBubble({
           }`}
         />
       </motion.button>
-
-      {/* Name Tooltip */}
-      <div className="absolute right-14 top-1/2 -translate-y-1/2 bg-foreground text-background text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none shadow-lg">
-        {bubble.contactName}
-      </div>
     </motion.div>
   );
 }

@@ -4,7 +4,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Bell, User, Video, VideoOff, Mic, MicOff } from 'lucide-react';
+import { UserAvatar } from '@/components/common/UserAvatar';
+import { Bell, Video, VideoOff, Mic, MicOff, LogOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getOrCreateDefaultCircle } from '@/lib/api/circles';
 import {
@@ -18,7 +19,7 @@ import headerPattern from '@/assets/header-pattern.png';
 import { PromptDisplay } from './PromptDisplay';
 import { ChatBox } from './ChatBox';
 import { CorrespondentProfile } from './CorrespondentProfile';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useAgoraCall } from '@/hooks/useAgoraCall';
 import { useCallTimer } from '@/hooks/useCallTimer';
 import { useCallHeartbeat } from '@/hooks/useCallHeartbeat';
@@ -81,6 +82,7 @@ export function DesktopCallAgora() {
     leaveCall,
     toggleCamera,
     toggleMic,
+    retryCamera,
     agoraService,
   } = useAgoraCall({
     callId: callId || '',
@@ -219,44 +221,36 @@ export function DesktopCallAgora() {
             <img src={logo} alt="TalkSpree" className="h-6" />
           </button>
 
-          <div className="flex items-center gap-3 bg-background text-foreground neu-concave px-4 py-2 rounded-full relative z-10 transition-all">
-            <Avatar className="h-8 w-8 border border-border/50">
-              <AvatarImage src={circleData.avatar} />
-              <AvatarFallback className="bg-muted text-sm">M</AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-semibold">{circleData.name}</span>
-            <div className="flex items-center gap-1.5 ml-2">
-              <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-              <span className="text-sm font-medium">{circleData.members} members online</span>
+          <div className="flex items-center gap-3 relative z-10">
+            <div className="flex items-center gap-3 bg-background text-foreground neu-concave px-4 py-2 rounded-full transition-all">
+              <Avatar className="h-8 w-8 border border-border/50">
+                <AvatarImage src={circleData.avatar} />
+                <AvatarFallback className="bg-muted text-sm">M</AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-semibold">{circleData.name}</span>
+              <div className="flex items-center gap-1.5 ml-2">
+                <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                <span className="text-sm font-medium">{circleData.members} members online</span>
+              </div>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 relative z-10">
-            {/* <DropdownMenu>
-               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="relative"><Bell className="h-5 w-5" /></Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-80 bg-card">
-                <div className="p-3 border-b border-border"><h3 className="font-semibold">Notifications</h3></div>
-              </DropdownMenuContent>
-            </DropdownMenu> */}
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full">
-                  <Avatar className="h-9 w-9">
-                    {profileData.profilePicture ? <AvatarImage src={profileData.profilePicture} alt="Profile" /> : null}
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      {profileData.firstName && profileData.lastName
-                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
-                        : <User className="h-5 w-5" />}
-                    </AvatarFallback>
-                  </Avatar>
+                <Button variant="ghost" size="icon" className="rounded-full transition-transform hover:scale-105">
+                  <UserAvatar
+                    src={profileData.profilePicture}
+                    firstName={profileData.firstName}
+                    lastName={profileData.lastName}
+                    className="h-9 w-9"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card">
-                <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer">View Profile</DropdownMenuItem>
-                <DropdownMenuItem onClick={async () => { await signOut(); navigate('/auth'); }} className="cursor-pointer">Sign Out</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer justify-center">View Profile</DropdownMenuItem>
+                <DropdownMenuItem onClick={async () => { await signOut(); navigate('/auth'); }} className="cursor-pointer justify-center gap-2 text-destructive focus:text-destructive">
+                  <LogOut className="h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -287,6 +281,7 @@ export function DesktopCallAgora() {
               micEnabled={micEnabled}
               onToggleCamera={toggleCamera}
               onToggleMic={toggleMic}
+              onRetryCamera={retryCamera}
               className="flex-1 min-h-0"
             />
           </div>
@@ -328,10 +323,11 @@ export function DesktopCallAgora() {
         </div>
       </div>
 
-      <ProfileCard open={showProfile} onOpenChange={setShowProfile} />
+      <ProfileCard open={showProfile} onOpenChange={setShowProfile} hideEditButton />
 
       <Dialog open={showEndConfirm} onOpenChange={setShowEndConfirm}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">End call confirmation</DialogTitle>
           <div className="text-center space-y-4 p-4">
             <h2 className="text-xl font-bold">End Call?</h2>
             <p className="text-muted-foreground">Are you sure you want to end this call?</p>
@@ -380,9 +376,24 @@ function AgoraCameraViewDesktop({
   micEnabled = true,
   onToggleCamera,
   onToggleMic,
+  onRetryCamera,
   className = '',
 }: any) {
   const videoRef = React.useRef<HTMLDivElement>(null);
+  const [retrying, setRetrying] = React.useState(false);
+
+  // Camera is unavailable (not merely toggled off) when we have no track at all.
+  const cameraUnavailable = !isRemote && !localVideoTrack;
+
+  const handleRetry = async () => {
+    if (retrying) return;
+    setRetrying(true);
+    try {
+      await onRetryCamera?.();
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   React.useEffect(() => {
     const el = videoRef.current;
@@ -417,11 +428,14 @@ function AgoraCameraViewDesktop({
       {/* Always mount the video container so Agora-injected DOM nodes don't conflict
           with React's reconciliation (prevents removeChild errors). */}
       <div ref={videoRef} className={`w-full h-full ${hasVideo ? '' : 'hidden'}`} />
-      <div className={`w-full h-full flex items-center justify-center bg-muted absolute inset-0 ${hasVideo ? 'hidden' : ''}`}>
-        <Avatar className="h-24 w-24">
-          <AvatarImage src={profilePicture || ''} />
-          <AvatarFallback className="bg-primary text-primary-foreground text-3xl">{name.charAt(0)}</AvatarFallback>
-        </Avatar>
+      <div className={`w-full h-full flex flex-col items-center justify-center gap-3 bg-muted absolute inset-0 ${hasVideo ? 'hidden' : ''}`}>
+        <UserAvatar src={profilePicture} name={name} className="h-24 w-24" fallbackClassName="text-3xl" />
+        {cameraUnavailable && (
+          <Button variant="secondary" size="sm" className="rounded-full gap-1.5" onClick={handleRetry} disabled={retrying}>
+            <RefreshCw className={`h-3.5 w-3.5 ${retrying ? 'animate-spin' : ''}`} />
+            {retrying ? 'Enabling…' : 'Camera unavailable — Retry'}
+          </Button>
+        )}
       </div>
       <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
         <div className="bg-background/80 backdrop-blur-sm px-3 py-1 rounded-full">

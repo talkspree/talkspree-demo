@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ContactCard } from './ContactCard';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowUpDown, ChevronDown, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
@@ -39,9 +40,10 @@ interface ContactCircleSectionProps {
   sortBy: 'recent' | 'similarity' | 'job';
   onSortChange: (sort: 'recent' | 'similarity' | 'job') => void;
   onContactClick?: (contact: Contact) => void;
+  loading?: boolean;
 }
 
-export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange, onContactClick }: ContactCircleSectionProps) {
+export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange, onContactClick, loading = false }: ContactCircleSectionProps) {
   const navigate = useNavigate();
   const [circleLogoUrl, setCircleLogoUrl] = useState<string>('');
   const [circleCoverUrl, setCircleCoverUrl] = useState<string>('');
@@ -169,7 +171,57 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
           </div>
 
           {/* Contacts Grid */}
-          {filteredContacts.length === 0 ? (
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+              {/* Desktop skeleton */}
+              <div className="hidden sm:flex w-full max-w-sm mx-auto rounded-2xl border-2 border-border bg-card p-4 flex-col items-center">
+                <div className="flex flex-col items-center text-center mt-2 mb-2 w-full">
+                  <Skeleton className="w-20 h-20 rounded-full mb-4" />
+                  <Skeleton className="h-5 w-32 mb-2" />
+                  <Skeleton className="h-3 w-16 mb-2" />
+                </div>
+                <div className="w-full px-2 mb-4 flex flex-col items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <div className="h-px w-full bg-border mb-4" />
+                <div className="mb-3 px-10 w-full">
+                  <Skeleton className="h-9 w-full rounded-full" />
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              </div>
+              {/* Mobile skeleton */}
+              <div className="sm:hidden w-full rounded-2xl border-2 border-border bg-card px-3 py-3 flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-14 h-14 rounded-full shrink-0" />
+                  <div className="flex-1 flex flex-col gap-1.5">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-12" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="w-11 h-11 rounded-full shrink-0" />
+                </div>
+                <div className="h-px w-full bg-border" />
+                <div className="flex items-center justify-center gap-2">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              </div>
+            </div>
+          ) : filteredContacts.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
               <div className="flex items-center justify-center w-24 h-24 rounded-full bg-muted/60 mb-2">
                 <UserPlus className="h-11 w-11 text-muted-foreground/50" />

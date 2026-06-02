@@ -515,12 +515,13 @@ export async function getVisibleTopics(circleId?: string | null): Promise<Unifie
 
   const results: UnifiedTopic[] = [];
 
-  results.push(...defaultTopics.map(t => ({
-    id: t.id, name: t.name, description: t.description, questions: t.questions, type: 'default' as const,
-  })));
-
+  // Circle topics first — admin-curated for this community, most contextually relevant
   results.push(...circleTopics.map(t => ({
     id: t.id, name: t.name, description: t.description, questions: t.questions, type: 'circle' as const, circleId: t.circle_id,
+  })));
+
+  results.push(...defaultTopics.map(t => ({
+    id: t.id, name: t.name, description: t.description, questions: t.questions, type: 'default' as const,
   })));
 
   results.push(...userTopics.map(t => ({

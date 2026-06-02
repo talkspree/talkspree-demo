@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { AlertTriangle, ArrowRight, X, Check, Star } from 'lucide-react';
 import { SampleUser } from '@/data/sampleUsers';
 import { ReportModal } from '@/components/call/ReportModal';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { useProfileData } from '@/hooks/useProfileData';
 import { computeSimilarityScore, ProfileForSimilarity } from '@/lib/similarity';
 import { saveWrapupDecision } from '@/lib/api/calls';
@@ -372,14 +373,20 @@ export default function WrapUp() {
                 transition={{ duration: 0.5 }}
                 className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center"
               >
-                <motion.img
+                <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ delay: 0.2, type: 'spring' }}
-                  src={matchedUser.profilePicture || ''}
-                  alt="Profile"
-                  className="w-28 h-28 rounded-full border-4 border-white shadow-xl mb-4 object-cover"
-                />
+                  className="mb-4"
+                >
+                  <UserAvatar
+                    src={matchedUser.profilePicture}
+                    firstName={matchedUser.firstName}
+                    lastName={matchedUser.lastName}
+                    className="w-28 h-28 border-4 border-white shadow-xl"
+                    fallbackClassName="text-3xl"
+                  />
+                </motion.div>
                 <h2 className="text-3xl font-bold text-slate-900 mb-1">
                   {matchedUser.firstName} {matchedUser.lastName}
                 </h2>
@@ -492,10 +499,12 @@ export default function WrapUp() {
                   transition={{ delay: 0.15, type: 'spring', bounce: 0.5 }}
                   className="relative mb-3"
                 >
-                  <img
-                    src={matchedUser.profilePicture || ''}
-                    alt="Profile"
-                    className="w-24 h-24 rounded-full border-4 border-amber-300 shadow-xl object-cover"
+                  <UserAvatar
+                    src={matchedUser.profilePicture}
+                    firstName={matchedUser.firstName}
+                    lastName={matchedUser.lastName}
+                    className="w-24 h-24 border-4 border-amber-300 shadow-xl"
+                    fallbackClassName="text-2xl"
                   />
                   <motion.div
                     initial={{ scale: 0 }}

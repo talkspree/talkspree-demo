@@ -1,4 +1,4 @@
-import { User, Shield } from 'lucide-react';
+import { Shield, LogOut } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDevice } from '@/hooks/useDevice';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { ProfileCard } from './ProfileCard';
 import { RoleChangeModal } from './RoleChangeModal';
 import { NotificationBell } from './NotificationBell';
@@ -107,31 +108,36 @@ export function Header() {
             {/* Profile */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
-                  <Avatar className="h-9 w-9">
-                    {profileData.profilePicture ? (
-                      <AvatarImage src={profileData.profilePicture} alt="Profile" />
-                    ) : null}
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                      {profileData.firstName && profileData.lastName 
-                        ? `${profileData.firstName[0]}${profileData.lastName[0]}`
-                        : <User className="h-5 w-5" />
-                      }
-                    </AvatarFallback>
-                  </Avatar>
+                <Button variant="ghost" size="icon" className="rounded-full transition-transform hover:scale-105 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none">
+                  <UserAvatar
+                    src={profileData.profilePicture}
+                    firstName={profileData.firstName}
+                    lastName={profileData.lastName}
+                    className="h-9 w-9"
+                  />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card">
-                <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => setShowProfile(true)} className="cursor-pointer justify-center">
                   View Profile
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer justify-center">
                   Settings
                 </DropdownMenuItem>
+                {isAdminRole && (
+                  <DropdownMenuItem
+                    onClick={() => window.open('https://admin.talkspree.com', '_blank', 'noopener,noreferrer')}
+                    className="cursor-pointer justify-center gap-2 my-1 rounded-md border border-border/60 bg-muted/60 text-muted-foreground focus:bg-muted focus:text-foreground"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Admin Manager
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={async () => {
                   await signOut();
                   navigate('/auth');
-                }} className="cursor-pointer">
+                }} className="cursor-pointer justify-center gap-2 text-destructive focus:text-destructive">
+                  <LogOut className="h-4 w-4" />
                   Sign Out
                 </DropdownMenuItem>
               </DropdownMenuContent>

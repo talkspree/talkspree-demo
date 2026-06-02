@@ -90,6 +90,10 @@ export function ExpandableContactsButton({ unseenCount = 0 }: ExpandableContacts
                       stiffness: 400,
                       damping: 25,
                       delay: i * 0.02,
+                      // A spring overshoots its target, which would push blur()
+                      // below 0 (invalid CSS). Tween the filter so it never goes
+                      // negative while transform/opacity keep their springy feel.
+                      filter: { type: 'tween', duration: 0.2, delay: i * 0.02 },
                     }}
                     className="inline-block font-semibold tracking-wide text-white"
                   >

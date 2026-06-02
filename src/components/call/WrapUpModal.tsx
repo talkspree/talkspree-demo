@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { SampleUser } from '@/data/sampleUsers';
@@ -65,8 +65,9 @@ export function WrapUpModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh]">
+      <DialogContent className="max-w-2xl max-h-[90vh]" aria-describedby={undefined}>
         <DialogHeader className="relative">
+          <DialogTitle className="sr-only">Match profile</DialogTitle>
           <Button
             size="sm"
             variant="destructive"
@@ -82,12 +83,13 @@ export function WrapUpModal({
           <div className="space-y-6 p-6">
             {/* Profile Section */}
             <div className="flex items-start gap-6">
-              <Avatar className="h-32 w-32 shrink-0">
-                <AvatarImage src={matchedUser.profilePicture || ''} />
-                <AvatarFallback className="bg-warning text-warning-foreground text-3xl">
-                  {matchedUser.firstName[0]}{matchedUser.lastName[0]}
-                </AvatarFallback>
-              </Avatar>
+              <UserAvatar
+                src={matchedUser.profilePicture}
+                firstName={matchedUser.firstName}
+                lastName={matchedUser.lastName}
+                className="h-32 w-32 shrink-0"
+                fallbackClassName="text-3xl"
+              />
 
               <div className="flex-1 space-y-4">
                 <div>

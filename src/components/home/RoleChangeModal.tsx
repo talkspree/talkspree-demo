@@ -85,7 +85,8 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="w-[calc(100%-2rem)] rounded-2xl sm:max-w-[500px]" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">Change your role</DialogTitle>
 
         {loading ? (
           <div className="flex items-center justify-center py-8">
@@ -122,14 +123,7 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
                   onClick={() => setSelectedRole(role.value)}
                 >
                   <CardContent className="p-4">
-                    <div className="flex items-center justify-center gap-3">
-                      <h4 className="font-semibold text-center flex-1">{role.label}</h4>
-                      {selectedRole === role.value && (
-                        <div className="h-5 w-5 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                          <div className="h-2 w-2 rounded-full bg-white"></div>
-                        </div>
-                      )}
-                    </div>
+                    <h4 className="font-semibold text-center">{role.label}</h4>
                   </CardContent>
                 </Card>
               ))}

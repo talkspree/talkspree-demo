@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import { Instagram, Facebook, Linkedin, Youtube, Music, Mail } from 'lucide-react';
 import { useProfileData } from '@/hooks/useProfileData';
 import { interests } from '@/data/interests';
@@ -10,9 +10,12 @@ import { AboutMeSection } from '@/components/profile/AboutMeSection';
 interface ProfileCardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** When true, hides the "Edit Profile" button (e.g. during a call, where
+   *  navigating to Settings would tear down the live call). */
+  hideEditButton?: boolean;
 }
 
-export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
+export function ProfileCard({ open, onOpenChange, hideEditButton = false }: ProfileCardProps) {
   const navigate = useNavigate();
   const { profileData, age, loading } = useProfileData();
 
@@ -27,7 +30,8 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
   if (loading) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[95vw] md:max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-auto my-auto">
+        <DialogContent className="max-w-[95vw] md:max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-auto my-auto" aria-describedby={undefined}>
+          <DialogTitle className="sr-only">Profile</DialogTitle>
           <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden">
             <div className="p-8 flex items-center justify-center min-h-[400px]">
               <div className="flex flex-col items-center gap-4">
@@ -51,7 +55,10 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] md:max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-auto my-auto">
+      <DialogContent className="max-w-[95vw] md:max-w-4xl p-0 overflow-hidden border-0 bg-transparent shadow-none mx-auto my-auto" aria-describedby={undefined}>
+        <DialogTitle className="sr-only">
+          {profileData.firstName} {profileData.lastName} profile
+        </DialogTitle>
         <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-15px_rgba(0,0,0,0.2)] overflow-hidden max-h-[85vh] md:max-h-[90vh] overflow-y-auto custom-scrollbar">
           <div className="relative p-6 md:p-8">
             {/* Horizontal Layout */}
@@ -60,12 +67,13 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
               <div className="flex flex-col items-center space-y-3">
                 {/* Avatar */}
                 <div className="relative">
-                  <Avatar className="h-32 w-32 md:h-40 md:w-40 border-4 border-white shadow-lg">
-                    <AvatarImage src={profileData.profilePicture} />
-                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-3xl md:text-4xl font-bold">
-                      {profileData.firstName[0]}{profileData.lastName[0]}
-                    </AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    src={profileData.profilePicture}
+                    firstName={profileData.firstName}
+                    lastName={profileData.lastName}
+                    className="h-32 w-32 md:h-40 md:w-40 border-4 border-white shadow-lg"
+                    fallbackClassName="text-3xl md:text-4xl"
+                  />
                 </div>
 
                 {/* Name */}
@@ -156,19 +164,21 @@ export function ProfileCard({ open, onOpenChange }: ProfileCardProps) {
                   </div>
                 </div>
 
-                {/* Edit Button - in grid */}
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    onClick={() => {
-                      onOpenChange(false);
-                      navigate('/settings?tab=profile');
-                    }}
-                    size="lg"
-                    className="bg-gradient-primary hover:opacity-90 text-primary-foreground px-6 md:px-8 py-2 md:py-3 text-sm md:text-base font-semibold shadow-lg transition-opacity rounded-xl"
-                  >
-                    Edit Profile
-                  </Button>
-                </div>
+                {/* Edit Button - in grid (hidden during calls) */}
+                {!hideEditButton && (
+                  <div className="mt-4 flex justify-end">
+                    <Button
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate('/settings?tab=profile');
+                      }}
+                      size="lg"
+                      className="bg-gradient-primary hover:opacity-90 text-primary-foreground px-6 md:px-8 py-2 md:py-3 text-sm md:text-base font-semibold shadow-lg transition-opacity rounded-xl"
+                    >
+                      Edit Profile
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </div>

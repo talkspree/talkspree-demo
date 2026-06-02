@@ -12,10 +12,9 @@ import AgoraRTC, {
 } from 'agora-rtc-sdk-ng';
 import { agoraConfig } from './config';
 
-// Enable Agora SDK logging in development
-if (import.meta.env.DEV) {
-  AgoraRTC.setLogLevel(3); // 0: DEBUG, 1: INFO, 2: WARNING, 3: ERROR, 4: NONE
-}
+// Silence Agora's very verbose INFO/DEBUG console output everywhere — only
+// surface actual errors. (0: DEBUG, 1: INFO, 2: WARNING, 3: ERROR, 4: NONE)
+AgoraRTC.setLogLevel(3);
 
 export interface AgoraClientState {
   client: IAgoraRTCClient | null;
@@ -130,6 +129,7 @@ export class AgoraService {
     try {
       await this.client.join(agoraConfig.appId, channelName, token, uid);
       this.isJoined = true;
+      console.log(`✅ Connected to call channel: ${channelName}`);
     } catch (joinError) {
       console.error('❌ Failed to join Agora channel:', joinError);
       // Tracks were created but join failed — release them immediately.
@@ -188,9 +188,38 @@ export class AgoraService {
       this.isMicOn = false;
     }
 
-    // Camera (prefer front-facing on mobile)
+    // Camera — resilient acquisition (see _acquireCameraTrack).
+    this.localVideoTrack = await this._acquireCameraTrack();
+    this.isCameraOn = !!this.localVideoTrack;
+    if (!this.localVideoTrack) {
+      console.warn('Camera unavailable after retries (continuing with audio if available)');
+    }
+
+    if (!this.localAudioTrack && !this.localVideoTrack) {
+      throw new Error('Failed to create microphone or camera tracks');
+    }
+  }
+
+  /**
+   * Acquire a camera video track resiliently.
+   *
+   * A transient `DEVICE_NOT_FOUND` / `NotReadableError` (camera momentarily held
+   * by another app/tab, or not yet enumerated on a cold start) typically clears
+   * within ~1s. Attempting the camera exactly once turns that blip into a video
+   * outage for the whole call, so we:
+   *   1. Try preferred constraints (high-res; `facingMode: user` on mobile only —
+   *      a desktop webcam has no facingMode and can reject it with NotFoundError).
+   *   2. Fall back to a bare request (most broadly compatible).
+   *   3. Retry the bare request a couple of times for transient device errors.
+   *
+   * Returns the track, or null if the camera is genuinely unavailable.
+   */
+  private async _acquireCameraTrack(): Promise<ICameraVideoTrack | null> {
+    const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+
+    // Attempt A: preferred constraints.
     try {
-      this.localVideoTrack = await AgoraRTC.createCameraVideoTrack({
+      return await AgoraRTC.createCameraVideoTrack({
         encoderConfig: {
           width: { ideal: 1280, max: 1920 },
           height: { ideal: 720, max: 1080 },
@@ -198,19 +227,77 @@ export class AgoraService {
           bitrateMax: 2000,
         },
         optimizationMode: 'detail',
-        // @ts-ignore facingMode supported; helps mobile choose front cam
-        cameraFacingMode: 'user',
+        // facingMode helps mobile pick the front cam; omit on desktop where a
+        // single webcam usually has no facingMode and would throw NotFoundError.
+        // @ts-ignore cameraFacingMode is supported by the SDK at runtime
+        ...(isMobile ? { cameraFacingMode: 'user' } : {}),
       });
-      this.isCameraOn = true;
     } catch (error) {
-      console.warn('Camera track failed (continuing with audio if available):', error);
-      this.localVideoTrack = null;
-      this.isCameraOn = false;
+      console.warn('Camera (preferred constraints) failed, falling back:', error);
     }
 
-    if (!this.localAudioTrack && !this.localVideoTrack) {
-      throw new Error('Failed to create microphone or camera tracks');
+    // Attempt B + transient retries: bare request, no constraints.
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await AgoraRTC.createCameraVideoTrack();
+      } catch (error: any) {
+        const transient = this._isTransientDeviceError(error);
+        if (attempt < maxAttempts && transient) {
+          console.warn(`Camera attempt ${attempt} hit transient device error, retrying in 700ms…`);
+          await new Promise((r) => setTimeout(r, 700));
+          continue;
+        }
+        console.warn('Camera acquisition gave up:', error);
+        return null;
+      }
     }
+    return null;
+  }
+
+  /**
+   * Classify an error as a transient device-availability failure worth retrying.
+   * Mirrors the NOT_READABLE detection used in switchCamera().
+   */
+  private _isTransientDeviceError(error: any): boolean {
+    return (
+      error?.code === 'NOT_READABLE' ||
+      error?.code === 'DEVICE_NOT_FOUND' ||
+      error?.name === 'NotReadableError' ||
+      error?.name === 'NotFoundError' ||
+      /NotReadable|NOT_READABLE|NotFound|DEVICE_NOT_FOUND|Could not start video source|Requested device not found/i.test(
+        String(error?.message ?? '')
+      )
+    );
+  }
+
+  /**
+   * Re-acquire the camera mid-call and publish it.
+   *
+   * Lets a user who joined while the camera was unavailable (or who lost it to
+   * another app) recover video once the device frees up, instead of being stuck
+   * on audio-only for the rest of the call. Safe to call repeatedly.
+   *
+   * Returns the new track on success, or null if the camera is still unavailable.
+   */
+  async retryCamera(): Promise<ICameraVideoTrack | null> {
+    if (this.localVideoTrack) return this.localVideoTrack;
+
+    const track = await this._acquireCameraTrack();
+    if (!track) return null;
+
+    this.localVideoTrack = track;
+    this.isCameraOn = true;
+
+    if (this.client && this.isJoined) {
+      try {
+        await this.client.publish(track);
+      } catch (publishError) {
+        console.warn('⚠️ Failed to publish recovered camera track:', publishError);
+      }
+    }
+
+    return track;
   }
 
   /**

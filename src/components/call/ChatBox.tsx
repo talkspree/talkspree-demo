@@ -3,7 +3,7 @@ import { Send, Check, X, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { UserAvatar } from '@/components/common/UserAvatar';
 import {
   Popover,
   PopoverContent,
@@ -337,12 +337,12 @@ export function ChatBox({
               {(message.type === 'user' || message.type === 'correspondent') && (
                 <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} gap-2 items-end min-w-0`}>
                   {message.type === 'correspondent' && (
-                    <Avatar className="h-8 w-8 mb-5 flex-shrink-0">
-                      <AvatarImage src={correspondentPicture} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                        {correspondentName.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      src={correspondentPicture}
+                      name={correspondentName}
+                      className="h-8 w-8 mb-5 flex-shrink-0"
+                      fallbackClassName="text-xs"
+                    />
                   )}
                   
                   <div className="flex flex-col gap-1 max-w-[70%] min-w-0">
@@ -366,12 +366,11 @@ export function ChatBox({
                   </div>
 
                   {message.type === 'user' && (
-                    <Avatar className="h-8 w-8 mb-5 flex-shrink-0">
-                      <AvatarImage src={myPicture} />
-                      <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                        You
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar
+                      src={myPicture}
+                      className="h-8 w-8 mb-5 flex-shrink-0"
+                      fallbackClassName="text-xs"
+                    />
                   )}
                 </div>
               )}

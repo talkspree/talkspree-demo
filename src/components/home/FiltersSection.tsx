@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
-import { Pencil, Info, Loader2 } from 'lucide-react';
+import { Pencil, Info, Loader2, AlertCircle } from 'lucide-react';
 import { CustomTopicsModal } from './CustomTopicsModal';
 import {
   Tooltip,
@@ -18,6 +18,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useDevice } from '@/hooks/useDevice';
+import { HoverHint } from '@/components/common/HoverHint';
 import { useCircle } from '@/contexts/CircleContext';
 import { useModerationBlock } from '@/hooks/useModerationBlock';
 import { RestrictionModal } from '@/components/moderation/RestrictionModal';
@@ -369,86 +370,93 @@ export function FiltersSection() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {/* No Topic option */}
-                <Badge
-                  variant={selectedPreset === 'none' ? 'default' : 'secondary'}
-                  className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                    selectedPreset === 'none' ? 'border-none' : 'neu-concave secondary'
-                  }`}
-                  onClick={() => setSelectedPreset('none')}
-                >
-                  No Topic
-                </Badge>
+                <HoverHint content="Match without a set theme. Questions are pulled from all available topics.">
+                  <Badge
+                    variant={selectedPreset === 'none' ? 'default' : 'secondary'}
+                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                      selectedPreset === 'none' ? 'border-none' : 'neu-concave secondary'
+                    }`}
+                    onClick={() => setSelectedPreset('none')}
+                  >
+                    No Topic
+                  </Badge>
+                </HoverHint>
                 
                 {/* Default presets from database */}
                 {dbPresets
                   .filter(p => p.type === 'default')
                   .map((preset) => (
-                    <Badge
-                      key={preset.id}
-                      variant={selectedPreset === preset.id ? 'default' : 'secondary'}
-                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
-                        selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
-                      }`}
-                      onClick={() => setSelectedPreset(preset.id)}
-                    >
-                      {preset.name}
-                    </Badge>
+                    <HoverHint key={preset.id} content={preset.description}>
+                      <Badge
+                        variant={selectedPreset === preset.id ? 'default' : 'secondary'}
+                        className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                          selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
+                        }`}
+                        onClick={() => setSelectedPreset(preset.id)}
+                      >
+                        {preset.name}
+                      </Badge>
+                    </HoverHint>
                   ))}
                 
                 {/* Circle presets (if any) */}
                 {dbPresets
                   .filter(p => p.type === 'circle')
                   .map((preset) => (
+                    <HoverHint key={preset.id} content={preset.description}>
+                      <Badge
+                        variant={selectedPreset === preset.id ? 'default' : 'secondary'}
+                        className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                          selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
+                        }`}
+                        onClick={() => setSelectedPreset(preset.id)}
+                      >
+                        {preset.name}
+                      </Badge>
+                    </HoverHint>
+                  ))}
+                
+                {/* User's saved presets — hidden for members when custom topics are disabled */}
+                {(isAdmin || allowMemberCustomTopics) && userPresets.map((preset) => (
+                  <HoverHint key={preset.id} content={preset.description}>
                     <Badge
-                      key={preset.id}
                       variant={selectedPreset === preset.id ? 'default' : 'secondary'}
-                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 transition-all hover:scale-105 ${
+                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 transition-all hover:scale-105 border-2 border-blue-300 ${
                         selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
                       }`}
                       onClick={() => setSelectedPreset(preset.id)}
                     >
                       {preset.name}
+                      <Pencil 
+                        className="h-3 w-3" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPresetId(preset.id);
+                          setShowCustomModal(true);
+                        }}
+                      />
                     </Badge>
-                  ))}
-                
-                {/* User's saved presets — hidden for members when custom topics are disabled */}
-                {(isAdmin || allowMemberCustomTopics) && userPresets.map((preset) => (
-                  <Badge
-                    key={preset.id}
-                    variant={selectedPreset === preset.id ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 flex items-center gap-2 transition-all hover:scale-105 border-2 border-blue-300 ${
-                      selectedPreset === preset.id ? 'border-none' : 'neu-concave secondary'
-                    }`}
-                    onClick={() => setSelectedPreset(preset.id)}
-                  >
-                    {preset.name}
-                    <Pencil 
-                      className="h-3 w-3" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingPresetId(preset.id);
-                        setShowCustomModal(true);
-                      }}
-                    />
-                  </Badge>
+                  </HoverHint>
                 ))}
 
                 {/* Custom / Create new preset button — hidden for members when disabled by admin */}
                 {(isAdmin || allowMemberCustomTopics) && (
-                  <Badge
-                    variant={selectedPreset === 'custom' ? 'default' : 'secondary'}
-                    className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-white drop-shadow-lg flex items-center gap-2 transition-all hover:scale-105 ${
-                      selectedPreset === 'custom' ? 'border-none' : 'border-none'
-                    }`}
-                    onClick={() => {
-                      setSelectedPreset('custom');
-                      setEditingPresetId(null);
-                      setShowCustomModal(true);
-                    }}
-                  >
-                    Custom
-                    {selectedPreset === 'custom' && <Pencil className="h-3 w-3" />}
-                  </Badge>
+                  <HoverHint content="Build your own preset by combining topics and adding your own questions.">
+                    <Badge
+                      variant={selectedPreset === 'custom' ? 'default' : 'secondary'}
+                      className={`cursor-pointer md:text-sm text-xs md:px-5 px-3 md:py-2 py-1.5 bg-warning hover:bg-warning/90 text-white drop-shadow-lg flex items-center gap-2 transition-all hover:scale-105 ${
+                        selectedPreset === 'custom' ? 'border-none' : 'border-none'
+                      }`}
+                      onClick={() => {
+                        setSelectedPreset('custom');
+                        setEditingPresetId(null);
+                        setShowCustomModal(true);
+                      }}
+                    >
+                      Custom
+                      {selectedPreset === 'custom' && <Pencil className="h-3 w-3" />}
+                    </Badge>
+                  </HoverHint>
                 )}
               </div>
             </div>
@@ -481,49 +489,84 @@ export function FiltersSection() {
           </div>
 
           <div className="flex justify-start flex-col gap-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-block">
-                  <Button
-                    size="lg"
-                    className={cn(
-                      "w-36 text-lg font-bold py-6 rounded-full my-2",
-                      startDisabled && "opacity-50 cursor-not-allowed pointer-events-none"
-                    )}
-                    onClick={startDisabled ? undefined : handleStartSession}
-                  >
-                    START
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {startDisabled && (
-                <TooltipContent side="bottom">
-                  <p>No "{role}" members are currently online. Wait or select a different role.</p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-            {totalMatchingUsers === 0 && statsInitialized && !isRoleFilterActive && (
-              <div className="text-xs text-destructive">
-                No one currently matches your filters. You can still start and wait.
-              </div>
-            )}
-            {totalMatchingUsers > 0 && (
-              <div className="text-xs text-muted-foreground">
-                {lookingForChatCount > 0 && chattingCount > 0 ? (
-                  <p>
-                    {lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat, {chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting
-                  </p>
-                ) : (
-                  <>
-                    {lookingForChatCount > 0 && (
-                      <p>{lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat</p>
-                    )}
-                    {chattingCount > 0 && (
-                      <p>{chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting</p>
-                    )}
-                  </>
+            {/* START button row — button + inline status indicator */}
+            <div className="flex items-center gap-3">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-block">
+                    <Button
+                      size="lg"
+                      className={cn(
+                        "w-36 text-xl font-bold py-2 lg:py-2 rounded-full my-2 lg:my-1 mt-4 lg:mt-2",
+                        startDisabled && "opacity-50 cursor-not-allowed pointer-events-none"
+                      )}
+                      onClick={startDisabled ? undefined : handleStartSession}
+                    >
+                      START
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {startDisabled && (
+                  <TooltipContent side="bottom">
+                    <p>No "{role}" members are currently online. Wait or select a different role.</p>
+                  </TooltipContent>
                 )}
-              </div>
+              </Tooltip>
+
+              {/* Desktop: no-match warning icon — text expands out to the right on hover */}
+              {totalMatchingUsers === 0 && statsInitialized && !isRoleFilterActive && device === 'desktop' && (
+                <div className="group flex items-center cursor-default select-none">
+                  <AlertCircle className="h-6 w-6 text-destructive shrink-0 animate-pulse" />
+                  {/* grid 0fr→1fr is the smoothest CSS width-expand trick */}
+                  <span className="grid transition-all duration-300 ease-out [grid-template-columns:0fr] group-hover:[grid-template-columns:1fr] opacity-0 group-hover:opacity-100">
+                    <span className="overflow-hidden whitespace-nowrap text-xs text-destructive pl-2">
+                      No one currently matches your filters. You can still start and wait.
+                    </span>
+                  </span>
+                </div>
+              )}
+
+              {/* Desktop: user count inline */}
+              {totalMatchingUsers > 0 && device === 'desktop' && (
+                <span className="text-xs text-muted-foreground leading-tight">
+                  {lookingForChatCount > 0 && chattingCount > 0 ? (
+                    <>{lookingForChatCount} looking, {chattingCount} chatting</>
+                  ) : lookingForChatCount > 0 ? (
+                    <>{lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat</>
+                  ) : (
+                    <>{chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting</>
+                  )}
+                </span>
+              )}
+            </div>
+
+            {/* Mobile / tablet: keep text below button as before */}
+            {device !== 'desktop' && (
+              <>
+                {totalMatchingUsers === 0 && statsInitialized && !isRoleFilterActive && (
+                  <div className="text-xs text-destructive">
+                    No one currently matches your filters. You can still start and wait.
+                  </div>
+                )}
+                {totalMatchingUsers > 0 && (
+                  <div className="text-xs text-muted-foreground">
+                    {lookingForChatCount > 0 && chattingCount > 0 ? (
+                      <p>
+                        {lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat, {chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting
+                      </p>
+                    ) : (
+                      <>
+                        {lookingForChatCount > 0 && (
+                          <p>{lookingForChatCount} user{lookingForChatCount !== 1 ? 's' : ''} looking for chat</p>
+                        )}
+                        {chattingCount > 0 && (
+                          <p>{chattingCount} user{chattingCount !== 1 ? 's' : ''} currently chatting</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </CardContent>
