@@ -1,5 +1,18 @@
 import { supabase } from '@/lib/supabase';
 
+/** A single item in a circle's "About Us" preview gallery (max 5 per circle). */
+export interface AboutMediaItem {
+  type: 'image' | 'video';
+  /** Image: public storage URL. Video: external link (YouTube/Vimeo/etc.). */
+  url: string;
+}
+
+/** Minimal creator identity shown in the preview when not anonymous. */
+export interface CircleCreatorInfo {
+  name: string;
+  avatarUrl: string | null;
+}
+
 export interface Circle {
   id: string;
   name: string;
@@ -13,10 +26,22 @@ export interface Circle {
    * human-friendly identifier in admin tooling.
    */
   abbreviation: string;
+  /**
+   * Discoverability/join model: 'public' circles can be joined directly from the
+   * Discover section; 'private' circles are visible there but joinable only via a
+   * valid invite link. Pricing is not modelled yet — all circles are free.
+   */
+  visibility: 'public' | 'private';
   allow_member_invites: boolean;
   require_approval: boolean;
   disabled_default_preset_ids: string[];
   allow_member_custom_topics: boolean;
+  /** Longer rich-text (sanitized HTML) description shown in the Discover preview. */
+  about_description: string | null;
+  /** Ordered preview gallery (max 5). Excludes cover image + logo. */
+  about_media: AboutMediaItem[];
+  /** When true, the Discover preview hides who created the circle. */
+  anonymous_creator: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -333,6 +358,10 @@ export function invalidateDefaultCircleCache() {
 /**
  * Get or create the default "Mentor the Young" circle.
  * Result is cached at module level to avoid redundant DB hits.
+ *
+ * @deprecated Single-circle seed helper. The app is multi-circle now — resolve
+ * the relevant circle from `useCircle()` (active circle) or by id/abbreviation
+ * instead. Not for use in the render path; retained only for seeding.
  */
 export async function getOrCreateDefaultCircle() {
   if (_cachedDefaultCircle) return _cachedDefaultCircle;
@@ -378,44 +407,6 @@ export async function getOrCreateDefaultCircle() {
   })();
 
   return _defaultCircleFetchPromise;
-}
-
-/**
- * Add user to default circle
- */
-export async function addUserToDefaultCircle(userId: string, userRole?: string) {
-  try {
-    // Get or create the default circle
-    const defaultCircle = await getOrCreateDefaultCircle();
-
-    // Check if user is already a member
-    const { data: existingMember } = await supabase
-      .from('circle_members')
-      .select('id')
-      .eq('circle_id', defaultCircle.id)
-      .eq('user_id', userId)
-      .single();
-
-    if (existingMember) {
-      return; // Already a member
-    }
-
-    // Add user to circle with their selected role
-    const { error } = await supabase
-      .from('circle_members')
-      .insert({
-        circle_id: defaultCircle.id,
-        user_id: userId,
-        type: 'member',
-        role: userRole || null, // Store the actual user role (Mentor, Mentee, Alumni, etc.)
-        status: 'active',
-      });
-
-    if (error) throw error;
-  } catch (error) {
-    console.error('Error adding user to default circle:', error);
-    // Don't throw - circle membership is not critical for onboarding
-  }
 }
 
 /**
@@ -543,6 +534,53 @@ export async function checkIsCircleAdmin(circleId: string): Promise<boolean> {
     console.warn('Error checking circle admin status:', error);
     return false;
   }
+}
+
+/**
+ * Is the current user an admin of ANY circle (or a super admin)? Drives the
+ * universal "Admin Manager" entry point, which is independent of the
+ * active-circle route context. Mirrors the admin signal used by
+ * `getAdministeredCircles` / `getFullCircleRoleData`.
+ */
+export async function checkIsAdminAnywhere(): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const isSuperAdmin = await checkIsSuperAdminForUser(user);
+  if (isSuperAdmin) return true;
+
+  try {
+    const { data } = await supabase
+      .from('circle_members')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .or('admin_type.in.(creator,circle_admin),type.eq.admin')
+      .limit(1)
+      .maybeSingle();
+
+    return !!data;
+  } catch (error) {
+    console.warn('Error checking admin-anywhere status:', error);
+    return false;
+  }
+}
+
+// Module cache for the "admin anywhere" check, keyed by user id so switching
+// accounts recomputes. Same pattern as the default-circle cache above.
+let _adminAnywhereCache: { userId: string; promise: Promise<boolean> } | null = null;
+
+/** Clear the cached admin-anywhere result (call on sign-out / account switch). */
+export function resetAdminAnywhereCache() {
+  _adminAnywhereCache = null;
+}
+
+/** Cached `checkIsAdminAnywhere`, keyed by user id. */
+export function checkIsAdminAnywhereCached(userId: string): Promise<boolean> {
+  if (_adminAnywhereCache?.userId === userId) return _adminAnywhereCache.promise;
+  const promise = checkIsAdminAnywhere();
+  _adminAnywhereCache = { userId, promise };
+  return promise;
 }
 
 /**
@@ -828,6 +866,9 @@ export async function updateCircle(
     | 'disabled_default_preset_ids'
     | 'allow_member_custom_topics'
     | 'abbreviation'
+    | 'about_description'
+    | 'about_media'
+    | 'anonymous_creator'
   >>
 ) {
   const { data: { user } } = await supabase.auth.getUser();
@@ -1031,8 +1072,11 @@ export async function getMyCircles() {
       circles (
         id,
         name,
+        description,
         logo_url,
-        description
+        cover_image_url,
+        abbreviation,
+        visibility
       )
     `)
     .eq('user_id', user.id)
@@ -1040,5 +1084,295 @@ export async function getMyCircles() {
 
   if (error) throw error;
   return data;
+}
+
+export interface AdministeredCircle {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  abbreviation: string;
+  adminType: Exclude<AdminType, null>;
+}
+
+/**
+ * Circles the current user can manage (open Circle Settings for), independent of
+ * any active-circle route context. Circle management is universal: a super admin
+ * manages every circle, and everyone else manages the circles where they are the
+ * creator or a circle admin. Used by the Settings "Circles" tab so admins can
+ * reach circle settings from anywhere — including the hub.
+ */
+export async function getAdministeredCircles(): Promise<AdministeredCircle[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const isSuperAdmin = await checkIsSuperAdminForUser(user);
+
+  if (isSuperAdmin) {
+    const { data, error } = await supabase
+      .from('circles')
+      .select('id, name, logo_url, abbreviation');
+    if (error) throw error;
+    return (data ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      logo_url: c.logo_url,
+      abbreviation: c.abbreviation,
+      adminType: 'super_admin' as const,
+    }));
+  }
+
+  const { data, error } = await supabase
+    .from('circle_members')
+    .select(`
+      admin_type,
+      type,
+      circles ( id, name, logo_url, abbreviation )
+    `)
+    .eq('user_id', user.id)
+    .eq('status', 'active');
+  if (error) throw error;
+
+  const result: AdministeredCircle[] = [];
+  for (const m of (data ?? []) as any[]) {
+    const c = m.circles;
+    if (!c) continue;
+    const isCreator = m.admin_type === 'creator';
+    const isCircleAdmin = m.admin_type === 'circle_admin' || m.type === 'admin';
+    if (!isCreator && !isCircleAdmin) continue;
+    result.push({
+      id: c.id,
+      name: c.name,
+      logo_url: c.logo_url,
+      abbreviation: c.abbreviation,
+      adminType: isCreator ? 'creator' : 'circle_admin',
+    });
+  }
+  return result;
+}
+
+export interface DiscoverableCircle {
+  id: string;
+  name: string;
+  description: string | null;
+  logo_url: string | null;
+  cover_image_url: string | null;
+  abbreviation: string;
+  visibility: 'public' | 'private';
+  memberCount: number;
+  onlineCount: number;
+  aboutDescription: string | null;
+  aboutMedia: AboutMediaItem[];
+  anonymousCreator: boolean;
+  creator: CircleCreatorInfo | null;
+}
+
+/** Public, non-secret circle columns surfaced in Discover / preview. */
+const DISCOVER_SELECT =
+  'id, name, description, logo_url, cover_image_url, abbreviation, visibility, about_description, about_media, anonymous_creator, created_by';
+
+/** Coerce the JSONB `about_media` column into a clean, typed array. */
+export function normalizeAboutMedia(raw: unknown): AboutMediaItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((m): m is AboutMediaItem =>
+      !!m && (m.type === 'image' || m.type === 'video') && typeof m.url === 'string' && m.url.length > 0)
+    .map((m) => ({ type: m.type, url: m.url }));
+}
+
+/** Batch-resolve creator identities for a set of user ids. */
+async function fetchCreatorsById(ids: string[]): Promise<Map<string, CircleCreatorInfo>> {
+  const map = new Map<string, CircleCreatorInfo>();
+  if (ids.length === 0) return map;
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, profile_picture_url')
+    .in('id', ids);
+  for (const p of (data ?? []) as any[]) {
+    const name = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Member';
+    map.set(p.id, { name, avatarUrl: p.profile_picture_url ?? null });
+  }
+  return map;
+}
+
+/**
+ * List circles the current user is NOT already a member of, for the Discover
+ * section. Selects a public-field allow-list only — NEVER `invite_code`, which
+ * would leak a private circle's join secret to any authenticated user.
+ */
+export async function getDiscoverableCircles(): Promise<DiscoverableCircle[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  // Circles the user already belongs to (any status) — excluded from Discover.
+  const { data: myMemberships, error: memErr } = await supabase
+    .from('circle_members')
+    .select('circle_id')
+    .eq('user_id', user.id);
+  if (memErr) throw memErr;
+  const myCircleIds = new Set((myMemberships ?? []).map(m => m.circle_id));
+
+  const { data: circles, error } = await supabase
+    .from('circles')
+    .select(DISCOVER_SELECT);
+  if (error) throw error;
+
+  const discoverable = (circles ?? []).filter((c: any) => !myCircleIds.has(c.id));
+
+  // Resolve creators for non-anonymous circles in one batched query.
+  const creatorIds = Array.from(new Set(
+    discoverable
+      .filter((c: any) => !c.anonymous_creator && c.created_by)
+      .map((c: any) => c.created_by as string),
+  ));
+  const creatorsById = await fetchCreatorsById(creatorIds);
+
+  return Promise.all(
+    discoverable.map(async (c: any) => {
+      const counts = await getCircleMemberCounts(c.id).catch(() => ({ total: 0, online: 0 }));
+      return {
+        id: c.id,
+        name: c.name,
+        description: c.description,
+        logo_url: c.logo_url,
+        cover_image_url: c.cover_image_url,
+        abbreviation: c.abbreviation,
+        visibility: c.visibility,
+        memberCount: counts.total,
+        onlineCount: counts.online,
+        aboutDescription: c.about_description ?? null,
+        aboutMedia: normalizeAboutMedia(c.about_media),
+        anonymousCreator: !!c.anonymous_creator,
+        creator: c.anonymous_creator ? null : (creatorsById.get(c.created_by) ?? null),
+      } as DiscoverableCircle;
+    })
+  );
+}
+
+/**
+ * Full circle row looked up by abbreviation. Used by CircleContext to hydrate
+ * the active circle for `/circle/:abbreviation`. Call this only after confirming
+ * the viewer is a member (so `invite_code` isn't fetched for non-members).
+ */
+export async function getCircleByAbbreviationFull(abbreviation: string): Promise<Circle | null> {
+  const normalised = abbreviation.trim().toUpperCase();
+
+  const { data, error } = await supabase
+    .from('circles')
+    .select('*')
+    .eq('abbreviation', normalised)
+    .maybeSingle();
+
+  if (error) {
+    console.error('getCircleByAbbreviationFull error:', error);
+    return null;
+  }
+
+  return (data as Circle | null) ?? null;
+}
+
+/**
+ * Public, non-member-safe circle preview by abbreviation (for the Join-by-link
+ * modal). Same public allow-list as Discover — never exposes `invite_code`.
+ */
+export async function getPublicCirclePreview(abbreviation: string): Promise<DiscoverableCircle | null> {
+  const normalised = abbreviation.trim().toUpperCase();
+
+  const { data, error } = await supabase
+    .from('circles')
+    .select(DISCOVER_SELECT)
+    .eq('abbreviation', normalised)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const c = data as any;
+  const counts = await getCircleMemberCounts(c.id).catch(() => ({ total: 0, online: 0 }));
+  const creator = c.anonymous_creator || !c.created_by
+    ? null
+    : (await fetchCreatorsById([c.created_by])).get(c.created_by) ?? null;
+
+  return {
+    id: c.id,
+    name: c.name,
+    description: c.description,
+    logo_url: c.logo_url,
+    cover_image_url: c.cover_image_url,
+    abbreviation: c.abbreviation,
+    visibility: c.visibility,
+    memberCount: counts.total,
+    onlineCount: counts.online,
+    aboutDescription: c.about_description ?? null,
+    aboutMedia: normalizeAboutMedia(c.about_media),
+    anonymousCreator: !!c.anonymous_creator,
+    creator,
+  } as DiscoverableCircle;
+}
+
+/**
+ * Whether the current user may view a circle's member-facing homepage: an active
+ * member, or a super admin. Used to gate `/circle/:abbreviation` so non-members
+ * are redirected to the hub (and never fetch the full row / invite_code).
+ */
+export async function canViewCircle(circleId: string): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  if (await checkIsSuperAdminForUser(user)) return true;
+
+  const { data } = await supabase
+    .from('circle_members')
+    .select('status')
+    .eq('circle_id', circleId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  return (data as { status?: string } | null)?.status === 'active';
+}
+
+export type JoinCircleResult = 'joined' | 'already-member' | 'pending';
+
+/**
+ * Join a circle by id (used by the homepage Join modal / Discover quick-join).
+ * Looks up any existing membership first so callers can surface "already a
+ * member" instead of silently no-opping. An optional title-cased role
+ * (Mentor/Mentee/Alumni/…) can be set at insert time; otherwise it's left NULL
+ * and picked in the post-join Welcome/Role overlay.
+ */
+export async function joinCircleById(circleId: string, role?: string): Promise<JoinCircleResult> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { data: existing } = await supabase
+    .from('circle_members')
+    .select('id, status')
+    .eq('circle_id', circleId)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (existing) {
+    return existing.status === 'pending' ? 'pending' : 'already-member';
+  }
+
+  const { data: circle, error: circleErr } = await supabase
+    .from('circles')
+    .select('require_approval')
+    .eq('id', circleId)
+    .single();
+  if (circleErr) throw new Error('Circle not found');
+
+  const status = circle.require_approval ? 'pending' : 'active';
+
+  const { error } = await supabase
+    .from('circle_members')
+    .insert({
+      circle_id: circleId,
+      user_id: user.id,
+      type: 'member',
+      role: role ?? null,
+      status,
+    });
+  if (error) throw error;
+
+  return status === 'pending' ? 'pending' : 'joined';
 }
 

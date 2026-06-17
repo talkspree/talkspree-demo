@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { navigateToActiveCircle } from '@/lib/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Video,
@@ -176,7 +177,7 @@ export function MobileCallAgora() {
   // Redirect to home if state is missing (page refresh = connection lost)
   useEffect(() => {
     if (!callId || !matchedUser) {
-      navigate('/', { replace: true });
+      navigateToActiveCircle(navigate, undefined, { replace: true });
     }
   }, [callId, matchedUser, navigate]);
 
@@ -305,7 +306,7 @@ export function MobileCallAgora() {
       <div className="min-h-screen bg-zinc-950 text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-lg text-white/70">No active call</p>
-          <Button onClick={() => navigate('/')} className="mt-4">Go Home</Button>
+          <Button onClick={() => navigateToActiveCircle(navigate)} className="mt-4">Go Home</Button>
         </div>
       </div>
     );

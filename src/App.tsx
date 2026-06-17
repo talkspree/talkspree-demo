@@ -17,6 +17,7 @@ import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import Cookies from "./pages/Cookies";
 import Home from "./pages/Home";
+import CirclesHome from "./pages/CirclesHome";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
 import CircleSettings from "./pages/CircleSettings";
@@ -60,12 +61,18 @@ function App() {
               <Route path="/cookies" element={<Cookies />} />
               
               {/* Protected routes */}
-              <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+              {/* Top-level hub: "Your circles" + "Discover circles" */}
+              <Route path="/home" element={<ProtectedRoute><CirclesHome /></ProtectedRoute>} />
+              {/* A single circle's homepage */}
+              <Route path="/circle/:abbreviation" element={<ProtectedRoute><Home /></ProtectedRoute>} />
               <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
               {/* /profile/edit is now a Settings tab; redirect for old links/bookmarks */}
               <Route path="/profile/edit" element={<Navigate to="/settings?tab=profile" replace />} />
               <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-              <Route path="/settings/circle" element={<ProtectedRoute><CircleSettings /></ProtectedRoute>} />
+              {/* Circle management is per-circle: the abbreviation selects which circle to edit. */}
+              <Route path="/settings/circle/:abbreviation" element={<ProtectedRoute><CircleSettings /></ProtectedRoute>} />
+              {/* Old bare path no longer carries a circle — send back to the Circles tab. */}
+              <Route path="/settings/circle" element={<Navigate to="/settings?tab=circle" replace />} />
               <Route path="/call" element={<ProtectedRoute><Call /></ProtectedRoute>} />
               <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
               <Route path="/waiting" element={<ProtectedRoute><WaitingRoom /></ProtectedRoute>} />

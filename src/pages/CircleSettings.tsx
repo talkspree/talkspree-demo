@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Upload, Save, Plus, X, Pencil, Trash2, Globe, Instagram, Facebook, Linkedin, Mail, Youtube, Lock, Loader2, ChevronDown, ChevronUp, Monitor, Smartphone, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,21 +10,30 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { useCircleRole } from '@/hooks/useCircleRole';
 import { CircleCardPreview } from '@/components/circle/CircleCardPreview';
-import { 
-  getOrCreateDefaultCircle,
+import {
+  getCircleByAbbreviationFull,
+  getUserAdminType,
+  getCircleMemberCounts,
   invalidateDefaultCircleCache,
-  updateCircle, 
-  getCircleRoles, 
-  createCircleRole, 
-  updateCircleRole, 
+  updateCircle,
+  getCircleRoles,
+  createCircleRole,
+  updateCircleRole,
   deleteCircleRole,
   toggleDefaultPreset,
   toggleMemberCustomTopics,
+  normalizeAboutMedia,
+  AdminType,
   CircleRole,
-  Circle
+  Circle,
+  AboutMediaItem,
+  CircleCreatorInfo,
 } from '@/lib/api/circles';
+import { getProfileById } from '@/lib/api/profiles';
+import { sanitizeRichText } from '@/lib/sanitizeHtml';
+import { AboutUsSection, aboutMediaToEditable, type EditableMedia } from '@/components/circle/AboutUsSection';
+import { AboutUsPreviewModal } from '@/components/circle/AboutUsPreviewModal';
 import {
   getCircleTopics,
   getCirclePresets,
@@ -46,7 +55,12 @@ import { ImageCropModal } from '@/components/ui/ImageCropModal';
 
 export default function CircleSettings() {
   const navigate = useNavigate();
-  const { isAdmin, adminType, loading: roleLoading } = useCircleRole();
+  const { abbreviation: routeAbbrev } = useParams<{ abbreviation: string }>();
+  // Admin status is resolved for the circle named in the route — not the active
+  // circle in context — so circle management works from anywhere (incl. the hub).
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [adminType, setAdminType] = useState<AdminType>(null);
+  const [roleLoading, setRoleLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pageStatus, setPageStatus] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -85,6 +99,22 @@ export default function CircleSettings() {
   const [initialSocialLinks, setInitialSocialLinks] = useState(EMPTY_SOCIAL_LINKS);
   const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
   const [pendingCoverFile, setPendingCoverFile] = useState<File | null>(null);
+
+  // ── "About Us info" section state ──
+  const [aboutDescription, setAboutDescription] = useState('');
+  const [aboutMedia, setAboutMedia] = useState<EditableMedia[]>([]);
+  const [anonymousCreator, setAnonymousCreator] = useState(false);
+  const [initialAboutDescription, setInitialAboutDescription] = useState('');
+  const [initialAboutMediaSig, setInitialAboutMediaSig] = useState('[]');
+  const [initialAnonymousCreator, setInitialAnonymousCreator] = useState(false);
+  const [creatorInfo, setCreatorInfo] = useState<CircleCreatorInfo | null>(null);
+  const [showAboutPreview, setShowAboutPreview] = useState(false);
+  const [memberCounts, setMemberCounts] = useState({ total: 0, online: 0 });
+
+  // A stable signature of the media list (order-sensitive). Pending images carry
+  // a unique id so they always read as "changed" until saved.
+  const aboutMediaSignature = (items: EditableMedia[]) =>
+    JSON.stringify(items.map((m) => (m.kind === 'image-pending' ? `pending:${m.id}` : `${m.kind}:${m.url}`)));
 
   // Preview viewport toggle (desktop / mobile) – preview pane is desktop-only.
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'mobile'>('desktop');
@@ -163,9 +193,35 @@ export default function CircleSettings() {
 
   // Load circle data
   useEffect(() => {
+    let cancelled = false;
     const loadData = async () => {
+      if (!routeAbbrev) {
+        navigate('/settings?tab=circle', { replace: true });
+        return;
+      }
       try {
-        const circleData = await getOrCreateDefaultCircle();
+        const circleData = await getCircleByAbbreviationFull(routeAbbrev);
+        if (cancelled) return;
+        if (!circleData) {
+          navigate('/settings?tab=circle', { replace: true });
+          return;
+        }
+
+        // Verify the user can manage THIS circle before showing settings.
+        const resolvedAdminType = await getUserAdminType(circleData.id);
+        if (cancelled) return;
+        const canManage =
+          resolvedAdminType === 'creator' ||
+          resolvedAdminType === 'circle_admin' ||
+          resolvedAdminType === 'super_admin';
+        setAdminType(resolvedAdminType);
+        setIsAdmin(canManage);
+        setRoleLoading(false);
+        if (!canManage) {
+          navigate('/settings?tab=circle', { replace: true });
+          return;
+        }
+
         setCircle(circleData);
         const loadedName = circleData.name || '';
         const loadedDescription = circleData.description || '';
@@ -195,6 +251,33 @@ export default function CircleSettings() {
         setInitialAbbreviation(loadedAbbrev);
         setInitialSocialLinks(loadedSocial);
 
+        // Load "About Us" info
+        const loadedAbout = circleData.about_description || '';
+        const loadedMedia = aboutMediaToEditable(normalizeAboutMedia(circleData.about_media));
+        const loadedAnon = !!circleData.anonymous_creator;
+        setAboutDescription(loadedAbout);
+        setAboutMedia(loadedMedia);
+        setAnonymousCreator(loadedAnon);
+        setInitialAboutDescription(loadedAbout);
+        setInitialAboutMediaSig(aboutMediaSignature(loadedMedia));
+        setInitialAnonymousCreator(loadedAnon);
+
+        // Member counts power an accurate "About Us" preview (best-effort).
+        getCircleMemberCounts(circleData.id)
+          .then((c) => { if (!cancelled) setMemberCounts(c); })
+          .catch(() => { /* preview shows 0 */ });
+
+        // Resolve the real creator for an accurate preview (best-effort).
+        if (circleData.created_by) {
+          getProfileById(circleData.created_by)
+            .then((p) => {
+              if (cancelled || !p) return;
+              const cname = `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() || 'Member';
+              setCreatorInfo({ name: cname, avatarUrl: p.profile_picture_url ?? null });
+            })
+            .catch(() => { /* preview falls back to no creator */ });
+        }
+
         // Load disabled default preset IDs
         setDisabledDefaultPresetIds(circleData.disabled_default_preset_ids || []);
 
@@ -214,21 +297,18 @@ export default function CircleSettings() {
         await loadTopicsAndPresets(circleData.id);
       } catch (error) {
         console.error('Error loading circle data:', error);
-        setStatus('Failed to load circle settings', false);
+        if (!cancelled) setStatus('Failed to load circle settings', false);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setRoleLoading(false);
+        }
       }
     };
-    
-    loadData();
-  }, [loadTopicsAndPresets]);
 
-  // Redirect if not admin
-  useEffect(() => {
-    if (!roleLoading && !isAdmin) {
-      navigate('/');
-    }
-  }, [roleLoading, isAdmin, navigate]);
+    loadData();
+    return () => { cancelled = true; };
+  }, [routeAbbrev, navigate, loadTopicsAndPresets]);
 
   // Abbreviation must be 2-10 chars, A-Z / 0-9 only. Mirrors the DB constraint
   // in migration 078 so we fail fast in the UI before round-tripping.
@@ -251,6 +331,9 @@ export default function CircleSettings() {
     if (description !== initialDescription) return true;
     if (normalisedAbbreviation !== initialAbbreviation) return true;
     if (JSON.stringify(socialLinks) !== JSON.stringify(initialSocialLinks)) return true;
+    if (aboutDescription !== initialAboutDescription) return true;
+    if (anonymousCreator !== initialAnonymousCreator) return true;
+    if (aboutMediaSignature(aboutMedia) !== initialAboutMediaSig) return true;
     return false;
   }, [
     pendingLogoFile, pendingCoverFile,
@@ -258,6 +341,9 @@ export default function CircleSettings() {
     description, initialDescription,
     normalisedAbbreviation, initialAbbreviation,
     socialLinks, initialSocialLinks,
+    aboutDescription, initialAboutDescription,
+    anonymousCreator, initialAnonymousCreator,
+    aboutMedia, initialAboutMediaSig,
   ]);
 
   const handleSave = async () => {
@@ -281,6 +367,26 @@ export default function CircleSettings() {
         nextCoverUrl = await uploadImageToStorage(pendingCoverFile, 'cover', initialCoverImageUrl);
       }
 
+      // Upload any pending "About Us" images, preserving gallery order.
+      const nextAboutMedia: AboutMediaItem[] = [];
+      for (const m of aboutMedia) {
+        if (m.kind === 'video') {
+          nextAboutMedia.push({ type: 'video', url: m.url });
+        } else if (m.kind === 'image') {
+          nextAboutMedia.push({ type: 'image', url: m.url });
+        } else {
+          const fileName = `${circle.id}/about_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+          const { error: aboutUploadErr } = await supabase.storage
+            .from('circle-assets')
+            .upload(fileName, m.file, { cacheControl: '3600', upsert: false, contentType: m.file.type || 'image/jpeg' });
+          if (aboutUploadErr) throw aboutUploadErr;
+          const { data: { publicUrl } } = supabase.storage.from('circle-assets').getPublicUrl(fileName);
+          nextAboutMedia.push({ type: 'image', url: publicUrl });
+        }
+      }
+
+      const cleanAbout = sanitizeRichText(aboutDescription);
+
       const saved = await updateCircle(circle.id, {
         name,
         description,
@@ -288,6 +394,9 @@ export default function CircleSettings() {
         cover_image_url: nextCoverUrl || null,
         social_links: socialLinks,
         abbreviation: normalisedAbbreviation,
+        about_description: cleanAbout || null,
+        about_media: nextAboutMedia,
+        anonymous_creator: anonymousCreator,
       });
 
       invalidateDefaultCircleCache();
@@ -309,6 +418,16 @@ export default function CircleSettings() {
       setInitialSocialLinks(socialLinks);
       setPendingLogoFile(null);
       setPendingCoverFile(null);
+
+      // Rebuild the media list from persisted URLs (pending files are now hosted)
+      // and reset the About Us snapshot so dirty state clears.
+      aboutMedia.forEach((m) => { if (m.kind === 'image-pending') URL.revokeObjectURL(m.previewUrl); });
+      const persistedMedia = aboutMediaToEditable(nextAboutMedia);
+      setAboutMedia(persistedMedia);
+      setAboutDescription(cleanAbout);
+      setInitialAboutDescription(cleanAbout);
+      setInitialAboutMediaSig(aboutMediaSignature(persistedMedia));
+      setInitialAnonymousCreator(anonymousCreator);
 
       setStatus('Circle settings saved', true);
     } catch (error) {
@@ -707,7 +826,7 @@ export default function CircleSettings() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/settings?tab=circle')}
               className="rounded-full"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -943,6 +1062,17 @@ export default function CircleSettings() {
             </div>
           </CardContent>
         </Card>
+
+        {/* About Us info — media, rich description, creator visibility */}
+        <AboutUsSection
+          media={aboutMedia}
+          onMediaChange={setAboutMedia}
+          description={aboutDescription}
+          onDescriptionChange={setAboutDescription}
+          anonymousCreator={anonymousCreator}
+          onAnonymousCreatorChange={setAnonymousCreator}
+          onPreview={() => setShowAboutPreview(true)}
+        />
 
         {/* Social Links */}
         <Card>
@@ -1511,6 +1641,23 @@ export default function CircleSettings() {
           outputFileName={`${cropTarget ?? 'image'}-${Date.now()}.jpg`}
           title={cropTarget === 'cover' ? 'Adjust cover image' : 'Adjust profile picture'}
           onCropComplete={handleCropComplete}
+        />
+
+        {/* About Us preview — what members see in Discover */}
+        <AboutUsPreviewModal
+          isOpen={showAboutPreview}
+          onClose={() => setShowAboutPreview(false)}
+          circle={circle}
+          name={name}
+          description={description}
+          logoUrl={logoUrl}
+          coverImageUrl={coverImageUrl}
+          aboutDescription={aboutDescription}
+          media={aboutMedia}
+          anonymousCreator={anonymousCreator}
+          memberCount={memberCounts.total}
+          onlineCount={memberCounts.online}
+          creator={creatorInfo}
         />
 
         {/* Danger Zone (only for Creator and Super Admin) */}

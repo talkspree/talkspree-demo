@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { LoginForm } from '@/components/auth/LoginForm';
 import { SignupForm } from '@/components/auth/SignupForm';
-import { InviteCodeForm } from '@/components/auth/InviteCodeForm';
 import { EmailConfirmationModal } from '@/components/auth/EmailConfirmationModal';
 import { AdaptiveLayout } from '@/components/layouts/AdaptiveLayout';
 import { useDevice } from '@/hooks/useDevice';
@@ -12,7 +11,7 @@ import { markFeedbackTooltipForNextLogin } from '@/components/feedback/feedbackT
 import { getPendingAffiliate, clearPendingAffiliate, type PendingAffiliate } from '@/lib/affiliate';
 import { claimAffiliate } from '@/lib/api/affiliates';
 
-type AuthMode = 'login' | 'signup' | 'invite';
+type AuthMode = 'login' | 'signup';
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -178,10 +177,6 @@ export default function Auth() {
     }
   };
 
-  const handleValidInviteCode = () => {
-    setMode('signup');
-  };
-
   if (device === 'mobile') {
     return (
       <AdaptiveLayout>
@@ -199,15 +194,9 @@ export default function Auth() {
             )}
             {mode === 'login' && (
               <LoginForm
-                onSwitchToSignup={() => { setMode('invite'); setAuthError(null); }}
+                onSwitchToSignup={() => { setMode('signup'); setAuthError(null); }}
                 onGoogleSignIn={handleGoogleAuth}
                 onLogin={handleLogin}
-              />
-            )}
-            {mode === 'invite' && (
-              <InviteCodeForm
-                onValidCode={handleValidInviteCode}
-                onBack={() => { setMode('login'); setAuthError(null); }}
               />
             )}
             {mode === 'signup' && (
@@ -242,15 +231,9 @@ export default function Auth() {
             )}
             {mode === 'login' && (
               <LoginForm
-                onSwitchToSignup={() => { setMode('invite'); setAuthError(null); }}
+                onSwitchToSignup={() => { setMode('signup'); setAuthError(null); }}
                 onGoogleSignIn={handleGoogleAuth}
                 onLogin={handleLogin}
-              />
-            )}
-            {mode === 'invite' && (
-              <InviteCodeForm
-                onValidCode={handleValidInviteCode}
-                onBack={() => { setMode('login'); setAuthError(null); }}
               />
             )}
             {mode === 'signup' && (

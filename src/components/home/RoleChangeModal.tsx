@@ -9,8 +9,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
-import { getOrCreateDefaultCircle, getCircleRoles, updateMyCircleRole, CircleRole } from '@/lib/api/circles';
-import { supabase } from '@/lib/supabase';
+import { getCircleRoles, updateMyCircleRole, CircleRole } from '@/lib/api/circles';
+import { useCircle } from '@/contexts/CircleContext';
 import { Loader2 } from 'lucide-react';
 
 interface RoleChangeModalProps {
@@ -31,33 +31,30 @@ export function RoleChangeModal({ open, onOpenChange, currentRole, onRoleChanged
   const [saving, setSaving] = useState(false);
   const [selectedRole, setSelectedRole] = useState(currentRole);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [circle, setCircle] = useState<any>(null);
+  // The role being changed is always the active circle the user is viewing.
+  const { circle } = useCircle();
   const [roles, setRoles] = useState<{ value: string; label: string }[]>(DEFAULT_ROLES);
 
   useEffect(() => {
     if (open) {
-      loadCircleData();
+      loadRoles();
       setSelectedRole(currentRole);
     }
-  }, [open, currentRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, currentRole, circle?.id]);
 
-  const loadCircleData = async () => {
+  const loadRoles = async () => {
+    if (!circle) {
+      setLoading(false);
+      return;
+    }
     try {
-      const defaultCircle = await getOrCreateDefaultCircle();
-      setCircle(defaultCircle);
-
-      if (defaultCircle) {
-        try {
-          const circleRoles = await getCircleRoles(defaultCircle.id);
-          if (circleRoles.length > 0) {
-            setRoles(circleRoles.map(r => ({ value: r.name, label: r.name })));
-          }
-        } catch {
-          // Fall back to default roles if circle_roles table is unavailable
-        }
+      const circleRoles = await getCircleRoles(circle.id);
+      if (circleRoles.length > 0) {
+        setRoles(circleRoles.map(r => ({ value: r.name, label: r.name })));
       }
-    } catch (error) {
-      console.error('Error loading circle:', error);
+    } catch {
+      // Fall back to default roles if circle_roles table is unavailable
     } finally {
       setLoading(false);
     }

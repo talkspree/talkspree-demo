@@ -32,15 +32,18 @@ import { ImageCropModal } from "@/components/ui/ImageCropModal";
 import { DeleteAccountDialog } from "@/components/settings/DeleteAccountDialog";
 import { useDevice } from "@/hooks/useDevice";
 import { useProfileData } from "@/hooks/useProfileData";
-import { useCircleRole } from "@/hooks/useCircleRole";
-import { useCircle } from "@/contexts/CircleContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import {
   updateProfile as updateProfileAPI,
   uploadProfilePicture,
 } from "@/lib/api/profiles";
-import { getMyCircles, updateMyCircleRole } from "@/lib/api/circles";
+import {
+  getMyCircles,
+  updateMyCircleRole,
+  getAdministeredCircles,
+  type AdministeredCircle,
+} from "@/lib/api/circles";
 import {
   GENDER_OPTIONS,
   INDUSTRY_OPTIONS,
@@ -74,8 +77,6 @@ export default function Settings() {
   const device = useDevice();
   const [searchParams, setSearchParams] = useSearchParams();
   const { profileData, reloadProfile, loading: profileLoading } = useProfileData();
-  const { isAdmin, adminType } = useCircleRole();
-  const { circle: defaultCircle } = useCircle();
   const { user, updatePassword, resetPassword } = useAuth();
 
   const initialTab = (searchParams.get("tab") as SectionId) || "profile";
@@ -170,16 +171,30 @@ export default function Settings() {
   const [circleRoleChanges, setCircleRoleChanges] = useState<Record<string, string>>({});
   const [loadingCircles, setLoadingCircles] = useState(true);
 
+  // Circles this user can manage — loaded independently of the active-circle
+  // route context, so the "Circles" tab works from anywhere (incl. the hub).
+  const [adminCircles, setAdminCircles] = useState<AdministeredCircle[]>([]);
+  const [loadingAdminCircles, setLoadingAdminCircles] = useState(true);
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const circles = await getMyCircles();
-        if (!cancelled) setUserCircles(circles as unknown as CircleMembership[]);
+        const [circles, administered] = await Promise.all([
+          getMyCircles(),
+          getAdministeredCircles().catch(() => [] as AdministeredCircle[]),
+        ]);
+        if (!cancelled) {
+          setUserCircles(circles as unknown as CircleMembership[]);
+          setAdminCircles(administered);
+        }
       } catch (err) {
         console.error("Error loading circles:", err);
       } finally {
-        if (!cancelled) setLoadingCircles(false);
+        if (!cancelled) {
+          setLoadingCircles(false);
+          setLoadingAdminCircles(false);
+        }
       }
     };
     load();
@@ -430,7 +445,7 @@ export default function Settings() {
     { id: "profile", label: "Profile", icon: User },
     { id: "account", label: "Account", icon: Mail },
     { id: "role", label: "Roles", icon: Users },
-    ...(isAdmin ? [{ id: "circle" as const, label: "Circles", icon: Shield }] : []),
+    ...(adminCircles.length > 0 ? [{ id: "circle" as const, label: "Circles", icon: Shield }] : []),
   ];
 
   // ────────────────────────────────────────────────────────────
@@ -827,41 +842,57 @@ export default function Settings() {
     </div>
   );
 
+  const adminTypeLabel = (t: AdministeredCircle["adminType"]) =>
+    t === "super_admin" ? "Super Admin" : t === "creator" ? "Creator" : "Admin";
+
   const renderCircle = () => (
     <div className="space-y-6 animate-in fade-in-50 slide-in-from-bottom-1 duration-300">
       <SectionHeader
         title="Circles"
-        description={`Manage your circles as ${adminType === "super_admin" ? "Super Admin" : adminType === "creator" ? "Creator" : "Admin"}.`}
+        description="Open settings for any circle you manage."
       />
-      {defaultCircle ? (
-        <Card
-          onClick={() => navigate("/settings/circle")}
-          className="border-border/60 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 group"
-        >
-          <CardContent className="p-5 sm:p-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-background shadow-md">
-                <AvatarImage src={defaultCircle.logo_url || undefined} />
-                <AvatarFallback className="bg-gradient-primary text-primary-foreground text-xl font-bold">
-                  {defaultCircle.name?.[0] || "C"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-lg truncate">{defaultCircle.name}</h4>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0">
-                <Settings2 className="h-4 w-4 hidden sm:block" />
-                <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
+      {loadingAdminCircles ? (
         <Card className="border-border/60 shadow-sm">
           <CardContent className="py-10 flex items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </CardContent>
         </Card>
+      ) : adminCircles.length === 0 ? (
+        <Card className="border-dashed border-2 border-border/70 shadow-none">
+          <CardContent className="py-12 text-center">
+            <Shield className="h-10 w-10 mx-auto text-muted-foreground/60 mb-3" />
+            <p className="text-muted-foreground">You don't manage any circles.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {adminCircles.map((c) => (
+            <Card
+              key={c.id}
+              onClick={() => navigate(`/settings/circle/${c.abbreviation}`)}
+              className="border-border/60 shadow-sm cursor-pointer transition-all duration-200 hover:shadow-md hover:border-primary/40 hover:-translate-y-0.5 group"
+            >
+              <CardContent className="p-5 sm:p-6">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-background shadow-md">
+                    <AvatarImage src={c.logo_url || undefined} />
+                    <AvatarFallback className="bg-gradient-primary text-primary-foreground text-xl font-bold">
+                      {c.name?.[0] || "C"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-lg truncate">{c.name}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">{adminTypeLabel(c.adminType)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground group-hover:text-foreground transition-colors flex-shrink-0">
+                    <Settings2 className="h-4 w-4 hidden sm:block" />
+                    <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -909,7 +940,7 @@ export default function Settings() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/home")}
           className="rounded-full flex-shrink-0"
           aria-label="Back"
         >

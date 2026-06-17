@@ -1,20 +1,15 @@
-import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getOrCreateDefaultCircle, type Circle } from '@/lib/api/circles';
+import { type Circle } from '@/lib/api/circles';
 
 interface WelcomeCircleStepProps {
   onNext: () => void;
-  onPrev: () => void;
+  onPrev?: () => void;
+  /** The circle to greet (resolved by the caller — never the global default). */
+  circle: Circle | null;
 }
 
-export function WelcomeCircleStep({ onNext, onPrev }: WelcomeCircleStepProps) {
-  const [circle, setCircle] = useState<Circle | null>(null);
-
-  useEffect(() => {
-    getOrCreateDefaultCircle().then(setCircle).catch(console.error);
-  }, []);
-
+export function WelcomeCircleStep({ onNext, onPrev, circle }: WelcomeCircleStepProps) {
   return (
     <Card className="glass shadow-apple-lg">
       <CardHeader className="text-center">
@@ -36,9 +31,11 @@ export function WelcomeCircleStep({ onNext, onPrev }: WelcomeCircleStepProps) {
       </CardHeader>
       <CardContent>
         <div className="flex gap-3 pt-4">
-          <Button variant="outline" onClick={onPrev} className="transition-spring">
-            Back
-          </Button>
+          {onPrev && (
+            <Button variant="outline" onClick={onPrev} className="transition-spring">
+              Back
+            </Button>
+          )}
           <Button
             onClick={onNext}
             className="flex-1 bg-gradient-primary hover:shadow-glow transition-spring"

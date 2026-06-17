@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { navigateToActiveCircle } from "@/lib/navigation";
 import { Loader2, Users, Clock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -627,7 +628,7 @@ export default function WaitingRoom() {
     cleanupReadyChannel();
     cleanupRematchChannel();
     clearAllTimers();
-    navigate("/");
+    navigateToActiveCircle(navigate);
   }
 
   // =====================================================================
@@ -650,7 +651,7 @@ export default function WaitingRoom() {
   // by RLS (migration 090); this is the UX redirect back to Home, where the
   // ModerationGate / START gate explains why.
   useEffect(() => {
-    if (moderationBlocked) navigate('/', { replace: true });
+    if (moderationBlocked) navigateToActiveCircle(navigate, undefined, { replace: true });
   }, [moderationBlocked, navigate]);
 
   // Join queue on mount, leave on unmount

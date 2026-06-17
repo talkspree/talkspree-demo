@@ -4,8 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { OnboardingData } from '@/pages/Onboarding';
 
 interface RoleSelectionStepProps {
-  data: OnboardingData;
-  updateData: (updates: Partial<OnboardingData>) => void;
+  /** Optional — only supplied during the onboarding flow. */
+  data?: OnboardingData;
+  updateData?: (updates: Partial<OnboardingData>) => void;
   onComplete: (roleId: string) => void;
   onPrev?: () => void;
 }
@@ -17,11 +18,11 @@ const roles = [
 ];
 
 export function RoleSelectionStep({ data, updateData, onComplete, onPrev }: RoleSelectionStepProps) {
-  const [selectedRole, setSelectedRole] = useState(data.role);
+  const [selectedRole, setSelectedRole] = useState(data?.role ?? '');
 
   const handleRoleSelect = (roleId: string) => {
     setSelectedRole(roleId);
-    updateData({ role: roleId });
+    updateData?.({ role: roleId });
     onComplete(roleId);
   };
 

@@ -370,21 +370,21 @@ export async function updateProfile(updates: Partial<Profile>) {
  * Complete onboarding and create/update profile
  * Works with or without an active session
  */
-export async function completeOnboarding(onboardingData: OnboardingData) {
-  
+export async function completeOnboarding(
+  onboardingData: OnboardingData,
+  opts?: { joinCircleId?: string },
+) {
+
   // Get user from session (should always exist after email verification)
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+
   if (!user) {
     console.error('No authenticated user found');
     throw new Error('You must be logged in to complete onboarding. Please refresh the page and try again.');
   }
-  
+
   const userId = user.id;
   const userEmail = user.email;
-
-  // Import addUserToDefaultCircle here to avoid circular dependencies
-  const { addUserToDefaultCircle } = await import('@/lib/api/circles');
 
   // Upload profile picture if provided
   let profilePictureUrl: string | null = null;
@@ -577,16 +577,21 @@ export async function completeOnboarding(onboardingData: OnboardingData) {
     
   }
 
-  // Add user to default circle with their selected role
-  try {
-    // Capitalize the role for display (mentor -> Mentor, mentee -> Mentee, alumni -> Alumni)
-    const formattedRole = onboardingData.role 
-      ? onboardingData.role.charAt(0).toUpperCase() + onboardingData.role.slice(1)
-      : undefined;
-    await addUserToDefaultCircle(userId, formattedRole);
-  } catch (error) {
-    console.error('Failed to add user to circle:', error);
-    // Continue even if circle membership fails
+  // Join the invited circle with the selected role — ONLY for invited signups
+  // (opts.joinCircleId resolved from the affiliate/invite context). Organic
+  // signups join no circle here; they pick one later from the hub.
+  if (opts?.joinCircleId) {
+    try {
+      // Capitalize the role for display (mentor -> Mentor, mentee -> Mentee, alumni -> Alumni)
+      const formattedRole = onboardingData.role
+        ? onboardingData.role.charAt(0).toUpperCase() + onboardingData.role.slice(1)
+        : undefined;
+      const { joinCircleById } = await import('@/lib/api/circles');
+      await joinCircleById(opts.joinCircleId, formattedRole);
+    } catch (error) {
+      console.error('Failed to add user to circle:', error);
+      // Continue even if circle membership fails
+    }
   }
 
   return true;

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { navigateToActiveCircle } from '@/lib/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { AlertTriangle, ArrowRight, X, Check, Star } from 'lucide-react';
@@ -86,7 +87,7 @@ export default function WrapUp() {
   }, []);
 
   if (!matchedUser) {
-    navigate('/');
+    navigateToActiveCircle(navigate);
     return null;
   }
 
@@ -473,7 +474,7 @@ export default function WrapUp() {
                           <ArrowRight size={20} /> Next Person
                         </button>
                         <button
-                          onClick={() => navigate('/')}
+                          onClick={() => navigateToActiveCircle(navigate)}
                           className="text-slate-400 hover:text-slate-700 font-semibold text-sm transition-all duration-200 hover:underline underline-offset-4 active:scale-95 cursor-pointer"
                         >
                           Return Home
@@ -551,7 +552,7 @@ export default function WrapUp() {
                     <ArrowRight size={20} /> Next Person
                   </button>
                   <button
-                    onClick={() => navigate('/')}
+                    onClick={() => navigateToActiveCircle(navigate)}
                     className="text-slate-400 hover:text-slate-700 font-semibold text-sm transition-all duration-200 hover:underline underline-offset-4 active:scale-95 cursor-pointer"
                   >
                     Return Home
@@ -606,7 +607,7 @@ export default function WrapUp() {
                   <ArrowRight size={20} /> Next Person
                 </button>
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => navigateToActiveCircle(navigate)}
                   className="text-slate-400 font-semibold text-sm active:text-slate-700 transition-colors py-1"
                 >
                   Return Home
@@ -630,7 +631,7 @@ export default function WrapUp() {
                   <ArrowRight size={20} /> Next Person
                 </button>
                 <button
-                  onClick={() => navigate('/')}
+                  onClick={() => navigateToActiveCircle(navigate)}
                   className="text-slate-400 font-semibold text-sm active:text-slate-700 transition-colors py-1"
                 >
                   Return Home

@@ -5,6 +5,7 @@ import { useDevice } from '@/hooks/useDevice';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useCircle } from '@/contexts/CircleContext';
+import { useIsAdminAnywhere } from '@/hooks/useIsAdminAnywhere';
 import logo from '@/assets/logo.svg';
 import headerPattern from '@/assets/header-pattern.png';
 import {
@@ -21,19 +22,29 @@ import { RoleChangeModal } from './RoleChangeModal';
 import { NotificationBell } from './NotificationBell';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
 
-export function Header() {
+interface HeaderProps {
+  /** The hub (/home) passes false — it isn't scoped to a single circle. */
+  showRolePill?: boolean;
+}
+
+export function Header({ showRolePill = true }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const device = useDevice();
   const { signOut } = useAuth();
   const { profileData } = useProfileData();
   const { circle, role: circleRole, isAdmin, loading: roleLoading, reloadRole } = useCircle();
+  const { isAdminAnywhere } = useIsAdminAnywhere();
   const [showProfile, setShowProfile] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
 
-  // Check if we're on the contacts page
+  // Role pill shows only when enabled, on a page with an active circle (or for a
+  // global Super Admin), and not on the contacts page (unless Super Admin).
   const isContactsPage = location.pathname === '/contacts';
-  const shouldShowRoleBadge = !isContactsPage || circleRole === 'Super Admin';
+  const shouldShowRoleBadge =
+    showRolePill &&
+    (circleRole === 'Super Admin' || !!circle) &&
+    (!isContactsPage || circleRole === 'Super Admin');
 
   // Get role badge styling based on role type
   const getRoleBadgeStyle = (role: string) => {
@@ -71,7 +82,7 @@ export function Header() {
             style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
           />
           <div className="relative z-10 flex h-full w-full min-w-0 items-center justify-between gap-4">
-          <button type="button" onClick={() => navigate('/')} className="focus:outline-none shrink-0">
+          <button type="button" onClick={() => navigate('/home')} className="focus:outline-none shrink-0">
             <img src={logo} alt="TalkSpree" className={device === 'mobile' ? 'h-5' : 'h-6'} />
           </button>
 
@@ -93,7 +104,7 @@ export function Header() {
                 <Avatar className={`h-6 w-6 ${isAdminRole ? 'border border-white/30' : 'border border-border/50'}`}>
                   <AvatarImage src={circleLogoUrl} alt="Circle" />
                   <AvatarFallback className={`text-xs ${isAdminRole ? 'bg-white/20' : 'bg-muted'}`}>
-                    M
+                    {circle?.name?.charAt(0)?.toUpperCase() || 'C'}
                   </AvatarFallback>
                 </Avatar>
               )}
@@ -124,7 +135,7 @@ export function Header() {
                 <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer justify-center">
                   Settings
                 </DropdownMenuItem>
-                {isAdminRole && (
+                {isAdminAnywhere && (
                   <DropdownMenuItem
                     onClick={() => window.open('https://admin.talkspree.com', '_blank', 'noopener,noreferrer')}
                     className="cursor-pointer justify-center gap-2 my-1 rounded-md border border-border/60 bg-muted/60 text-muted-foreground focus:bg-muted focus:text-foreground"

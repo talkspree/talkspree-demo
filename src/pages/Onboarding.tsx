@@ -10,7 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { hasCompletedOnboarding } from '@/lib/api/profiles';
 import { claimPendingAffiliate } from '@/lib/api/affiliates';
-import { clearPendingAffiliate } from '@/lib/affiliate';
+import { clearPendingAffiliate, getPendingAffiliate } from '@/lib/affiliate';
+import { getCircleById, type Circle } from '@/lib/api/circles';
+import { circlePath } from '@/lib/navigation';
 import logo from '@/assets/logo.svg';
 
 // We'll create these components next
@@ -74,6 +76,10 @@ export default function Onboarding() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [fadingOut, setFadingOut] = useState(false);
   const [loading, setLoading] = useState(true);
+  // The circle the user was invited to (if any). Only a resolved circle id —
+  // never a bare invited_by referral — triggers the Welcome + Role steps and a
+  // circle join. Organic signups leave this null and land on the hub.
+  const [invitedCircle, setInvitedCircle] = useState<Circle | null>(null);
   const navigate = useNavigate();
   const device = useDevice();
   const { user } = useAuth();
@@ -125,6 +131,33 @@ export default function Onboarding() {
         }
       });
 
+      // Resolve the invited circle id (most-reliable-first). Only a real circle
+      // id activates the Welcome + Role steps + circle join; a bare invited_by
+      // referral does NOT — those users get the organic path and land on the hub.
+      let resolvedCircleId: string | null = null;
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('invited_via_circle_id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        resolvedCircleId =
+          (profile?.invited_via_circle_id as string | null) ??
+          getPendingAffiliate()?.circleId ??
+          (((currentUser.user_metadata as any)?.invited_via_circle_id as string | null) ?? null);
+      } catch {
+        // Fall back to the organic path if we can't resolve the circle.
+      }
+
+      if (resolvedCircleId) {
+        try {
+          const circle = await getCircleById(resolvedCircleId);
+          if (circle) setInvitedCircle(circle as Circle);
+        } catch {
+          // Couldn't load the circle — treat as organic.
+        }
+      }
+
       setLoading(false);
     };
 
@@ -144,9 +177,11 @@ export default function Onboarding() {
     );
   }
 
-  // Desktop: 5 onboarding steps + 2 circle steps (not counted). Mobile: 9 + 2.
+  // Desktop: 5 onboarding steps. Mobile: 9. Invited users get +2 circle steps
+  // (Welcome + Role); organic users stop after the onboarding steps.
   const onboardingStepCount = device === 'mobile' ? 9 : 5;
-  const totalSteps = device === 'mobile' ? 11 : 7;
+  const wasInvited = !!invitedCircle;
+  const totalSteps = onboardingStepCount + (wasInvited ? 2 : 0);
   const isCircleStep = currentStep > onboardingStepCount;
   const progress = (Math.min(currentStep, onboardingStepCount) / onboardingStepCount) * 100;
 
@@ -184,10 +219,15 @@ export default function Onboarding() {
       // Run the fade animation and save in parallel; navigate only after both finish.
       await Promise.all([
         new Promise(resolve => setTimeout(resolve, 700)),
-        completeOnboarding(finalData),
+        completeOnboarding(finalData, invitedCircle ? { joinCircleId: invitedCircle.id } : undefined),
       ]);
 
-      navigate('/home');
+      // Invited users land on the circle they joined; organic users land on the hub.
+      if (invitedCircle) {
+        navigate(circlePath(invitedCircle.abbreviation));
+      } else {
+        navigate('/home');
+      }
     } catch (error: any) {
       console.error('❌ Error completing onboarding:', error);
       setFadingOut(false);
@@ -210,7 +250,7 @@ export default function Onboarding() {
         case 7: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
         case 8: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="profilePicture" />;
         case 9: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} field="bio" />;
-        case 10: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} />;
+        case 10: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} circle={invitedCircle} />;
         case 11: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
         default: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
       }
@@ -222,7 +262,7 @@ export default function Onboarding() {
         case 3: return <InterestsStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
         case 4: return <ContactStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} />;
         case 5: return <ProfileStep data={data} updateData={updateData} onNext={nextStep} onPrev={prevStep} grouped />;
-        case 6: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} />;
+        case 6: return <WelcomeCircleStep onNext={nextStep} onPrev={prevStep} circle={invitedCircle} />;
         case 7: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
         default: return <RoleSelectionStep data={data} updateData={updateData} onComplete={handleComplete} onPrev={prevStep} />;
       }

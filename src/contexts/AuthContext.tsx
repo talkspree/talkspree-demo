@@ -3,6 +3,7 @@ import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { resetAdminAnywhereCache } from '@/lib/api/circles';
 
 export interface AffiliateSignupContext {
   invitedBy: string;
@@ -142,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .update({ is_online: false, in_call: false })
         .eq('id', user.id);
     }
+    resetAdminAnywhereCache();
     await supabase.auth.signOut();
   };
 

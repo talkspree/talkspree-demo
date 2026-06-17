@@ -145,15 +145,15 @@ export function CircleCard() {
     }
   };
 
-  const circleAbbr = circle?.abbreviation || circle?.invite_code || 'MTY';
+  const circleAbbr = circle?.abbreviation || circle?.invite_code || 'XXXX';
   // Personal affiliate invite link: every viewer sees a link with THEIR own
   // slug so any signups attributed to it record `invited_by = me`.
   const personalSlug = profileData.slug || 'invite';
   const circleData = {
-    name: circle?.name || "Mentor the Young",
+    name: circle?.name || "Your circle",
     members: totalMembers.toString(),
     online: onlineCount.toString(),
-    bio: circle?.description || "Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering...",
+    bio: circle?.description || "",
     inviteLink: `https://talkspree.com/${circleAbbr}/${personalSlug}`,
     logoUrl: circle?.logo_url || "",
     coverImageUrl: circle?.cover_image_url || "",

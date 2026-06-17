@@ -1,17 +1,9 @@
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ContactCard } from './ContactCard';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowUpDown, ChevronDown, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { getOrCreateDefaultCircle } from '@/lib/api/circles';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { circlePath } from '@/lib/navigation';
 
 interface Contact {
   id: number | string;
@@ -26,11 +18,11 @@ interface Contact {
 }
 
 interface Circle {
-  id: number;
+  id: string;
   name: string;
-  members: string;
-  online: string;
-  avatarUrl: string;
+  abbreviation: string;
+  logoUrl?: string;
+  coverUrl?: string;
   contacts: Contact[];
 }
 
@@ -45,27 +37,14 @@ interface ContactCircleSectionProps {
 
 export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange, onContactClick, loading = false }: ContactCircleSectionProps) {
   const navigate = useNavigate();
-  const [circleLogoUrl, setCircleLogoUrl] = useState<string>('');
-  const [circleCoverUrl, setCircleCoverUrl] = useState<string>('');
-  
+
   // Filter contacts based on search query
   const filteredContacts = circle.contacts.filter((contact) =>
     contact.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Fetch circle logo and cover
-  useEffect(() => {
-    const fetchCircleImages = async () => {
-      try {
-        const circleData = await getOrCreateDefaultCircle();
-        setCircleLogoUrl(circleData?.logo_url || '');
-        setCircleCoverUrl(circleData?.cover_image_url || '');
-      } catch (error) {
-        console.error('Error fetching circle images:', error);
-      }
-    };
-    fetchCircleImages();
-  }, []);
+  const circleLogoUrl = circle.logoUrl || '';
+  const circleCoverUrl = circle.coverUrl || '';
 
   if (filteredContacts.length === 0 && searchQuery) {
     return null;
@@ -122,10 +101,10 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
                   </div>
 
                   {/* Open Circle Button */}
-                  <Button 
+                  <Button
                     size="sm"
                     className="mt-6 bg-success hover:bg-success/90 text-success-foreground rounded-full px-6"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate(circlePath(circle.abbreviation))}
                   >
                     Open Circle
                   </Button>
@@ -173,53 +152,9 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
           {/* Contacts Grid */}
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-              {/* Desktop skeleton */}
-              <div className="hidden sm:flex w-full max-w-sm mx-auto rounded-2xl border-2 border-border bg-card p-4 flex-col items-center">
-                <div className="flex flex-col items-center text-center mt-2 mb-2 w-full">
-                  <Skeleton className="w-20 h-20 rounded-full mb-4" />
-                  <Skeleton className="h-5 w-32 mb-2" />
-                  <Skeleton className="h-3 w-16 mb-2" />
-                </div>
-                <div className="w-full px-2 mb-4 flex flex-col items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-4 rounded" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-4 w-4 rounded" />
-                    <Skeleton className="h-3 w-24" />
-                  </div>
-                </div>
-                <div className="h-px w-full bg-border mb-4" />
-                <div className="mb-3 px-10 w-full">
-                  <Skeleton className="h-9 w-full rounded-full" />
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                </div>
-              </div>
-              {/* Mobile skeleton */}
-              <div className="sm:hidden w-full rounded-2xl border-2 border-border bg-card px-3 py-3 flex flex-col gap-2">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="w-14 h-14 rounded-full shrink-0" />
-                  <div className="flex-1 flex flex-col gap-1.5">
-                    <Skeleton className="h-4 w-32" />
-                    <Skeleton className="h-3 w-12" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                  <Skeleton className="w-11 h-11 rounded-full shrink-0" />
-                </div>
-                <div className="h-px w-full bg-border" />
-                <div className="flex items-center justify-center gap-2">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                </div>
-              </div>
+              {[0, 1, 2, 3].map((i) => (
+                <ContactCardSkeleton key={i} delay={i * 80} />
+              ))}
             </div>
           ) : filteredContacts.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center px-6 gap-3">
@@ -241,6 +176,88 @@ export function ContactCircleSection({ circle, searchQuery, sortBy, onSortChange
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Skeleton components ─────────────────────────────────────────────────────
+
+const PULSE = { animationDuration: '1s' } as const;
+
+function ContactCardSkeleton() {
+  return (
+    <>
+      {/* Desktop */}
+      <div className="hidden sm:flex flex-col w-full max-w-sm mx-auto rounded-2xl border-2 border-border bg-card p-4 items-center animate-pulse" style={PULSE}>
+        <div className="w-20 h-20 rounded-full bg-muted mt-2 mb-4" />
+        <div className="h-5 w-32 rounded-md bg-muted mb-1.5" />
+        <div className="h-3 w-14 rounded-md bg-muted mb-4" />
+        <div className="w-full px-2 mb-4 flex flex-col items-center gap-2">
+          <div className="flex items-center gap-2">
+            <div className="h-3.5 w-3.5 rounded bg-muted" />
+            <div className="h-3 w-20 rounded-md bg-muted" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-3.5 w-3.5 rounded bg-muted" />
+            <div className="h-3 w-24 rounded-md bg-muted" />
+          </div>
+        </div>
+        <div className="h-px w-full bg-border mb-4" />
+        <div className="mb-3 px-10 w-full">
+          <div className="h-9 w-full rounded-full bg-muted" />
+        </div>
+        <div className="flex items-center justify-center gap-2">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="h-8 w-8 rounded-full bg-muted" />)}
+        </div>
+      </div>
+
+      {/* Mobile */}
+      <div className="sm:hidden w-full rounded-2xl border-2 border-border bg-card px-3 py-3 flex flex-col gap-2 animate-pulse" style={PULSE}>
+        <div className="flex items-center gap-3">
+          <div className="w-14 h-14 rounded-full bg-muted shrink-0" />
+          <div className="flex-1 flex flex-col gap-1.5">
+            <div className="h-4 w-32 rounded-md bg-muted" />
+            <div className="h-3 w-12 rounded-md bg-muted" />
+            <div className="h-3 w-20 rounded-md bg-muted" />
+          </div>
+          <div className="w-11 h-11 rounded-full bg-muted shrink-0" />
+        </div>
+        <div className="h-px w-full bg-border" />
+        <div className="flex items-center justify-center gap-2">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="h-8 w-8 rounded-full bg-muted" />)}
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function ContactSectionSkeleton() {
+  return (
+    <div className="border-2 border-border rounded-3xl p-6 bg-card shadow-apple-md">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-6 lg:divide-x divide-border">
+
+        {/* Left: simple circle placeholder */}
+        <div className="lg:px-2 animate-pulse" style={PULSE}>
+          <div className="h-5 w-14 rounded-md bg-muted mb-4" />
+          <div className="rounded-[2rem] border-2 border-border bg-card flex flex-col items-center py-10 gap-4">
+            <div className="w-24 h-24 rounded-full bg-muted" />
+            <div className="flex flex-col items-center gap-2">
+              <div className="h-5 w-36 rounded-md bg-muted" />
+              <div className="h-3 w-24 rounded-md bg-muted" />
+            </div>
+            <div className="h-9 w-32 rounded-full bg-muted mt-2" />
+          </div>
+        </div>
+
+        {/* Right: contacts grid */}
+        <div className="lg:pl-6 flex flex-col">
+          <div className="h-5 w-20 rounded-md bg-muted animate-pulse mb-4" style={PULSE} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {[0, 1, 2, 3].map((i) => <ContactCardSkeleton key={i} />)}
+          </div>
+        </div>
+
       </div>
     </div>
   );

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/home/Header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, ArrowLeft, ChevronDown } from 'lucide-react';
-import { ContactCircleSection } from '@/components/contacts/ContactCircleSection';
+import { Search, ArrowLeft, ChevronDown, Users } from 'lucide-react';
+import { ContactCircleSection, ContactSectionSkeleton } from '@/components/contacts/ContactCircleSection';
 import { connectionsManager, Connection } from '@/utils/connections';
+import { getMyCircles } from '@/lib/api/circles';
 import { useDevice } from '@/hooks/useDevice';
 import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
 import {
@@ -27,6 +28,8 @@ export default function Contacts() {
   const [selectedContact, setSelectedContact] = useState<Connection | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [seenContactIds, setSeenContactIds] = useState<string[]>([]);
+  const [myCircles, setMyCircles] = useState<any[]>([]);
+  const [loadingCircles, setLoadingCircles] = useState(true);
 
   // Load connections
   const loadConnections = async () => {
@@ -43,10 +46,25 @@ export default function Contacts() {
 
   useEffect(() => {
     loadConnections();
-    
+
     // Mark all contacts as seen in DB to clear the notification badge
     // This doesn't affect the card animations - those are tracked via localStorage
     connectionsManager.markAllDbSeen();
+  }, []);
+
+  // Load the circles the user actually belongs to (drives the sections + the
+  // "you haven't joined any circles yet" empty state).
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await getMyCircles();
+        setMyCircles(rows ?? []);
+      } catch (e) {
+        console.error('Failed to load circles for contacts', e);
+      } finally {
+        setLoadingCircles(false);
+      }
+    })();
   }, []);
 
   // Handle marking a contact as seen when clicked
@@ -121,10 +139,6 @@ export default function Contacts() {
   };
 
   const filteredContacts = getFilteredContacts();
-  
-  // Count online contacts from the connections list
-  const onlineCount = connections.filter(c => c.user.isOnline).length;
-  const totalMembers = connections.length;
 
   const handleContactClick = (contact: any) => {
     const fullConnection = connections.find(c => c.userId === contact.id);
@@ -136,17 +150,20 @@ export default function Contacts() {
     }
   };
 
-  // Single circle - Mentor the young
-  const circles = [
-    {
-      id: 1,
-      name: 'Mentor the Young',
-      members: totalMembers.toString(),
-      online: onlineCount.toString(),
-      avatarUrl: '',
-      contacts: filteredContacts,
-    },
-  ];
+  // One section per circle the user belongs to. Connections aren't circle-
+  // attributed yet, so (with a single circle today) they all sit under the
+  // first circle; per-circle attribution is a future refinement.
+  const circleSections = myCircles.map((m: any, idx: number) => {
+    const c = m.circles;
+    return {
+      id: c.id as string,
+      name: c.name as string,
+      abbreviation: c.abbreviation as string,
+      logoUrl: c.logo_url || '',
+      coverUrl: c.cover_image_url || '',
+      contacts: idx === 0 ? filteredContacts : [],
+    };
+  });
 
   return (
     <div className="min-h-screen bg-gradient-subtle px-6 lg:px-16">
@@ -158,7 +175,7 @@ export default function Contacts() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
             className="text-md"
           >
             <ArrowLeft className="h-20 w-20 mr-2" />
@@ -182,20 +199,36 @@ export default function Contacts() {
           </div>
         </div>
 
-        {/* Contacts by Circle */}
-        <div className="space-y-8">
-          {circles.map((circle) => (
-            <ContactCircleSection
-              key={circle.id}
-              circle={circle}
-              searchQuery={searchQuery}
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              onContactClick={handleContactClick}
-              loading={loadingContacts}
-            />
-          ))}
-        </div>
+        {/* Contacts by Circle (or empty state when not in any circle) */}
+        {(loadingCircles || loadingContacts) ? (
+          <div className="space-y-8">
+            <ContactSectionSkeleton />
+          </div>
+        ) : circleSections.length === 0 ? (
+          <div className="py-20 text-center flex flex-col items-center justify-center">
+            <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+              <Users className="text-muted-foreground" size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-foreground mb-1">No circles yet</h3>
+            <p className="text-sm text-muted-foreground font-medium px-4">
+              You haven't joined any circles yet.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {circleSections.map((circle) => (
+              <ContactCircleSection
+                key={circle.id}
+                circle={circle}
+                searchQuery={searchQuery}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+                onContactClick={handleContactClick}
+                loading={false}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Contact Detail Modal */}

@@ -31,7 +31,8 @@ export default function AffiliateInvite() {
     handledRef.current = true;
 
     const run = async () => {
-      if (!circleAbbrev || !userSlug) {
+      // `/circle/...` is a reserved app route (circle homepages), not an invite.
+      if (!circleAbbrev || !userSlug || circleAbbrev.toLowerCase() === 'circle') {
         navigate('/404', { replace: true });
         return;
       }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { navigateToActiveCircle } from '@/lib/navigation';
 
 export default function Countdown() {
   const navigate = useNavigate();
@@ -11,7 +12,7 @@ export default function Countdown() {
   // If the page was hard-refreshed and state is gone, redirect home safely.
   useEffect(() => {
     if (!matchedUser || !callId) {
-      navigate('/', { replace: true });
+      navigateToActiveCircle(navigate, undefined, { replace: true });
     }
   }, [matchedUser, callId, navigate]);
 

@@ -42,7 +42,7 @@ export function CircleCardPreview({ data, viewport }: Props) {
   // Preview only — `your-slug` is a static placeholder for the viewer's
   // 6-char personal slug. The real card on the homepage substitutes the
   // current user's actual slug from `useProfileData()`.
-  const inviteLink = `https://talkspree.com/${abbreviation || "MTY"}/your-slug`;
+  const inviteLink = `https://talkspree.com/${abbreviation || "XXXX"}/your-slug`;
 
   if (viewport === "mobile") {
     return (

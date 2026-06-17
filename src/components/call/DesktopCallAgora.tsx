@@ -1,13 +1,14 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { navigateToActiveCircle } from '@/lib/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserAvatar } from '@/components/common/UserAvatar';
 import { Bell, Video, VideoOff, Mic, MicOff, LogOut, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getOrCreateDefaultCircle } from '@/lib/api/circles';
+import { useCircle } from '@/contexts/CircleContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,7 +49,6 @@ export function DesktopCallAgora() {
   const [showEndCallModal, setShowEndCallModal] = useState(false);
   const [showUserLeftModal, setShowUserLeftModal] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
-  const [circleLogoUrl, setCircleLogoUrl] = useState<string>('');
   const endingCallRef = useRef(false);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -149,7 +149,7 @@ export function DesktopCallAgora() {
   // Redirect to home if state is missing (page refresh = connection lost)
   useEffect(() => {
     if (!callId || !matchedUser) {
-      navigate('/', { replace: true });
+      navigateToActiveCircle(navigate, undefined, { replace: true });
     }
   }, [callId, matchedUser, navigate]);
 
@@ -180,22 +180,14 @@ export function DesktopCallAgora() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCallEnded]);
 
-  const [onlineCount, setOnlineCount] = useState(0);
-
-  useEffect(() => {
-    (async () => {
-      const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_online', true);
-      setOnlineCount(count || 0);
-    })();
-    (async () => {
-      try {
-        const circle = await getOrCreateDefaultCircle();
-        setCircleLogoUrl(circle?.logo_url || '');
-      } catch { /* ignore */ }
-    })();
-  }, []);
-
-  const circleData = { name: 'Mentor the Young', members: onlineCount.toString(), avatar: circleLogoUrl };
+  // Branding reflects the call's circle (the active circle the user entered),
+  // not a hardcoded default. Member count is this circle's online members.
+  const { circle, memberCounts } = useCircle();
+  const circleData = {
+    name: circle?.name || 'Your circle',
+    members: (memberCounts?.online ?? 0).toString(),
+    avatar: circle?.logo_url || '',
+  };
 
   // ── Early return when state is missing ────────────────────────────────
   if (!callId || !matchedUser) {
@@ -203,7 +195,7 @@ export function DesktopCallAgora() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <p className="text-lg text-muted-foreground">No active call</p>
-          <Button onClick={() => navigate('/')} className="mt-4">Go Home</Button>
+          <Button onClick={() => navigateToActiveCircle(navigate)} className="mt-4">Go Home</Button>
         </div>
       </div>
     );
@@ -225,7 +217,7 @@ export function DesktopCallAgora() {
             <div className="flex items-center gap-3 bg-background text-foreground neu-concave px-4 py-2 rounded-full transition-all">
               <Avatar className="h-8 w-8 border border-border/50">
                 <AvatarImage src={circleData.avatar} />
-                <AvatarFallback className="bg-muted text-sm">M</AvatarFallback>
+                <AvatarFallback className="bg-muted text-sm">{circleData.name?.charAt(0)?.toUpperCase() || 'C'}</AvatarFallback>
               </Avatar>
               <span className="text-sm font-semibold">{circleData.name}</span>
               <div className="flex items-center gap-1.5 ml-2">

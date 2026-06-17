@@ -15,6 +15,7 @@ import { NotificationBell } from './NotificationBell';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfileData } from '@/hooks/useProfileData';
 import { useCircle } from '@/contexts/CircleContext';
+import { useIsAdminAnywhere } from '@/hooks/useIsAdminAnywhere';
 import { supabase } from '@/lib/supabase';
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ export function MobileHome() {
   const { signOut } = useAuth();
   const { profileData } = useProfileData();
   const { circle: contextCircle, role: circleRole, isAdmin, memberCounts, loading: roleLoading, reloadRole, unseenContactCount } = useCircle();
+  const { isAdminAnywhere } = useIsAdminAnywhere();
   const { totalUnread, openMobileMessenger } = useChat();
   const [showProfile, setShowProfile] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -95,13 +97,13 @@ export function MobileHome() {
 
   // Personal affiliate invite link: every viewer sees a link with THEIR own
   // slug so any signups attributed to it record `invited_by = me`.
-  const circleAbbr = contextCircle?.abbreviation || contextCircle?.invite_code || 'MTY';
+  const circleAbbr = contextCircle?.abbreviation || contextCircle?.invite_code || 'XXXX';
   const personalSlug = profileData.slug || 'invite';
   const circleData = {
-    name: contextCircle?.name || 'Mentor the Young',
+    name: contextCircle?.name || 'Your circle',
     members: totalMembers.toString(),
     online: onlineCount.toString(),
-    bio: contextCircle?.description || 'Mentor the Young Bulgaria is a nonprofit organization dedicated to empowering young individuals through mentorship programs. We connect experienced professionals with ambitious youth to foster personal and professional growth.',
+    bio: contextCircle?.description || '',
     inviteLink: `https://talkspree.com/${circleAbbr}/${personalSlug}`,
     logoUrl: contextCircle?.logo_url || '',
     socials: {
@@ -134,7 +136,7 @@ export function MobileHome() {
             className="pointer-events-none absolute inset-0 z-0 opacity-40 md:rounded-2xl"
             style={{ backgroundImage: `url(${headerPattern})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
           />
-          <button onClick={() => navigate('/')} className="focus:outline-none relative z-10">
+          <button onClick={() => navigate('/home')} className="focus:outline-none relative z-10">
             <img src={logo} alt="TalkSpree" className="h-5" />
           </button>
 
@@ -164,7 +166,7 @@ export function MobileHome() {
                 <DropdownMenuItem onClick={() => navigate('/settings')} className="cursor-pointer justify-center">
                   Settings
                 </DropdownMenuItem>
-                {isAdminRole && (
+                {isAdminAnywhere && (
                   <DropdownMenuItem
                     onClick={() => window.open('https://admin.talkspree.com', '_blank', 'noopener,noreferrer')}
                     className="cursor-pointer justify-center gap-2 my-1 rounded-md border border-border/60 bg-muted/60 text-muted-foreground focus:bg-muted focus:text-foreground"
